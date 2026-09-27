@@ -18,7 +18,7 @@ from shutil import which
 from typing import Final, cast
 
 import pytest
-from dagger import Container, Directory, Secret
+from dagger import Container, DaggerError, Directory, Secret
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
@@ -171,7 +171,8 @@ PROVIDER_MARKERS: Final = (
     "--cloudflare",
 )
 YAML_DEPENDENCY: Final = "ruamel-yaml>=0.18.16,<0.19.0"
-CENTRAL_SHA: Final = "dd19871486588b1582e432b7bc1f2cfffb296340"
+# hseshadr/ci main: merge of ci#51 (verified Pages rollback).
+CENTRAL_SHA: Final = "363be0b98c753c027353f35db0f6cc5b24402f78"
 FOUNDATION_MODULE: Final = f"github.com/hseshadr/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
 CLOUDFLARE_MODULE: Final = f"github.com/hseshadr/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
 REAL_PROVIDER_DEPENDENCIES: Final = (
@@ -195,7 +196,7 @@ MALFORMED_GUARD_CALL: Final = (
 PRETRANSPORT_SOURCE: Final = """\
 from dagger import dag, function, object_type
 
-SHA = "dd19871486588b1582e432b7bc1f2cfffb296340"
+SHA = "363be0b98c753c027353f35db0f6cc5b24402f78"
 COMMIT = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 REPOSITORY = "hseshadr/aml-filter"
 
@@ -554,11 +555,68 @@ class StoredProviderEvidenceRecorder:
         return "https://deployment.example.pages.dev"
 
 
+class ProductionRecorder:
+    """The read-only rollback target recorded before upload."""
+
+    def __init__(self, context: RecordedDelivery) -> None:
+        self.context = context
+
+    async def deployment_id(self) -> str:
+        self.context.events.append("materialize:previous-production")
+        if self.context.fail_target:
+            raise RuntimeError("previous production unreadable")
+        return "deployment-good"
+
+
+class RollbackRecorder:
+    """Verified rollback evidence, or the module's fail-closed refusal."""
+
+    def __init__(self, context: RecordedDelivery) -> None:
+        self.context = context
+
+    async def from_deployment_id(self) -> str:
+        self.context.events.append("materialize:rollback")
+        if self.context.fail_rollback:
+            raise RuntimeError("target is already live")
+        return "deployment-123"
+
+    async def to_deployment_id(self) -> str:
+        return "deployment-good"
+
+    async def live_deployment_id(self) -> str:
+        return "deployment-good"
+
+    async def live_deployment_url(self) -> str:
+        return "https://deployment-good.pages.dev"
+
+
 class ProviderRecorder:
     """Record exactly one generated-provider deploy call."""
 
     def __init__(self, context: RecordedDelivery) -> None:
         self.context = context
+
+    def previous_production_deployment(
+        self, token: Secret, account: Secret, project: str
+    ) -> ProductionRecorder:
+        assert (token, account, project) == (
+            self.context.api_token,
+            self.context.account_id,
+            "aml-filter",
+        )
+        self.context.events.append("construct:previous-production")
+        return ProductionRecorder(self.context)
+
+    def rollback(
+        self, token: Secret, account: Secret, project: str, *, deployment_id: str = ""
+    ) -> RollbackRecorder:
+        assert (token, account, project) == (
+            self.context.api_token,
+            self.context.account_id,
+            "aml-filter",
+        )
+        self.context.events.append(f"construct:rollback:{deployment_id}")
+        return RollbackRecorder(self.context)
 
     def deploy(self, *arguments: object) -> ProviderEvidenceRecorder:
         assert arguments[1:4] == (
@@ -592,6 +650,10 @@ class RecordedDelivery:
     profile: Directory = field(default_factory=lambda: cast(Directory, object()))
     prime_exit: int = 0
     smoke_exit: int = 0
+    recovery_exit: int = 0
+    fail_target: bool = False
+    fail_live: bool = False
+    fail_rollback: bool = False
 
 
 class DeliveryDagRecorder:
@@ -639,6 +701,8 @@ class ProductContainerRecorder:
 
     async def stdout(self) -> str:
         self.context.events.append("live" if self.label == "live" else "direct-upload")
+        if self.label == "live" and self.context.fail_live:
+            raise DaggerError("build.json git_sha 0000000 != expected release SHA")
         return "live product proof" if self.label == "live" else "legacy upload"
 
 
@@ -715,6 +779,11 @@ class ProductMethodRecorder:
         output = "[live-smoke fresh] UK_OFSI: Igor Ivanovich Sechin\nError: signature failed"
         return SmokeRun(self.context.smoke_exit, output)
 
+    async def recovery_smoke(self, source: Directory, identity: ReleaseIdentityLike) -> SmokeRun:
+        assert source is self.context.bound_source
+        self.context.events.append(f"recovery-smoke:{identity.source_sha}")
+        return SmokeRun(self.context.recovery_exit, "Error: recovery pass output")
+
     def direct_upload(
         self,
         source: Directory,
@@ -754,6 +823,7 @@ def install_product_recorders(
     monkeypatch.setattr(AmlFilter, "_live_verify", recorder.live_verify)
     monkeypatch.setattr(AmlFilter, "_prime_profile", recorder.prime_profile)
     monkeypatch.setattr(AmlFilter, "_post_deploy_smoke", recorder.post_deploy_smoke)
+    monkeypatch.setattr(AmlFilter, "_recovery_smoke", recorder.recovery_smoke)
     monkeypatch.setattr(AmlFilter, "_upload", recorder.direct_upload, raising=False)
     subject = object.__new__(AmlFilter)
     subject.source = cast(Directory, object())
@@ -2036,6 +2106,150 @@ async def test_should_prime_before_provider_and_smoke_after_live_verification(
 
 
 @pytest.mark.anyio
+async def test_should_record_the_rollback_target_before_upload_and_never_roll_back_green(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When
+    await subject._publish(recorded_request(context, ReleaseKind.CODE))
+
+    # Then
+    events = context.events
+    assert events.index("materialize:previous-production") < events.index("construct:deploy")
+    assert not any(event.startswith("construct:rollback") for event in events)
+    assert not any(event.startswith("recovery-smoke") for event in events)
+
+
+@pytest.mark.anyio
+async def test_should_refuse_to_upload_when_the_rollback_target_cannot_be_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.fail_target = True
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(RuntimeError, match="previous production unreadable"):
+        await subject._publish(recorded_request(context, ReleaseKind.CODE))
+    assert "construct:deploy" not in context.events
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("kind", [ReleaseKind.CODE, ReleaseKind.WATCHLIST])
+async def test_should_roll_back_to_the_recorded_target_and_recheck_live_on_smoke_failure(
+    monkeypatch: pytest.MonkeyPatch, kind: ReleaseKind
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.smoke_exit = 1
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then: production recovers, the job still fails.
+    with pytest.raises(LiveSmokeFailedError) as raised:
+        await subject._publish(recorded_request(context, kind))
+    events = context.events
+    assert events.index(f"smoke:{RECORDED_SHA}") < events.index(
+        "construct:rollback:deployment-good"
+    )
+    assert events.index("materialize:rollback") < events.index(f"recovery-smoke:{RECORDED_SHA}")
+    message = str(raised.value)
+    assert "rolled production back from deployment-123 to deployment-good" in message
+    assert "recovery smoke PASSED" in message
+
+
+@pytest.mark.anyio
+async def test_should_roll_back_once_when_live_identity_verification_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the live site serves the wrong commit or bundle after upload.
+    context = recorded_delivery()
+    context.fail_live = True
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(LiveSmokeFailedError) as raised:
+        await subject._publish(recorded_request(context, ReleaseKind.WATCHLIST))
+    events = context.events
+    assert events.count("construct:rollback:deployment-good") == 1
+    assert events.index("materialize:rollback") < events.index(f"recovery-smoke:{RECORDED_SHA}")
+    assert f"smoke:{RECORDED_SHA}" not in events
+    message = str(raised.value)
+    assert "live identity verification FAILED" in message
+    assert "build.json git_sha 0000000 != expected release SHA" in message
+    assert "rolled production back from deployment-123 to deployment-good" in message
+
+
+@pytest.mark.anyio
+async def test_should_roll_back_exactly_once_when_smoke_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.smoke_exit = 1
+    context.recovery_exit = 1
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(LiveSmokeFailedError):
+        await subject._publish(recorded_request(context, ReleaseKind.CODE))
+    rollbacks = [e for e in context.events if e.startswith("construct:rollback")]
+    assert rollbacks == ["construct:rollback:deployment-good"]
+
+
+@pytest.mark.anyio
+async def test_should_fail_loudly_when_production_is_still_broken_after_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.smoke_exit = 1
+    context.recovery_exit = 1
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(LiveSmokeFailedError, match="STILL BROKEN after rollback"):
+        await subject._publish(recorded_request(context, ReleaseKind.CODE))
+
+
+@pytest.mark.anyio
+async def test_should_demand_manual_rollback_when_automatic_rollback_refuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.smoke_exit = 1
+    context.fail_rollback = True
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(LiveSmokeFailedError, match="automatic rollback FAILED") as raised:
+        await subject._publish(recorded_request(context, ReleaseKind.CODE))
+    assert "deployment-123" in str(raised.value)
+    assert not any(event.startswith("recovery-smoke") for event in context.events)
+
+
+def test_should_compose_the_recovery_smoke_as_a_fresh_pass_on_the_live_domain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    subject, events = smoke_recorder(monkeypatch)
+
+    # When
+    subject._recovery_container(subject.source, release_identity(RECORDED_SHA, "9999"))
+
+    # Then: the restored release has an older SHA, so no identity pin.
+    assert "env:LIVE_SMOKE_URL=https://aml-filter.com" in events
+    assert "env:SMOKE_PASSES=@fresh" in events
+    assert "env:SMOKE_NONCE=9999:recovery" in events
+    assert not any("LIVE_SMOKE_EXPECT_SHA" in event for event in events)
+    assert events[-1].startswith("exec-any:bash -ceu")
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("kind", [ReleaseKind.CODE, ReleaseKind.WATCHLIST])
 async def test_should_fail_loudly_naming_the_deployment_when_live_smoke_fails(
     monkeypatch: pytest.MonkeyPatch, kind: ReleaseKind
@@ -2050,7 +2264,7 @@ async def test_should_fail_loudly_naming_the_deployment_when_live_smoke_fails(
         await subject._publish(recorded_request(context, kind))
     message = str(raised.value)
     assert "deployment-123 (https://deployment.example.pages.dev)" in message
-    assert "roll back" in message
+    assert "rolled production back" in message
     assert "Error: signature failed" in message
     assert "live" in context.events
 

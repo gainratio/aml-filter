@@ -8,8 +8,10 @@ from aml_filter.smoke import (
     MAX_FAILURE_LINES,
     SMOKE_LISTS,
     LiveSmokeFailedError,
+    RollbackOutcome,
     SmokeRun,
     prime_note,
+    recovery_failure,
     smoke_passes,
     smoke_verdict,
 )
@@ -96,3 +98,43 @@ def test_should_warn_loudly_when_priming_the_previous_release_failed() -> None:
     # Then
     assert note.startswith("WARNING: returning-visitor profile NOT primed (exit 1)")
     assert "Error: /settings refused: offline" in note
+
+
+RED_SMOKE = SmokeRun(1, "Error: live /screen boot failed closed: signature verification failed")
+ROLLED = RollbackOutcome("dep-bad", "dep-good", "dep-good", "https://dep-good.pages.dev")
+
+
+def test_should_report_recovery_when_rollback_restores_a_passing_release() -> None:
+    # When
+    error = recovery_failure(RED_SMOKE, "dep-bad", ROLLED, SmokeRun(0, "[live-smoke fresh] ok"))
+
+    # Then: production recovered, but the job must still fail for the bad release.
+    message = str(error)
+    assert isinstance(error, LiveSmokeFailedError)
+    assert "rolled production back from dep-bad to dep-good" in message
+    assert "live dep-good https://dep-good.pages.dev" in message
+    assert "recovery smoke PASSED" in message
+    assert "signature verification failed" in message
+    assert "STILL BROKEN" not in message
+
+
+def test_should_say_production_is_still_broken_when_recovery_smoke_fails() -> None:
+    # When
+    recovery = SmokeRun(1, "Error: UK_OFSI: onboarding must raise a potential match")
+    message = str(recovery_failure(RED_SMOKE, "dep-bad", ROLLED, recovery))
+
+    # Then
+    assert "recovery smoke FAILED (exit 1)" in message
+    assert "production is STILL BROKEN after rollback" in message
+    assert "UK_OFSI: onboarding must raise a potential match" in message
+    assert "signature verification failed" in message
+
+
+def test_should_demand_a_manual_rollback_when_automatic_rollback_fails() -> None:
+    # When
+    message = str(recovery_failure(RED_SMOKE, "dep-bad", "target is already live", None))
+
+    # Then
+    assert "automatic rollback FAILED: target is already live" in message
+    assert "roll back to the previous production deployment by hand now" in message
+    assert "recovery smoke" not in message

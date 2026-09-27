@@ -34,7 +34,15 @@ from .policy import (
     whole_bundle_fallback_days,
 )
 from .queue import TurnPolicy, fetch_runs, parse_run_id, wait_for_turn
-from .smoke import SMOKE_LISTS, SmokeRun, prime_note, smoke_passes, smoke_verdict
+from .smoke import (
+    SMOKE_LISTS,
+    RollbackOutcome,
+    SmokeRun,
+    prime_note,
+    recovery_failure,
+    smoke_passes,
+    smoke_verdict,
+)
 from .targets import AmlTarget, GreenMainEvidence, ProviderIdentity, parse_green_main
 
 NODE_IMAGE: Final = (
@@ -46,7 +54,8 @@ UV_IMAGE: Final = (
 )
 EDGEPROC_REPO: Final = "https://github.com/hseshadr/edge-proc"
 EDGEPROC_COMMIT: Final = "e3bfb570feb8619c823df63b6c012fd8c8c6a9b6"
-CENTRAL_MODULE_SHA: Final = "dd19871486588b1582e432b7bc1f2cfffb296340"
+# hseshadr/ci main: merge of ci#51 (verified Pages rollback).
+CENTRAL_MODULE_SHA: Final = "363be0b98c753c027353f35db0f6cc5b24402f78"
 TARGET: Final = AmlTarget.production()
 REPOSITORY: Final = TARGET.repository
 REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
@@ -198,6 +207,16 @@ class ProviderRequest:
     producing_identity: str
     workflow_run_id: str
     run_attempt: int
+
+
+@dataclass(frozen=True)
+class RecoveryPlan:
+    """What a red post-deploy smoke needs to restore production and prove it."""
+
+    request: PublishRequest
+    target: str
+    source: Directory
+    identity: ReleaseIdentity
 
 
 class ReleaseSourceMismatchError(ValueError):
@@ -360,6 +379,74 @@ class AmlFilter:
     ) -> SmokeRun:
         return await smoke_run(self._post_deploy_container(source, profile, identity))
 
+    def _recovery_container(self, source: Directory, identity: ReleaseIdentity) -> Container:
+        """Fresh pass against the live domain after a rollback (older SHA: no pin)."""
+        passes = smoke_passes(returning=False)
+        container = self._smoke_base(source, passes, f"{identity.run_id}:recovery")
+        return container.with_exec(["bash", "-ceu", SMOKE_SCRIPT], expect=ReturnType.ANY)
+
+    async def _checked_live(
+        self, source: Directory, release: Directory, identity: ReleaseIdentity
+    ) -> SmokeRun:
+        """Live identity proof; a mismatch is a failed post-deploy check, not a crash.
+
+        Production already serves the upload here, so a wrong commit or bundle must
+        take the same single rollback path as a red smoke.
+        """
+        try:
+            return SmokeRun(0, await self._live_verify(source, release, identity).stdout())
+        except dagger.DaggerError as error:
+            return SmokeRun(1, f"live identity verification FAILED: {error}")
+
+    async def _post_deploy_checks(
+        self, source: Directory, release: Directory, profile: Directory, identity: ReleaseIdentity
+    ) -> tuple[SmokeRun, SmokeRun]:
+        """Identity first; a mismatch IS the failed check (the smoke would pin it anyway)."""
+        live = await self._checked_live(source, release, identity)
+        if live.exit_code:
+            return live, live
+        return live, await self._post_deploy_smoke(source, profile, identity)
+
+    async def _recovery_smoke(self, source: Directory, identity: ReleaseIdentity) -> SmokeRun:
+        return await smoke_run(self._recovery_container(source, identity))
+
+    @staticmethod
+    async def _rollback_target(request: PublishRequest) -> str:
+        """Read-only, BEFORE upload: the deployment a failed smoke restores."""
+        pages = dag.cloudflare_pages()
+        before = pages.previous_production_deployment(
+            request.api_token, request.account_id, TARGET.project
+        )
+        return await before.deployment_id()
+
+    @staticmethod
+    async def _rollback(plan: RecoveryPlan) -> RollbackOutcome | str:
+        """Restore the recorded target; a fail-closed refusal becomes its reason."""
+        request = plan.request
+        rolled = dag.cloudflare_pages().rollback(
+            request.api_token, request.account_id, TARGET.project, deployment_id=plan.target
+        )
+        try:
+            return RollbackOutcome(
+                await rolled.from_deployment_id(), await rolled.to_deployment_id(),
+                await rolled.live_deployment_id(), await rolled.live_deployment_url(),
+            )  # fmt: skip
+        except (dagger.DaggerError, RuntimeError) as error:
+            return str(error)
+
+    async def _verdict_or_recover(
+        self, smoke: SmokeRun, provider: ProviderIdentity, plan: RecoveryPlan
+    ) -> str:
+        """Green: evidence. Red: roll back, re-check live, and fail loudly either way."""
+        if smoke.exit_code == 0:
+            return smoke_verdict(smoke, provider.deployment_id, provider.deployment_url)
+        rollback = await self._rollback(plan)
+        recovery = None
+        if not isinstance(rollback, str):
+            recovery = await self._recovery_smoke(plan.source, plan.identity)
+        deployment = f"{provider.deployment_id} ({provider.deployment_url})"
+        raise recovery_failure(smoke, deployment, rollback, recovery)
+
     def _shared_guard(self, source: Directory, commit_sha: str) -> Container:
         """Build the exact-SHA Foundation repository guard."""
         return dag.foundation().guard(
@@ -451,12 +538,14 @@ class AmlFilter:
         self._require_matching_source(identity, context)
         release, app = await self._build_publication(request, context, identity)
         profile, primed = await self._prime_profile(context.source, identity)
+        target = await self._rollback_target(request)
         provider_request = self._provider_request(app, context)
         provider = await self._deliver(provider_request, request)
-        live = await self._live_verify(context.source, release, identity).stdout()
-        smoke = await self._post_deploy_smoke(context.source, profile, identity)
-        verdict = smoke_verdict(smoke, provider.deployment_id, provider.deployment_url)
-        return self._deployment_result(provider, f"{live}\n{prime_note(primed)}\n{verdict}")
+        live, smoke = await self._post_deploy_checks(context.source, release, profile, identity)
+        plan = RecoveryPlan(request, target, context.source, identity)
+        verdict = await self._verdict_or_recover(smoke, provider, plan)
+        proof = f"{live.output}\n{prime_note(primed)}\n{verdict}"
+        return self._deployment_result(provider, proof)
 
     @function
     async def ci(self, commit_sha: str) -> str:
