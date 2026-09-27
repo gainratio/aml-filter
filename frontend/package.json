@@ -16,7 +16,7 @@
 		"publish-list": "pnpm --filter @amlfilter/publisher run publish"
 	},
 	"devDependencies": {
-		"jsdom": "^30.1.0",
-		"wrangler": "4.135.0"
+		"jsdom": "^30.1.1",
+		"wrangler": "4.139.0"
 	}
 }
