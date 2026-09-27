@@ -21,6 +21,7 @@ import { CacheRecovery } from "../components/CacheRecovery";
 import { Footer } from "../components/Footer";
 import { formatBytes } from "../lib/formatBytes";
 import { listAge } from "../lib/listAge";
+import { listName } from "../lib/plainLabels";
 import {
 	type BundleCacheRecovery,
 	bootErrorMessage,
@@ -32,6 +33,12 @@ import {
 import { DossierCard, dossierFromMatch } from "./DossierCard";
 import { EntityDirectory } from "./EntityDirectory";
 import {
+	initialScreenScope,
+	type ScreenScope,
+	screenSelection,
+	US_LIST_ID,
+} from "./screenScope";
+import {
 	LEVEL,
 	partitionForPresentation,
 	passesStrictness,
@@ -40,9 +47,10 @@ import {
 	type StrictnessLevel,
 } from "./strictness";
 
-// The backend-free OFAC screening page. On mount it fetches the signed JSON
-// watchlist (ed25519-verified, fail-closed) and warms the MiniLM embedder in a
-// Web Worker; then it SEARCHES the verified list entirely in-tab as you type.
+// The backend-free screening page. On mount it syncs the signed watchlist
+// bundle (ed25519-verified, fail-closed) and warms the MiniLM embedder in a
+// Web Worker; then it SEARCHES the verified lists entirely in-tab as you type.
+// Which lists depends on the device — see ./screenScope.
 // No FastAPI on this path. With an empty box it browses the whole list so a
 // visitor immediately sees who is on it; typing surfaces ranked matches with a
 // full dossier + the explainable score. The admin pages keep their own
@@ -98,24 +106,13 @@ export const SEARCH_K = 25;
 const DEBOUNCE_MS = 180;
 
 /**
- * The ONE list this public route screens against.
- *
- * The boot scope and the age line below it read the SAME constant, so the page
- * can never state the age of a list it did not actually load. `label` is the
- * fallback name used when the catalog read itself fails — a proper noun, not
- * copy, which is why it is not in the translation catalogue.
- */
-const SCREENED_LIST = { id: "OFAC_SDN", label: "OFAC SDN" } as const;
-
-/**
- * The age line for the list being screened against: which list, how old its
+ * The age line for one list being screened against: which list, how old its
  * data is, and — when the publisher could not refresh it — why.
  *
- * WHY THIS IS ON THE PUBLIC PAGE. The lede promises a match "against the public
- * OFAC sanctions list" and the boot banner ends on "List verified." Readers take
- * that as a statement about the DATA; it is only a statement about the
- * signature. A perfectly-signed three-day-old list is still three days old, and
- * this route has no list selector to hang that fact off, so it goes here.
+ * WHY THIS IS ON THE PUBLIC PAGE. The boot banner ends on "List verified."
+ * Readers take that as a statement about the DATA; it is only a statement about
+ * the signature. A perfectly-signed three-day-old list is still three days old,
+ * so each list the search covers states its own age here.
  *
  * An age that cannot be read says so. It never falls back to silence, because
  * silence next to "List verified." reads as "current".
@@ -126,9 +123,9 @@ const SCREENED_LIST = { id: "OFAC_SDN", label: "OFAC SDN" } as const;
  */
 function screenedListAge(
 	list: CatalogListInfo | null,
+	label: string,
 	t: TFunction,
 ): { readonly text: string; readonly stale: boolean } {
-	const label = list?.title ?? SCREENED_LIST.label;
 	const age = list === null ? null : listAge(list.fetchedAt);
 	if (list === null || age === null) {
 		return { text: t("list.ageUnknown", { list: label }), stale: true };
@@ -152,19 +149,27 @@ function screenedListAge(
 	return { text, stale: true };
 }
 
-/** The pinned list's catalog entry, or `null` when it cannot be read — a catalog
- * failure or an id the catalog does not carry both mean "we cannot state this
- * list's age", which is the same honest answer. Never throws: a page that can
+/** The signed catalog's lists, or `null` when it cannot be read — which the page
+ * states as "age unknown", the honest answer. Never throws: a page that can
  * screen must still screen. */
-async function readScreenedList(
+async function readCatalog(
 	runtime: EngineRuntime,
-): Promise<CatalogListInfo | null> {
+): Promise<ReadonlyArray<CatalogListInfo> | null> {
 	try {
-		const lists = await runtime.catalogLists();
-		return lists.find((list) => list.id === SCREENED_LIST.id) ?? null;
+		return await runtime.catalogLists();
 	} catch {
 		return null;
 	}
+}
+
+/** The catalog lists a scope actually loads (the runtime loads catalog ∩ enabled). */
+function scopedLists(
+	catalog: ReadonlyArray<CatalogListInfo>,
+	scope: ScreenScope,
+): ReadonlyArray<CatalogListInfo> {
+	return scope === "us-only"
+		? catalog.filter((list) => list.id === US_LIST_ID)
+		: catalog;
 }
 
 /** Renders {@link screenedListAge}. The stale form takes `role="alert"` because
@@ -173,12 +178,14 @@ async function readScreenedList(
  * The ⚠ is decorative — the warning is carried by the words. */
 function ScreenedListAge({
 	list,
+	label,
 	t,
 }: {
 	readonly list: CatalogListInfo | null;
+	readonly label: string;
 	readonly t: TFunction;
 }) {
-	const age = screenedListAge(list, t);
+	const age = screenedListAge(list, label, t);
 	return (
 		<p
 			className={
@@ -192,6 +199,79 @@ function ScreenedListAge({
 				</span>
 			)}
 			{age.text}
+		</p>
+	);
+}
+
+/** One age line per list the search covers; one "age unknown" line when the
+ * catalog could not be read, or when the pinned US list is missing from it. */
+function ListAges({
+	catalog,
+	scope,
+	t,
+}: {
+	readonly catalog: ReadonlyArray<CatalogListInfo> | null;
+	readonly scope: ScreenScope;
+	readonly t: TFunction;
+}) {
+	const lists = catalog === null ? [] : scopedLists(catalog, scope);
+	if (lists.length === 0) {
+		const label =
+			scope === "us-only" ? listName(US_LIST_ID, t) : t("scope.listsLabel");
+		return <ScreenedListAge list={null} label={label} t={t} />;
+	}
+	return (
+		<>
+			{lists.map((list) => (
+				<ScreenedListAge
+					key={list.id}
+					list={list}
+					label={listName(list.id, t, list.title)}
+					t={t}
+				/>
+			))}
+		</>
+	);
+}
+
+/** Says which lists the search covers. On a phone that starts US-only, it offers
+ * the one-tap switch to every list and says what that costs. */
+function ScopeLine({
+	catalog,
+	scope,
+	onIncludeAll,
+	t,
+}: {
+	readonly catalog: ReadonlyArray<CatalogListInfo> | null;
+	readonly scope: ScreenScope;
+	readonly onIncludeAll: () => void;
+	readonly t: TFunction;
+}) {
+	if (scope === "us-only") {
+		return (
+			<p className="screen-scope">
+				{t("scope.usOnly")}{" "}
+				<button
+					type="button"
+					className="screen-scope__include-all"
+					onClick={onIncludeAll}
+				>
+					{catalog === null
+						? t("scope.includeAllUnknown")
+						: t("scope.includeAll", { count: catalog.length })}
+				</button>
+			</p>
+		);
+	}
+	const names = (catalog ?? []).map((l) => listName(l.id, t, l.title));
+	return (
+		<p className="screen-scope">
+			{names.length === 0
+				? t("scope.allUnknown")
+				: t("scope.all", { count: names.length, names: names.join(", ") })}
+			{scope === "all-lists-streaming" && (
+				<span className="screen-scope__note"> {t("scope.streamingNote")}</span>
+			)}
 		</p>
 	);
 }
@@ -255,13 +335,21 @@ export function ScreenPage() {
 	const [strictness, setStrictness] = useState<Strictness>("balanced");
 	const [entities, setEntities] = useState<ReadonlyArray<Entity>>([]);
 	const [search, setSearch] = useState<SearchOutcome | null>(null);
-	// The pinned list's catalog entry. `undefined` means "not read yet" and shows
+	// Which lists the search covers (see ./screenScope). Held in a ref too, so
+	// the once-only boot effect reads the current scope without re-firing.
+	const [scope, setScope] = useState<ScreenScope>(() => initialScreenScope());
+	const scopeRef = useRef(scope);
+	scopeRef.current = scope;
+	// The signed catalog's lists. `undefined` means "not read yet" and shows
 	// nothing; `null` means "read and unavailable" and shows "age unknown". The
 	// distinction matters — flashing a stale-age warning during boot would train
 	// people to ignore the one that is real.
-	const [screenedList, setScreenedList] = useState<
-		CatalogListInfo | null | undefined
+	const [catalog, setCatalog] = useState<
+		ReadonlyArray<CatalogListInfo> | null | undefined
 	>(undefined);
+	// The screen in flight, so a new query waits for it and a superseded one is
+	// skipped rather than queued (a streaming search takes seconds).
+	const inflight = useRef<Promise<void>>(Promise.resolve());
 	// Bumped by Retry: it resets the boot guard and re-fires the boot effect so a
 	// boot that timed out (stalled CDN) can be re-attempted from the error banner.
 	const [bootNonce, setBootNonce] = useState(0);
@@ -323,31 +411,31 @@ export function ScreenPage() {
 		started.current = true;
 		const config = configFromEnv(import.meta.env);
 		runtime
-			// The public route promises OFAC screening. Eagerly materialize that ONE
-			// bounded list so "Ready" means the SQLite Worker, sqlite-vector runtime,
-			// and vectors are already local; typing a name can never trigger a network
-			// request. We still avoid eagerly materializing every catalog list, which
-			// exceeds iOS Safari's tab/WASM budget. The workstation/settings flow
-			// remains the configurable multi-list surface.
-			.bootstrap(config, (stage) => setPhase({ kind: "booting", stage }), {
-				enabledLists: [SCREENED_LIST.id],
-				residency: "eager",
-			})
+			// Eagerly materialize the scope's lists so "Ready" means the SQLite
+			// Worker, sqlite-vector runtime, and vectors are already local; typing a
+			// name can never trigger a network request. A phone starts on the one
+			// bounded US list — every list eagerly exceeds iOS Safari's tab/WASM
+			// budget (PR #71) — until the visitor opts in to all of them.
+			.bootstrap(
+				config,
+				(stage) => setPhase({ kind: "booting", stage }),
+				screenSelection(scopeRef.current),
+			)
 			.then(async () => {
 				if (!alive.current) {
 					return;
 				}
 				setEntities(runtime.engine()?.allEntities() ?? []);
 				setPhase({ kind: "ready" });
-				// The signed catalog already carries this list's age; read it so the
+				// The signed catalog already carries each list's age; read it so the
 				// page can state it. Failing to read it is NOT fatal to screening —
 				// but it must show as "age unknown", never as silence next to
 				// "List verified."
-				const list = await readScreenedList(runtime);
+				const lists = await readCatalog(runtime);
 				// Re-check: the await above is a second chance to unmount, and this
 				// runs after the page is already interactive.
 				if (alive.current) {
-					setScreenedList(list);
+					setCatalog(lists);
 				}
 			})
 			.catch((error: unknown) => {
@@ -373,9 +461,38 @@ export function ScreenPage() {
 		started.current = false;
 		setPhase({ kind: "booting", stage: { kind: "downloading" } });
 		// Forget the previous attempt's age: re-reading it is part of re-booting.
-		setScreenedList(undefined);
+		setCatalog(undefined);
 		setBootNonce((n) => n + 1);
 	}, []);
+
+	// A phone's one-tap switch from US-only to every list. It rebuilds the engine
+	// over the SAME warm model with bounded streaming residency (one list's
+	// vectors resident at a time), so it never holds all four at once.
+	const includeAllLists = useCallback(() => {
+		setScope("all-lists-streaming");
+		setPhase({
+			kind: "booting",
+			stage: { kind: "verified", version: runtime.version() ?? "" },
+		});
+		runtime
+			.reload(screenSelection("all-lists-streaming"))
+			.then(() => {
+				if (alive.current) {
+					setEntities(runtime.engine()?.allEntities() ?? []);
+					setPhase({ kind: "ready" });
+				}
+			})
+			.catch((error: unknown) => {
+				if (alive.current) {
+					setPhase({
+						kind: "error",
+						message: bootErrorMessage(error),
+						detail: userFacingBootError(error),
+						recovery: bundleCacheRecovery(error),
+					});
+				}
+			});
+	}, [runtime]);
 
 	const runSearch = useCallback(
 		async (text: string, dobIso: string) => {
@@ -385,6 +502,16 @@ export function ScreenPage() {
 			}
 			const level = LEVEL[strictness];
 			const mine = ++seq.current;
+			const previous = inflight.current;
+			let done: () => void = () => {};
+			inflight.current = new Promise<void>((resolve) => {
+				done = resolve;
+			});
+			await previous;
+			if (mine !== seq.current) {
+				done();
+				return;
+			}
 			try {
 				const result = await engine.screen({
 					name: text,
@@ -415,6 +542,8 @@ export function ScreenPage() {
 						message: t("results.searchError", { detail: errorDetail(error) }),
 					});
 				}
+			} finally {
+				done();
 			}
 		},
 		[runtime, strictness, t],
@@ -441,12 +570,20 @@ export function ScreenPage() {
 
 			<BootBanner
 				phase={phase}
-				onRetry={retryBoot}
+				onRetry={scope === "all-lists-streaming" ? includeAllLists : retryBoot}
 				onClearCache={() => runtime.clearListCache()}
 			/>
 
-			{phase.kind === "ready" && screenedList !== undefined && (
-				<ScreenedListAge list={screenedList} t={t} />
+			{phase.kind === "ready" && catalog !== undefined && (
+				<>
+					<ScopeLine
+						catalog={catalog}
+						scope={scope}
+						onIncludeAll={includeAllLists}
+						t={t}
+					/>
+					<ListAges catalog={catalog} scope={scope} t={t} />
+				</>
 			)}
 
 			<input

@@ -152,9 +152,17 @@ describe("README contract", () => {
 		expect(tryIt).toContain("](docs/assets/screen-putin.png)");
 	});
 
-	it("says the search page checks only the US list", () => {
-		// ScreenPage.tsx screens OFAC_SDN only; all four lists run on Customers.
-		expect(readme).toContain("The search page checks only the US list (OFAC).");
+	// CONTRACT CHANGE: this pinned "The search page checks only the US list
+	// (OFAC)." The search page now covers every list on a computer and starts a
+	// phone on OFAC with a one-tap switch (pages/screenScope.ts).
+	it("says the search page checks all four lists, and what a phone does", () => {
+		expect(readme).toContain(
+			"On a computer the search page checks all four lists, and each result names its list.",
+		);
+		expect(readme).toContain(
+			"On a phone it starts with the US list (OFAC) to save memory; tap **Search all 4 lists** to add the rest.",
+		);
+		expect(readme).not.toContain("checks only the US list");
 	});
 
 	it("never claims the app works with no network", () => {

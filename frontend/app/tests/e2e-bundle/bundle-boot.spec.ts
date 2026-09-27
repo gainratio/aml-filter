@@ -113,13 +113,14 @@ test("boots over the signed bundle and screens the committed demo entity", async
 		0,
 	);
 
-	// --- DOB query yields a dob_match signal (the published DOB for this entity) ---
+	// --- DOB query yields a date-of-birth signal (the published DOB for this entity) ---
 	await page.locator("#screen-dob-input").fill("1971-03-14");
 	const dobCard = scoredCard(page);
 	await expect(dobCard).toBeVisible({ timeout: RESULT_TIMEOUT_MS });
 	await expect(dobCard).toContainText("1971-03-14");
 	await expect(
-		dobCard.locator(".match-card__signal dt", { hasText: /dob/i }),
+		// The signal is labelled in plain words; the code stays `dob_match`.
+		dobCard.locator(".match-card__signal dt", { hasText: /date of birth/i }),
 	).toHaveCount(1, { timeout: RESULT_TIMEOUT_MS });
 
 	// --- negative: nonsense yields a clean no-match ---

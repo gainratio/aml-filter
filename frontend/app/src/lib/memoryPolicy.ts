@@ -38,6 +38,22 @@ export function browserMemorySignals(): BrowserMemorySignals {
 }
 
 /**
+ * A phone or tablet browser. iPadOS desktop-mode Safari identifies itself as
+ * Macintosh, so touch points are part of the check. Memory is deliberately NOT a
+ * signal here: Chrome caps `navigator.deviceMemory` at 8, so it cannot tell a
+ * big desktop from a small one.
+ */
+export function isMobileBrowser(
+	signals: BrowserMemorySignals = browserMemorySignals(),
+): boolean {
+	const ua = signals.userAgent;
+	const mobileUserAgent = /Android|iPhone|iPod|Mobile/i.test(ua);
+	const ipadDesktopMode =
+		/Macintosh/i.test(ua) && (signals.maxTouchPoints ?? 0) > 1;
+	return mobileUserAgent || ipadDesktopMode;
+}
+
+/**
  * Select bounded residency for mobile-capable or explicitly low-memory browsers.
  * iPadOS desktop-mode Safari identifies itself as Macintosh, so touch points are
  * part of the check. Unknown desktop environments stream conservatively because
@@ -46,10 +62,6 @@ export function browserMemorySignals(): BrowserMemorySignals {
 export function residencyForBrowser(
 	signals: BrowserMemorySignals = browserMemorySignals(),
 ): EngineResidency {
-	const ua = signals.userAgent;
-	const mobileUserAgent = /Android|iPhone|iPod|Mobile/i.test(ua);
-	const ipadDesktopMode =
-		/Macintosh/i.test(ua) && (signals.maxTouchPoints ?? 0) > 1;
 	const memory = signals.deviceMemory;
 	const lowMemory =
 		memory !== undefined &&
@@ -60,7 +72,7 @@ export function residencyForBrowser(
 		memory !== undefined &&
 		Number.isFinite(memory) &&
 		memory > STREAMING_DEVICE_MEMORY_GB;
-	return mobileUserAgent || ipadDesktopMode || lowMemory || !highMemoryDesktop
+	return isMobileBrowser(signals) || lowMemory || !highMemoryDesktop
 		? "streaming"
 		: "eager";
 }

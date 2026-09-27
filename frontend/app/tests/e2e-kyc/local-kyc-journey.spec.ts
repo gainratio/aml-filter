@@ -164,9 +164,11 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	// score; an exact self-match sits at the STRONG/POSSIBLE boundary, so
 	// assert a real tier badge rather than hardcoding the band.
 	await expect(
-		row.locator(".badge", { hasText: /^(STRONG|POSSIBLE)$/ }),
+		row.locator(".badge", { hasText: /^(Strong|Possible)$/ }),
 	).toBeVisible();
-	await expect(row.locator(".badge", { hasText: "PENDING" })).toBeVisible();
+	await expect(
+		row.locator(".badge", { hasText: "Needs review" }),
+	).toBeVisible();
 	await expect(row).toContainText(SANCTIONED_NAME);
 
 	// =======================================================================
@@ -182,9 +184,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 		.getByRole("textbox", { name: new RegExp(`Notes for ${CUSTOMER_REF}`) })
 		.fill(REVIEW_NOTES);
 	await row.getByRole("button", { name: "Resolve" }).click();
-	await expect(
-		row.locator(".badge", { hasText: "FALSE_POSITIVE" }),
-	).toBeVisible();
+	await expect(row.locator(".badge", { hasText: "Not a match" })).toBeVisible();
 	await expect(row).toContainText(ANALYST);
 
 	// =======================================================================
@@ -194,7 +194,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	const reloadedRow = page.locator("tbody tr", { hasText: CUSTOMER_REF });
 	await expect(reloadedRow).toBeVisible();
 	await expect(
-		reloadedRow.locator(".badge", { hasText: "FALSE_POSITIVE" }),
+		reloadedRow.locator(".badge", { hasText: "Not a match" }),
 	).toBeVisible();
 	await expect(reloadedRow).toContainText(ANALYST);
 	await expect(reloadedRow).toContainText(REVIEW_NOTES);
@@ -249,7 +249,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	const rescannedRow = page.locator("tbody tr", { hasText: CUSTOMER_REF });
 	await expect(rescannedRow).toBeVisible();
 	await expect(
-		rescannedRow.locator(".badge", { hasText: "FALSE_POSITIVE" }),
+		rescannedRow.locator(".badge", { hasText: "Not a match" }),
 	).toBeVisible();
 	await expect(rescannedRow).toContainText(ANALYST);
 	await expect(rescannedRow).toContainText(REVIEW_NOTES);
@@ -259,7 +259,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	const afterRescanReload = page.locator("tbody tr", { hasText: CUSTOMER_REF });
 	await expect(afterRescanReload).toBeVisible();
 	await expect(
-		afterRescanReload.locator(".badge", { hasText: "FALSE_POSITIVE" }),
+		afterRescanReload.locator(".badge", { hasText: "Not a match" }),
 	).toBeVisible();
 	await expect(afterRescanReload).toContainText(REVIEW_NOTES);
 
@@ -315,7 +315,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	// Still suppressed as FALSE_POSITIVE — the unchanged re-screen did not
 	// re-open it, and it is NOT flagged CHANGED.
 	await expect(
-		unchangedRow.locator(".badge", { hasText: "FALSE_POSITIVE" }),
+		unchangedRow.locator(".badge", { hasText: "Not a match" }),
 	).toBeVisible();
 	await expect(unchangedRow).not.toContainText("CHANGED — needs re-review");
 	// No NEW pending alert was raised for this customer by the unchanged rescan.
@@ -332,8 +332,8 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 		.getByRole("button", { name: `History for ${CUSTOMER_REF}` })
 		.click();
 	const historyA = page.locator("tbody tr:has(li)");
-	await expect(historyA.getByText("DETECTED")).toBeVisible();
-	await expect(historyA.getByText("DISPOSITIONED")).toBeVisible();
+	await expect(historyA.getByText("Match found")).toBeVisible();
+	await expect(historyA.getByText("Decision recorded")).toBeVisible();
 	// Collapse the drawer again before moving on.
 	await unchangedRow
 		.getByRole("button", { name: `History for ${CUSTOMER_REF}` })
@@ -382,7 +382,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	await expect(changedRow.getByText("CHANGED — needs re-review")).toBeVisible();
 	// It still carries the prior FALSE_POSITIVE disposition while flagged CHANGED.
 	await expect(
-		changedRow.locator(".badge", { hasText: "FALSE_POSITIVE" }),
+		changedRow.locator(".badge", { hasText: "Not a match" }),
 	).toBeVisible();
 
 	// History before re-disposition: the prior DISPOSITIONED (FALSE_POSITIVE)
@@ -391,9 +391,9 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 		.getByRole("button", { name: `History for ${CUSTOMER_REF}` })
 		.click();
 	const changedHistory = page.locator("tbody tr:has(li)");
-	await expect(changedHistory.getByText("DISPOSITIONED")).toBeVisible();
+	await expect(changedHistory.getByText("Decision recorded")).toBeVisible();
 	await expect(
-		changedHistory.locator("li", { hasText: "CHANGED" }),
+		changedHistory.locator("li", { hasText: "Details changed" }),
 	).toBeVisible();
 	await changedRow
 		.getByRole("button", { name: `History for ${CUSTOMER_REF}` })
@@ -454,10 +454,10 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 		.click();
 	const reReviewHistory = page.locator("tbody tr:has(li)");
 	await expect(
-		reReviewHistory.locator("li", { hasText: "CHANGED" }),
+		reReviewHistory.locator("li", { hasText: "Details changed" }),
 	).toBeVisible();
 	await expect(
-		reReviewHistory.locator("li", { hasText: "DISPOSITIONED" }),
+		reReviewHistory.locator("li", { hasText: "Decision recorded" }),
 	).toHaveCount(2);
 	await reReviewedRow
 		.getByRole("button", { name: `History for ${CUSTOMER_REF}` })
@@ -575,7 +575,7 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	const persistedRow = page.locator("tbody tr", { hasText: CUSTOMER_REF });
 	await expect(persistedRow).toBeVisible();
 	await expect(
-		persistedRow.locator(".badge", { hasText: "FALSE_POSITIVE" }),
+		persistedRow.locator(".badge", { hasText: "Not a match" }),
 	).toBeVisible();
 	// The re-review notes (the most recent disposition, §10) persisted to OPFS.
 	await expect(persistedRow).toContainText(RE_REVIEW_NOTES);

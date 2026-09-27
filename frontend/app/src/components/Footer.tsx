@@ -1,8 +1,8 @@
 /**
- * Small footer for the in-browser search demo. States plainly that this is a
- * portfolio demo for searching the PUBLIC OFAC sanctions list, and credits
- * the data source — so nobody mistakes it for a production compliance tool or
- * unattributed data. Mirrors edge-reco's fictional-demo footer.
+ * Small footer shared by the landing and the in-browser screening page. States
+ * plainly that the search runs in this tab over PUBLIC sanctions data, and
+ * credits the data source with a not-legal-advice line — so nobody mistakes it
+ * for unattributed data or a compliance guarantee.
  */
 import { useTranslation } from "react-i18next";
 

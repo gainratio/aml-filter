@@ -19,7 +19,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "../lib/formatBytes";
-import { checkForWatchlistUpdates, runWatchlistSync } from "../lib/sync";
+import { checkForWatchlistUpdates, syncToAnnounce } from "../lib/sync";
 import {
 	retainWorkstationRuntime,
 	type WorkstationHandle,
@@ -238,10 +238,11 @@ function EngineStatusStrip() {
 				// re-screen every customer if the list advanced since last sync.
 				if (autoSyncFired.current) return;
 				autoSyncFired.current = true;
-				const result = await runWatchlistSync(handle);
-				// Only surface a banner when a real rescan touched existing customers
-				// (a first boot on an empty DB advances the version but scans nobody).
-				if (!cancelled && result?.changed && result.customersScanned > 0) {
+				// Only a genuine update (a version change since a recorded sync that
+				// re-screened someone) gets a banner; the first-ever list load is a
+				// baseline and stays silent beside the onboarding alert.
+				const result = await syncToAnnounce(handle);
+				if (!cancelled && result !== null) {
 					setAutoSync(result);
 				}
 			})

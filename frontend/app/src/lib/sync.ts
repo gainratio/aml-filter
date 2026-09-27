@@ -17,7 +17,10 @@
  * for the tab's lifetime.
  */
 
-import type { SyncResult } from "@amlfilter/workstation";
+import {
+	LAST_SYNCED_VERSION_KEY,
+	type SyncResult,
+} from "@amlfilter/workstation";
 import i18n from "../i18n";
 import type { WorkstationHandle } from "./workstation";
 
@@ -34,6 +37,26 @@ export async function runWatchlistSync(
 		return null;
 	}
 	return handle.rescan.syncWatchlist(version);
+}
+
+/**
+ * The once-per-boot sync, reduced to what deserves a "Watchlist updated" notice.
+ * The sync always runs; the result is returned only when the list genuinely
+ * changed since a PREVIOUSLY RECORDED sync and re-screened someone. The first
+ * list load on a device has no prior version: its re-screen is a baseline (it
+ * re-checks the customer being onboarded right now), not an update, so it stays
+ * silent and the onboarding alert is the one event on screen.
+ */
+export async function syncToAnnounce(
+	handle: WorkstationHandle,
+): Promise<SyncResult | null> {
+	if (handle.watchlistVersion() === null) {
+		return null;
+	}
+	const prior = await handle.store.getSetting(LAST_SYNCED_VERSION_KEY);
+	const result = await runWatchlistSync(handle);
+	const isUpdate = prior !== null && result?.changed === true;
+	return isUpdate && result.customersScanned > 0 ? result : null;
 }
 
 /**

@@ -3,7 +3,8 @@ import { expect, type Page, test } from "@playwright/test";
 /**
  * scoped-sync-topup — the end-to-end guard for scoped list syncing.
  *
- * /screen defaults to OFAC SDN alone, but `syncIndex` used to walk every file in
+ * On a phone /screen starts on OFAC SDN alone (a desktop searches every list,
+ * see src/pages/screenScope.ts, so this spec runs as a phone). `syncIndex` used to walk every file in
  * the manifest, so a cold boot downloaded the EU, UK and UN directories too and
  * then never read them. Against the live 2026-08-01 bundle that was 527 of 1,296
  * chunks and 18.4 MB of 46.7 MB — roughly 40% of the first-use cost, spent on
@@ -29,6 +30,13 @@ import { expect, type Page, test } from "@playwright/test";
  */
 
 const READY_TIMEOUT_MS = 160_000;
+
+// A phone user agent: the /screen scope that syncs ONE list. The property under
+// test is the scoped sync + top-up, not which device picks the scope.
+test.use({
+	userAgent:
+		"Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Version/18.5 Mobile/15E148 Safari/604.1",
+});
 
 /** Chunk hash -> which manifest file owns it, read from the served bundle. */
 async function chunkOwners(page: Page): Promise<ReadonlyMap<string, string>> {

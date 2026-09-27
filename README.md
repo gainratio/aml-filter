@@ -32,8 +32,9 @@ The breakdown shows what drove it: the names are close in meaning and in spellin
 "PUTIN, Vladimir" is one of the listed aliases. The results below it are weaker matches
 that share a first name. The tool never decides for you. A person looks at each result.
 
-The search page checks only the US list (OFAC). To check a customer against all four
-lists and keep a record of your decisions:
+On a computer the search page checks all four lists, and each result names its list.
+On a phone it starts with the US list (OFAC) to save memory; tap **Search all 4 lists** to add the rest.
+To screen your own customers and keep a record of your decisions:
 
 4. Open **Customers**. The first time, it asks for your name, which is stamped on your
    decisions.

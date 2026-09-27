@@ -96,14 +96,12 @@ test("a customer with a non-empty audit trail can still be erased, trail and all
 		.getByRole("textbox", { name: new RegExp(`Notes for ${CUSTOMER_REF}`) })
 		.fill(REVIEW_NOTES);
 	await row.getByRole("button", { name: "Resolve" }).click();
-	await expect(
-		row.locator(".badge", { hasText: "FALSE_POSITIVE" }),
-	).toBeVisible();
+	await expect(row.locator(".badge", { hasText: "Not a match" })).toBeVisible();
 
 	// The History drawer reads match_events directly — seeing both entries is the
 	// proof the ledger is populated before we try to erase it.
 	await row.getByRole("button", { name: /history/i }).click();
-	await expect(page.getByText(/DISPOSITIONED/)).toBeVisible();
+	await expect(page.getByText("Decision recorded")).toBeVisible();
 
 	// --- Erase the customer. This is the ONE sanctioned removal, and it is the
 	//     path whose statement order the append-only trigger constrains. -------

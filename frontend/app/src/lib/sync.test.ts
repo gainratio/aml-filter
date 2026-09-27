@@ -4,6 +4,7 @@ import {
 	checkForWatchlistUpdates,
 	runWatchlistSync,
 	syncSummaryText,
+	syncToAnnounce,
 } from "./sync";
 import type { WorkstationHandle } from "./workstation";
 
@@ -137,5 +138,46 @@ describe("syncSummaryText", () => {
 				clearedHits: 0,
 			}),
 		).toBe("Watchlist already current.");
+	});
+});
+
+describe("syncToAnnounce (the once-per-boot notice)", () => {
+	function bootHandle(prior: string | null, result: SyncResult) {
+		const syncWatchlist = vi.fn().mockResolvedValue(result);
+		const handle = {
+			watchlistVersion: () => "v2",
+			store: { getSetting: vi.fn().mockResolvedValue(prior) },
+			rescan: { syncWatchlist },
+		} as unknown as WorkstationHandle;
+		return { handle, syncWatchlist };
+	}
+
+	it("still syncs but announces nothing on the first-ever list load", async () => {
+		const { handle, syncWatchlist } = bootHandle(null, SUMMARY);
+		expect(await syncToAnnounce(handle)).toBeNull();
+		expect(syncWatchlist).toHaveBeenCalledWith("v2");
+	});
+
+	it("announces a version change since the last recorded sync", async () => {
+		const { handle } = bootHandle("v1", SUMMARY);
+		expect(await syncToAnnounce(handle)).toEqual(SUMMARY);
+	});
+
+	it("announces nothing when the list is unchanged", async () => {
+		const { handle } = bootHandle("v2", { ...SUMMARY, changed: false });
+		expect(await syncToAnnounce(handle)).toBeNull();
+	});
+
+	it("announces nothing when a change re-screened no customers", async () => {
+		const { handle } = bootHandle("v1", { ...SUMMARY, customersScanned: 0 });
+		expect(await syncToAnnounce(handle)).toBeNull();
+	});
+
+	it("returns null before the engine has booted", async () => {
+		const { handle, syncWatchlist } = bootHandle("v1", SUMMARY);
+		(handle as { watchlistVersion: () => string | null }).watchlistVersion =
+			() => null;
+		expect(await syncToAnnounce(handle)).toBeNull();
+		expect(syncWatchlist).not.toHaveBeenCalled();
 	});
 });

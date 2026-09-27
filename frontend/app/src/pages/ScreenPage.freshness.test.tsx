@@ -1,11 +1,10 @@
-// The age of the list `/screen` actually screens against.
+// The age of each list `/screen` actually screens against.
 //
-// This page's whole promise is "matched against the public OFAC sanctions list
-// right here in your browser", and its boot banner ends on "List verified." —
-// which readers take as a statement about the DATA, not just the signature. A
-// visitor screening a name against a three-day-old OFAC copy had no way to know.
-// `/screen` has no list selector to hang a badge off, so the age goes next to
-// the search box, on the one list the route pins (`enabledLists: ["OFAC_SDN"]`).
+// The boot banner ends on "List verified." — which readers take as a statement
+// about the DATA, not just the signature. A visitor screening a name against a
+// three-day-old copy had no way to know. `/screen` has no list selector to hang
+// a badge off, so each list's age goes next to the search box, by plain name
+// ("US OFAC", not the catalog's "OFAC SDN").
 
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -80,6 +79,7 @@ import { ScreenPage } from "./ScreenPage";
 afterEach(() => {
 	cleanup();
 	vi.useRealTimers();
+	vi.restoreAllMocks();
 });
 
 beforeEach(() => {
@@ -92,7 +92,7 @@ describe("ScreenPage — the age of the list being screened against", () => {
 	it("names the list and states its age once booted", async () => {
 		render(<ScreenPage />);
 		expect(
-			await screen.findByText(/OFAC SDN.*updated 6 hours ago/i),
+			await screen.findByText(/US OFAC.*updated 6 hours ago/i),
 		).toBeInTheDocument();
 	});
 
@@ -158,7 +158,7 @@ describe("ScreenPage — the age of the list being screened against", () => {
 		};
 		render(<ScreenPage />);
 		expect(
-			await screen.findByText(/OFAC SDN.*in a bundle built 6 hours ago/i),
+			await screen.findByText(/US OFAC.*in a bundle built 6 hours ago/i),
 		).toBeInTheDocument();
 		expect(screen.queryByText(/age unknown/i)).not.toBeInTheDocument();
 	});
@@ -171,7 +171,12 @@ describe("ScreenPage — the age of the list being screened against", () => {
 		expect(await screen.findByText(/age unknown/i)).toBeInTheDocument();
 	});
 
+	// On a phone the search pins US OFAC (see ./screenScope); a catalog without it
+	// cannot state that list's age.
 	it("says the age is unknown when the pinned list is absent from the catalog", async () => {
+		vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+			"Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) Mobile/15E148",
+		);
 		catalogListsResult = {
 			resolve: () => Promise.resolve([ofacList({ id: "EU_CONSOLIDATED" })]),
 		};

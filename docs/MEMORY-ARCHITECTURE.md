@@ -34,10 +34,25 @@ WASM memory and iOS tab limits still require a physical-device measurement.
   the prior index before loading the next one;
 - the persisted list selection and scoring thresholds do not change with the policy.
 
-The public `/screen` route eagerly initializes only OFAC SDN. Its Ready state therefore
-means the SQLite Worker, sqlite-vector runtime, and vector rows are already local, so
-typing and scoring make zero network requests; it does not load the rest of the signed
-catalog. The configurable workstation keeps the policy above, so a low-power laptop is
+The public `/screen` route picks its lists by device (`frontend/app/src/pages/screenScope.ts`).
+A desktop eagerly initializes every catalog list; a phone or tablet eagerly initializes
+only OFAC SDN, because all four eagerly is what ran iOS Safari out of memory (PR #71).
+A phone can opt in to every list with one tap, which switches to `streaming` residency.
+Either way the Ready state means the SQLite Worker, sqlite-vector runtime, and vector rows
+are already local, so typing and scoring make zero network requests.
+
+Measured on 2026-09-26 against a local mirror of the live bundle (4 lists, 32,325 entries,
+headless Chromium on an Apple-silicon desktop, total browser RSS, one run each):
+
+| `/screen` scope | Cold boot | RSS after boot | Peak RSS | Search |
+|---|---|---|---|---|
+| OFAC only, eager (old default) | 7.3 s | 948 MB | 1,405 MB | 0.3–0.4 s |
+| All four, eager (desktop default) | 8.5 s | 1,109 MB | 1,564 MB | 0.3–0.8 s |
+| All four, streaming (phone opt-in) | 4.0 s | 1,016 MB | 1,596 MB | ~8 s |
+
+Streaming re-reads and re-verifies each list from OPFS on every search, which is why it
+is an explicit opt-in on phones rather than the default. These are desktop numbers; the
+iPhone budget itself was not measured here. The configurable workstation keeps the policy above, so a low-power laptop is
 not treated as safe merely because it identifies as a desktop or omits
 `navigator.deviceMemory`.
 

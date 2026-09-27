@@ -20,6 +20,13 @@ import {
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	listName,
+	reasonLabel,
+	riskLabel,
+	tierLabel,
+} from "../lib/plainLabels";
+import { plainExplanation } from "./plainExplanation";
 
 /** The unified view model rendered for a directory entity or scored match. */
 export interface Dossier {
@@ -27,6 +34,8 @@ export interface Dossier {
 	readonly primary_name: string;
 	readonly entity_type?: EntityType;
 	readonly risk_category: RiskCategory;
+	/** The list this entity is on (a stored code such as `UK_OFSI`). */
+	readonly source_list: string;
 	readonly aliases: ReadonlyArray<string>;
 	readonly dob: ReadonlyArray<string>;
 	readonly countries: ReadonlyArray<string>;
@@ -53,6 +62,7 @@ export function dossierFromEntity(entity: Entity): Dossier {
 		// a compatibility placeholder, so omitting it avoids mislabelling banks,
 		// vessels, and aircraft as people.
 		risk_category: entity.risk_category,
+		source_list: entity.source_list,
 		aliases: entity.aliases.map((alias) => alias.name),
 		dob: entity.dob,
 		countries: entity.countries,
@@ -67,6 +77,7 @@ export function dossierFromMatch(match: Match): Dossier {
 		entity_id: match.entity_id,
 		primary_name: match.primary_name,
 		risk_category: match.risk_category,
+		source_list: match.source_list,
 		aliases: match.aliases,
 		dob: match.dob,
 		countries: match.countries,
@@ -258,7 +269,7 @@ function ReceiptSubject({ payload, t }: ReceiptSubjectProps) {
 		<dl className="match-card__signals">
 			<div className="match-card__signal">
 				<dt>{t("dossier.receipt.sealedScore")}</dt>
-				<dd>{`${payload.score.toFixed(3)} (${payload.tier})`}</dd>
+				<dd>{`${payload.score.toFixed(3)} (${tierLabel(payload.tier, t)})`}</dd>
 			</div>
 			<div className="match-card__signal">
 				<dt>{t("dossier.receipt.engine")}</dt>
@@ -288,7 +299,7 @@ function ReceiptSubject({ payload, t }: ReceiptSubjectProps) {
 					</div>
 					{payload.assay.components.map((component) => (
 						<div className="match-card__signal" key={component.id}>
-							<dt>{component.id}</dt>
+							<dt>{reasonLabel(component.id, t)}</dt>
 							<dd>
 								{`${component.raw} × ${component.coefficient ?? 1} = ${component.contribution}`}
 							</dd>
@@ -312,6 +323,24 @@ function Fact({ label, value }: FactProps) {
 			<dd>{value}</dd>
 		</div>
 	);
+}
+
+/** Signals whose value is a 0–1 likeness; shown as "N% alike", not a raw float. */
+const SIMILARITY_SIGNALS: ReadonlySet<string> = new Set([
+	"name_vector",
+	"name_sequence",
+]);
+
+/** One reason's value in plain words. Similarity signals become a percentage;
+ * the rest keep the engine's own sentence (e.g. "Alias match: Vanya Fakovich"). */
+function reasonValue(reason: MatchReason, t: TFunction): string {
+	if (
+		SIMILARITY_SIGNALS.has(reason.signal) &&
+		typeof reason.value === "number"
+	) {
+		return t("dossier.similarity", { pct: Math.round(reason.value * 100) });
+	}
+	return reason.description ?? String(reason.value);
 }
 
 interface FoundViaProps {
@@ -372,7 +401,12 @@ export function DossierCard({ dossier }: DossierCardProps) {
 						t={t}
 					/>
 				)}
-				<span className="match-card__badge">{dossier.risk_category}</span>
+				<span className="match-card__list">
+					{listName(dossier.source_list, t)}
+				</span>
+				<span className="match-card__badge">
+					{riskLabel(dossier.risk_category, t)}
+				</span>
 			</div>
 
 			<dl className="match-card__facts">
@@ -400,7 +434,9 @@ export function DossierCard({ dossier }: DossierCardProps) {
 			</dl>
 
 			{dossier.explanation !== undefined && (
-				<p className="match-card__why">{dossier.explanation}</p>
+				<p className="match-card__why">
+					{plainExplanation(dossier.explanation, t)}
+				</p>
 			)}
 			{dossier.reasons !== undefined && dossier.reasons.length > 0 && (
 				<details className="match-card__details">
@@ -408,8 +444,8 @@ export function DossierCard({ dossier }: DossierCardProps) {
 					<dl className="match-card__signals">
 						{dossier.reasons.map((reason) => (
 							<div className="match-card__signal" key={reason.signal}>
-								<dt>{reason.signal}</dt>
-								<dd>{reason.description ?? String(reason.value)}</dd>
+								<dt>{reasonLabel(reason.signal, t)}</dt>
+								<dd>{reasonValue(reason, t)}</dd>
 							</div>
 						))}
 					</dl>

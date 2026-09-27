@@ -50,13 +50,13 @@ const CASES = [
 	{
 		lang: "en",
 		strings: [
-			// common namespace — the public demo footer.
-			"AML-Filter is a portfolio engineering demo",
+			// common namespace — the public footer.
+			"AML-Filter searches public sanctions data entirely in this browser tab",
 			// landing namespace — headline marketing copy (exact en/landing.json
 			// values: hero.title via <Trans> + hero.ctaPrimary).
 			"Sanctions screening that runs",
 			"entirely in your browser",
-			"Try the live demo",
+			"Screen a name now",
 		],
 	},
 ];
@@ -124,9 +124,12 @@ try {
 
 		await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 		await page
-			.waitForSelector("text=AML-Filter is a portfolio engineering demo", {
-				timeout: 15000,
-			})
+			.waitForSelector(
+				"text=AML-Filter searches public sanctions data entirely in this browser tab",
+				{
+					timeout: 15000,
+				},
+			)
 			.catch(() => {});
 
 		const bodyText = await page.evaluate(() => document.body.innerText);

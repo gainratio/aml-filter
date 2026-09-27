@@ -75,7 +75,9 @@ test("seals → displays → verifies a score receipt in-browser; a rekeyed stor
 		timeout: RESULT_TIMEOUT_MS,
 	});
 	// Icon + word label — the verdict must survive without color.
-	await expect(badge.locator(".receipt-status__text")).toHaveText("Verified");
+	await expect(badge.locator(".receipt-status__text")).toHaveText(
+		"Score unaltered",
+	);
 	await expect(badge.locator(".receipt-status__icon")).toHaveAttribute(
 		"aria-hidden",
 		"true",
@@ -88,7 +90,7 @@ test("seals → displays → verifies a score receipt in-browser; a rekeyed stor
 	const panel = scoredCard.locator("section.receipt-panel");
 	await expect(panel).toBeVisible();
 	await expect(panel).toContainText("Ed25519");
-	await expect(panel).toContainText("sealed score");
+	await expect(panel).toContainText("input fingerprint");
 
 	// --- break the property, not the form: re-key the store under the sealer ---
 	const seedSwapped = await page.evaluate((storageKey) => {
@@ -118,7 +120,7 @@ test("seals → displays → verifies a score receipt in-browser; a rekeyed stor
 		timeout: RESULT_TIMEOUT_MS,
 	});
 	await expect(rekeyedBadge.locator(".receipt-status__text")).toHaveText(
-		"Not verified — untrusted signer",
+		"Score proof from another device",
 	);
 
 	expect(

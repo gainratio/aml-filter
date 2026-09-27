@@ -35,7 +35,7 @@ measured stats before Vite starts — a couple of minutes on a cold clone (a ~23
 SHA-256-pinned download), about a second on every run after.
 
 The app is served at `http://localhost:5173` (Vite prints the exact URL). Open `/screen` for
-the in-tab OFAC screening demo, then `/customers` and `/review` for the KYC workstation.
+the in-tab sanctions search (all four lists on a computer), then `/customers` and `/review` for the KYC workstation.
 The Customers page supports preview-first local CSV/XLS/XLSX import and XLSX customer
 table export; the spreadsheet is not a full match/audit backup.
 

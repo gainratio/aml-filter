@@ -411,6 +411,25 @@ export function configFromEnv(
 /** Re-exported so call sites that only need the pure embedder can build one. */
 export { createEmbedder };
 
+/** Project the signed catalog onto the UI's list metadata. */
+function catalogListInfo(
+	catalog: WatchlistCatalog,
+): ReadonlyArray<CatalogListInfo> {
+	return catalog.lists.map((entry) => ({
+		id: entry.id,
+		title: entry.title,
+		version: entry.version,
+		entitiesCount: entry.entitiesCount,
+		fetchedAt: entry.fetchedAt,
+		// Which anchor produced that instant travels with it: the UI must not
+		// present a bundle build stamp as a per-list refresh time.
+		agedFrom: entry.agedFrom,
+		sourceUpdatedAt: entry.sourceUpdatedAt,
+		stale: entry.stale,
+		staleReason: entry.staleReason,
+	}));
+}
+
 /**
  * Load + verify the signed watchlist, warm the embedder, and build the in-tab
  * ScreeningEngine. Idempotent — the first call wins and its result is cached.
@@ -633,20 +652,34 @@ export class EngineRuntime {
 		if (this.#config === null) {
 			throw new Error("catalogLists() requires a successful bootstrap first");
 		}
-		const catalog = await this.#loadCatalog(this.#config);
-		return catalog.lists.map((entry) => ({
-			id: entry.id,
-			title: entry.title,
-			version: entry.version,
-			entitiesCount: entry.entitiesCount,
-			fetchedAt: entry.fetchedAt,
-			// Which anchor produced that instant travels with it: the UI must not
-			// present a bundle build stamp as a per-list refresh time.
-			agedFrom: entry.agedFrom,
-			sourceUpdatedAt: entry.sourceUpdatedAt,
-			stale: entry.stale,
-			staleReason: entry.staleReason,
-		}));
+		return catalogListInfo(await this.#loadCatalog(this.#config));
+	}
+
+	/**
+	 * Every catalog list's metadata WITHOUT syncing any list: the sync is scoped to
+	 * an empty selection, so only the signed pointer, the manifest and the catalog
+	 * chunk move (~123 KB on production, not every list's ~58 MB), all verified
+	 * fail-closed like any other read. For pages that only STATE the lists (the
+	 * landing page's counts). The source is opened for this call alone and
+	 * disposed after, so it can never stand in for a later boot's source.
+	 */
+	public catalogOnlyLists(
+		config: RuntimeConfig,
+	): Promise<ReadonlyArray<CatalogListInfo>> {
+		return this.#enqueue(async () => {
+			const source = this.#deps.openBundleSource(
+				config.bundleBaseUrl,
+				config.pubkeyUrl,
+				undefined,
+				undefined,
+				[],
+			);
+			try {
+				return catalogListInfo(await (await source).loadCatalog());
+			} finally {
+				await this.#disposeBundleSource(source);
+			}
+		});
 	}
 
 	/** Just the ids of every catalog list (the selectable set, sans titles). */

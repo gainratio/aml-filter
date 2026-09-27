@@ -111,13 +111,13 @@ describe("ReviewBoardPage", () => {
 			throw new Error("rows not found");
 
 		expect(
-			within(strongRow).getByText("STRONG", { selector: "span.badge" }),
+			within(strongRow).getByText("Strong", { selector: "span.badge" }),
 		).toHaveClass("badge-danger");
 		expect(
-			within(possibleRow).getByText("POSSIBLE", { selector: "span.badge" }),
+			within(possibleRow).getByText("Possible", { selector: "span.badge" }),
 		).toHaveClass("badge-warning");
 		expect(
-			within(weakRow).getByText("WEAK", { selector: "span.badge" }),
+			within(weakRow).getByText("Weak", { selector: "span.badge" }),
 		).toHaveClass("badge-muted");
 	});
 
@@ -206,12 +206,13 @@ describe("ReviewBoardPage", () => {
 			),
 		);
 
-		// The row updates in place: status badge now reflects the resolution.
+		// The row updates in place: status badge now reflects the resolution,
+		// in plain words (the code FALSE_POSITIVE stays the data, not the text).
 		await waitFor(() => {
 			const updated = screen.getByText("REF-RES").closest("tr");
 			if (!updated) throw new Error("row not found");
 			expect(
-				within(updated).getByText("FALSE_POSITIVE", { selector: "span.badge" }),
+				within(updated).getByText("Not a match", { selector: "span.badge" }),
 			).toBeInTheDocument();
 		});
 	});
@@ -342,7 +343,7 @@ describe("ReviewBoardPage", () => {
 		expect(within(row).getByText("Resolved")).toBeInTheDocument();
 	});
 
-	it("renders the source_list as a Source badge for a row", async () => {
+	it("renders the source_list as a plain-named Source badge for a row", async () => {
 		mockClient.listReviewMatches.mockResolvedValue([
 			makeMatch({
 				match_id: "m-src",
@@ -357,7 +358,7 @@ describe("ReviewBoardPage", () => {
 		const row = screen.getByText("R-SRC").closest("tr");
 		if (!row) throw new Error("row not found");
 		expect(
-			within(row).getByText("OFAC_SDN", { selector: "span.badge" }),
+			within(row).getByText("US OFAC", { selector: "span.badge" }),
 		).toBeInTheDocument();
 	});
 
@@ -397,7 +398,7 @@ describe("ReviewBoardPage", () => {
 			expect(mockClient.getMatchEvents).toHaveBeenCalledWith("m-hist"),
 		);
 		await waitFor(() =>
-			expect(screen.getByText(/DISPOSITIONED/)).toBeInTheDocument(),
+			expect(screen.getByText("Decision recorded")).toBeInTheDocument(),
 		);
 		expect(screen.getByText(/cleared on review/i)).toBeInTheDocument();
 		expect(historyBtn).toHaveAttribute("aria-expanded", "true");
@@ -422,5 +423,137 @@ describe("ReviewBoardPage", () => {
 		);
 		expect(screen.queryByRole("button", { name: /file sar/i })).toBeNull();
 		expect(screen.queryByText("SAR")).toBeNull();
+	});
+
+	describe("plain words, never raw codes", () => {
+		const RAW_CODE =
+			/\b(UK_OFSI|OFAC_SDN|EU_CONSOLIDATED|UN_CONSOLIDATED|FALSE_POSITIVE|TRUE_POSITIVE|PENDING_REVIEW|PENDING|STRONG|POSSIBLE|WEAK|RESOLVED|DETECTED|DISPOSITIONED)\b/;
+
+		function optionPairs(select: HTMLElement): [string, string][] {
+			return within(select)
+				.getAllByRole("option")
+				.map((o) => [(o as HTMLOptionElement).value, o.textContent ?? ""]);
+		}
+
+		it("renders tier, status and source in plain words with no raw code in the text", async () => {
+			mockClient.listReviewMatches.mockResolvedValue([
+				makeMatch({
+					match_id: "m-uk",
+					customer_reference: "R-UK",
+					tier: "STRONG",
+					source_list: "UK_OFSI",
+					resolution_status: "PENDING",
+				}),
+				makeMatch({
+					match_id: "m-eu",
+					customer_reference: "R-EU",
+					tier: "POSSIBLE",
+					source_list: "EU_CONSOLIDATED",
+					resolution_status: "FALSE_POSITIVE",
+					review_state: "CHANGED",
+				}),
+				makeMatch({
+					match_id: "m-us",
+					customer_reference: "R-US",
+					tier: "WEAK",
+					source_list: "OFAC_SDN",
+					resolution_status: "TRUE_POSITIVE",
+				}),
+			]);
+
+			const { container } = renderBoard();
+			await waitFor(() => expect(screen.getByText("R-UK")).toBeInTheDocument());
+
+			const ukRow = screen.getByText("R-UK").closest("tr");
+			const euRow = screen.getByText("R-EU").closest("tr");
+			const usRow = screen.getByText("R-US").closest("tr");
+			if (!ukRow || !euRow || !usRow) throw new Error("rows not found");
+			expect(
+				within(ukRow).getByText("Strong", { selector: "span.badge" }),
+			).toBeInTheDocument();
+			expect(
+				within(ukRow).getByText("UK Sanctions List", {
+					selector: "span.badge",
+				}),
+			);
+			expect(
+				within(ukRow).getByText("Needs review", { selector: "span.badge" }),
+			).toBeInTheDocument();
+			expect(
+				within(euRow).getByText("EU", { selector: "span.badge" }),
+			).toBeInTheDocument();
+			expect(
+				within(euRow).getByText("Not a match", { selector: "span.badge" }),
+			).toBeInTheDocument();
+			expect(
+				within(usRow).getByText("Confirmed match", { selector: "span.badge" }),
+			);
+			expect(container.textContent ?? "").not.toMatch(RAW_CODE);
+		});
+
+		it("keeps codes as option values while the filter options read in plain words", async () => {
+			renderBoard();
+			await waitFor(() =>
+				expect(mockClient.listReviewMatches).toHaveBeenCalled(),
+			);
+
+			expect(optionPairs(screen.getByLabelText(/filter by tier/i))).toEqual([
+				["", "All tiers"],
+				["STRONG", "Strong"],
+				["POSSIBLE", "Possible"],
+				["WEAK", "Weak"],
+			]);
+			expect(optionPairs(screen.getByLabelText(/filter by status/i))).toEqual([
+				["", "All statuses"],
+				["PENDING", "Needs review"],
+				["TRUE_POSITIVE", "Confirmed match"],
+				["FALSE_POSITIVE", "Not a match"],
+				["RESOLVED", "Closed"],
+			]);
+		});
+
+		it("keeps codes as disposition values while the options read in plain words", async () => {
+			mockClient.listReviewMatches.mockResolvedValue([
+				makeMatch({ match_id: "m-d", customer_reference: "R-D" }),
+			]);
+			renderBoard();
+			await waitFor(() => expect(screen.getByText("R-D")).toBeInTheDocument());
+
+			const select = screen.getByLabelText("Disposition for R-D");
+			expect(select).toHaveClass("review-resolve-select");
+			expect(select).toHaveValue("FALSE_POSITIVE");
+			expect(optionPairs(select)).toEqual([
+				["TRUE_POSITIVE", "Confirmed match"],
+				["FALSE_POSITIVE", "Not a match"],
+				["RESOLVED", "Closed"],
+			]);
+		});
+
+		it("renders the history event and its status change in plain words", async () => {
+			mockClient.listReviewMatches.mockResolvedValue([
+				makeMatch({ match_id: "m-h", customer_reference: "R-H" }),
+			]);
+			mockClient.getMatchEvents.mockResolvedValue([
+				makeEvent({ event_id: "e1", match_id: "m-h", event_type: "DETECTED" }),
+				makeEvent({
+					event_id: "e2",
+					match_id: "m-h",
+					event_type: "DISPOSITIONED",
+					from_status: "PENDING",
+					to_status: "TRUE_POSITIVE",
+				}),
+			]);
+			renderBoard();
+			await waitFor(() => expect(screen.getByText("R-H")).toBeInTheDocument());
+
+			fireEvent.click(screen.getByRole("button", { name: /history for R-H/i }));
+			const item = await screen.findByText("Decision recorded");
+			const li = item.closest("li");
+			if (!li) throw new Error("history item not found");
+			expect(li).toHaveTextContent("(Needs review → Confirmed match)");
+			expect(screen.getByText("Match found")).toBeInTheDocument();
+			const list = li.closest("ul");
+			expect(list?.textContent ?? "").not.toMatch(RAW_CODE);
+		});
 	});
 });

@@ -189,15 +189,18 @@ test("searches the sanctions list in-browser over the minified build, with full 
 	).toBeVisible({ timeout: RESULT_TIMEOUT_MS });
 
 	// --- low-confidence: a kept-but-weak candidate must not lead ---
-	// "Imaginary" is KEPT by the token-containment escape hatch (it is a token
-	// of "Madeupistan Imaginary Bank") but its combined score (~0.33) sits below
-	// Balanced's 0.40 display line. Honest render: NO primary card, an explicit
-	// nothing-above-the-line headline (which is NOT the green clear), and ONE
-	// collapsed disclosure the analyst can expand — recall preserved, fuzz
+	// "Invented" is KEPT by the token-containment escape hatch (it is a token of
+	// the UN list's "Invented Charity Foundation") but its combined score (~0.36)
+	// sits below Balanced's 0.40 display line. Honest render: NO primary card, an
+	// explicit nothing-above-the-line headline (which is NOT the green clear), and
+	// ONE collapsed disclosure the analyst can expand — recall preserved, fuzz
 	// de-emphasized. This is the calibrated fix for the live "Zzyzx Nobody" /
 	// "John Smith" junk-card reports against the full SDN.
-	await search.fill("");
-	await search.fill("Imaginary");
+	// (This probe was "Imaginary" while /screen searched OFAC alone. With every
+	// list searched, the UK list's "Imaginary Logistics Ltd" now clears the line
+	// for it at 0.403 — a correct hit — so the probe moved to a token that is
+	// still weak across all four lists.)
+	await search.fill("Invented");
 	const disclosure = page.locator("details.screen-results__low");
 	await expect(disclosure).toBeVisible({ timeout: RESULT_TIMEOUT_MS });
 	await expect(
@@ -218,7 +221,7 @@ test("searches the sanctions list in-browser over the minified build, with full 
 	const groupedCard = disclosure.locator(".match-card");
 	await expect(groupedCard).toHaveCount(1);
 	await expect(groupedCard.locator(".match-card__name")).toHaveText(
-		"Madeupistan Imaginary Bank",
+		"Invented Charity Foundation",
 	);
 	const groupedScore = Number.parseFloat(
 		(await groupedCard.locator(".match-card__score").textContent()) ?? "",

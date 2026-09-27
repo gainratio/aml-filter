@@ -12,6 +12,46 @@
 	"route": {
 		"loading": "Loading…"
 	},
+	"labels": {
+		"lists": {
+			"OFAC_SDN": "US OFAC",
+			"EU_CONSOLIDATED": "EU",
+			"UN_CONSOLIDATED": "UN",
+			"UK_OFSI": "UK Sanctions List"
+		},
+		"status": {
+			"PENDING": "Needs review",
+			"TRUE_POSITIVE": "Confirmed match",
+			"FALSE_POSITIVE": "Not a match",
+			"RESOLVED": "Closed"
+		},
+		"tier": {
+			"STRONG": "Strong",
+			"POSSIBLE": "Possible",
+			"WEAK": "Weak"
+		},
+		"event": {
+			"DETECTED": "Match found",
+			"DISPOSITIONED": "Decision recorded",
+			"REOPENED": "Reopened",
+			"CHANGED": "Details changed",
+			"SUPPRESSED": "Unchanged, kept as decided"
+		},
+		"reason": {
+			"name_vector": "Name likeness",
+			"name_sequence": "Spelling close",
+			"alias_match": "Matches a listed alias",
+			"dob_match": "Date of birth",
+			"country_match": "Country",
+			"entity_type_match": "Person or organisation"
+		},
+		"risk": {
+			"SANCTION": "Sanctioned",
+			"PEP": "Politically exposed",
+			"CUSTOM": "Custom list",
+			"WHITELIST": "Cleared"
+		}
+	},
 	"actions": {
 		"retry": "Retry",
 		"dismiss": "Dismiss"
@@ -21,7 +61,7 @@
 		"summary": "Re-screened {{scanned}} customer(s) — {{newHits}} new hit(s), {{clearedHits}} cleared."
 	},
 	"demoFooter": {
-		"line1": "AML-Filter is a portfolio engineering demo that searches public sanctions data entirely in this browser tab. No name you type ever leaves your device.",
+		"line1": "AML-Filter searches public sanctions data entirely in this browser tab. No name you type ever leaves your device.",
 		"line2": "Data attribution: U.S. Treasury OFAC Specially Designated Nationals (SDN), plus the signed public lists named in the app. Not legal or compliance advice."
 	},
 	"workstation": {

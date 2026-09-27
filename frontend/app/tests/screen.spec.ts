@@ -53,7 +53,8 @@ test.describe("In-browser OFAC screening page", () => {
 		// Scope to the footer: "OFAC" also appears in the page lede, so a bare
 		// getByText would be a strict-mode multi-match.
 		const footer = page.locator("footer.screen-footer");
-		await expect(footer).toContainText("portfolio demo");
+		await expect(footer).not.toContainText("demo");
+		await expect(footer).toContainText("Not legal or compliance advice");
 		await expect(footer).toContainText("OFAC");
 		await expect(footer).toContainText("NOTICE");
 	});

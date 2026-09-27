@@ -522,3 +522,58 @@ describe("EngineStatusStrip watchlist-update polling", () => {
 		expect(mockCheckForWatchlistUpdates).toHaveBeenCalledTimes(2);
 	});
 });
+
+// Claim: one onboarding = one event on screen. The first engine boot on a
+// device has no previously recorded watchlist version, so its sync re-screens
+// the customer just onboarded — that is a baseline, not a watchlist update, and
+// must not raise a second "Watchlist updated" notice beside the onboarding alert.
+describe("EngineStatusStrip — watchlist-updated notice", () => {
+	function handleWithPriorVersion(prior: string | null) {
+		const handle = makeHandle("Avery Analyst");
+		handle.store.getSetting = vi.fn((key: string) =>
+			Promise.resolve(
+				key === "last_synced_watchlist_version" ? prior : "Avery Analyst",
+			),
+		);
+		handle.rescan.syncWatchlist = vi.fn().mockResolvedValue({
+			changed: true,
+			version: "wl-test",
+			customersScanned: 1,
+			newHits: 3,
+			clearedHits: 0,
+		});
+		return handle;
+	}
+
+	it("stays silent on the first-ever list load (no prior version recorded)", async () => {
+		const handle = handleWithPriorVersion(null);
+		// biome-ignore lint/suspicious/noExplicitAny: structural fake for the mocked seam
+		mockWorkstation.mockResolvedValue(handle as any);
+		render(
+			<WorkstationGate>
+				<div>WORKSTATION CONTENT</div>
+			</WorkstationGate>,
+		);
+		await screen.findByText("WORKSTATION CONTENT");
+		await waitFor(() => expect(handle.rescan.syncWatchlist).toHaveBeenCalled());
+		// Let the sync promise chain settle before asserting absence.
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(screen.queryByText(/watchlist updated/i)).toBeNull();
+	});
+
+	it("announces a genuine version change since the last recorded sync", async () => {
+		const handle = handleWithPriorVersion("wl-previous");
+		// biome-ignore lint/suspicious/noExplicitAny: structural fake for the mocked seam
+		mockWorkstation.mockResolvedValue(handle as any);
+		render(
+			<WorkstationGate>
+				<div>WORKSTATION CONTENT</div>
+			</WorkstationGate>,
+		);
+		expect(
+			await screen.findByText(/watchlist updated: re-screened 1 customer/i),
+		).toBeInTheDocument();
+	});
+});

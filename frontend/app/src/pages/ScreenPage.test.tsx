@@ -432,12 +432,13 @@ async function readyBox(): Promise<HTMLInputElement> {
 }
 
 describe("ScreenPage — in-browser search", () => {
-	it("boots the public screen with the bounded OFAC selection", async () => {
+	// CONTRACT CHANGE: this pinned the OFAC-only boot. The home page promises
+	// four lists, so a desktop now boots every catalog list; the bounded OFAC
+	// selection is the phone default (see ScreenPage.scope.test.tsx).
+	it("boots every catalog list on a desktop", async () => {
 		render(<ScreenPage />);
 		await waitFor(() =>
-			expect(observedSelections).toEqual([
-				{ enabledLists: ["OFAC_SDN"], residency: "eager" },
-			]),
+			expect(observedSelections).toEqual([{ residency: "eager" }]),
 		);
 	});
 

@@ -1,11 +1,20 @@
 {
 	"header": {
 		"title": "Search the sanctions list",
-		"lede": "Type a name. It is matched against the public OFAC sanctions list right here in your browser — nothing you type ever leaves your device."
+		"lede": "Type a name. It is checked against the public sanctions lists named below, right here in your browser — nothing you type ever leaves your device."
 	},
 	"search": {
 		"placeholder": "Search a name, e.g. Ivan Fakovich",
 		"ariaLabel": "Search the sanctions list"
+	},
+	"scope": {
+		"all": "Searching {{count}} lists: {{names}}",
+		"allUnknown": "Searching every list in the signed catalog.",
+		"listsLabel": "Sanctions lists",
+		"usOnly": "Searching US OFAC only on this device, to save memory.",
+		"includeAll": "Search all {{count}} lists",
+		"includeAllUnknown": "Search all lists",
+		"streamingNote": "Each search takes a few seconds on this device, because the lists are checked one at a time to save memory."
 	},
 	"list": {
 		"fresh": "{{list}} · updated {{age}}",
@@ -33,7 +42,7 @@
 	"boot": {
 		"downloading": "Downloading the signed sanctions list…",
 		"downloadingProgress": "{{label}} {{pct}}% — {{size}} so far",
-		"firstRunNote": "First visit only — about 70 MB. Once it's here, screening runs in this tab and nothing you type leaves the device.",
+		"firstRunNote": "First visit only — up to about 80 MB. Once it's here, screening runs in this tab and nothing you type leaves the device.",
 		"verified": "List verified.",
 		"loadingModel": "Loading the name-matching model (~23 MB, once)…",
 		"loadingModelProgress": "{{label}} {{pct}}%",
@@ -42,7 +51,7 @@
 		"retry": "Retry"
 	},
 	"results": {
-		"browsing": "Browsing all {{total}} entities on the demo list — searched entirely in your browser.",
+		"browsing": "Browsing all {{total}} entries on the lists — searched entirely in your browser.",
 		"directoryRange": "Showing {{start}}–{{end}} of {{total}} entities",
 		"pagination": {
 			"ariaLabel": "Watchlist directory pages",
@@ -72,29 +81,41 @@
 		},
 		"whyScore": "Why this score?",
 		"foundVia": {
-			"line": "Found via: {{channels}}",
+			"line": "Found by: {{channels}}",
 			"channels": {
-				"vector": "meaning (vector)",
-				"token": "exact name token",
-				"phonetic": "sound-alike (Double Metaphone)"
+				"vector": "similar name",
+				"token": "same word in the name",
+				"phonetic": "sounds similar"
 			},
-			"phoneticOnly": "This name was found by pronunciation only. Pronunciation never adds to the score — the score above still decides."
+			"phoneticOnly": "This name was found only because it sounds similar. Sound never adds to the score — the score above still decides."
 		},
 		"receipt": {
-			"summary": "Score receipt",
-			"sealedScore": "sealed score",
-			"engine": "engine",
-			"watchlist": "watchlist",
-			"inputs": "inputs hash",
+			"summary": "Score proof",
+			"sealedScore": "score",
+			"engine": "engine version",
+			"watchlist": "list version",
+			"inputs": "input fingerprint",
 			"assayMethod": "scoring method",
-			"assayInputs": "Assay inputs hash",
+			"assayInputs": "scoring input fingerprint",
 			"status": {
-				"pending": "Verification pending…",
-				"unavailable": "Verification unavailable",
-				"checking": "Verifying…",
-				"verified": "Verified",
-				"invalid": "Not verified — tampered or invalid signature",
-				"wrongKey": "Not verified — untrusted signer"
+				"pending": "Checking score proof…",
+				"unavailable": "Score proof can't be checked here",
+				"checking": "Checking score proof…",
+				"verified": "Score unaltered",
+				"invalid": "Score altered — don't rely on it",
+				"wrongKey": "Score proof from another device"
+			}
+		},
+		"similarity": "{{pct}}% alike",
+		"explain": {
+			"matched": "Why it matched: {{reasons}}",
+			"weak": "Weak match — check it by hand",
+			"parts": {
+				"strongVector": "the names are very alike",
+				"strongName": "the spelling is very close",
+				"alias": "matches a listed alias",
+				"dob": "the date of birth matches",
+				"country": "the country matches"
 			}
 		}
 	}

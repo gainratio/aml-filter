@@ -114,7 +114,7 @@ describe("DossierCard receipt verdict", () => {
 	it("renders the signed Assay method, input hash, and component evidence", async () => {
 		const match = await signedMatch();
 		renderCard(match);
-		fireEvent.click(await screen.findByText("Score receipt"));
+		fireEvent.click(await screen.findByText("Score proof"));
 
 		await screen.findByText("Assay amlfilter.additive.v2");
 		expect(
@@ -122,11 +122,12 @@ describe("DossierCard receipt verdict", () => {
 				match.score_receipt?.payload.assay?.inputs_hash ?? "missing",
 			),
 		).toBeVisible();
-		expect(screen.getByText("name_vector")).toBeVisible();
+		expect(screen.getByText("Name likeness")).toBeVisible();
+		expect(screen.queryByText("name_vector")).toBeNull();
 		expect(screen.getByText("0.8 × 0.6 = 0.48")).toBeVisible();
 	});
 
-	it("renders a Verified icon+text badge beside the score for a receipt signed by this install", async () => {
+	it("renders a Score-unaltered icon+text badge beside the score for a receipt signed by this install", async () => {
 		const match = await signedMatch();
 		const { container } = renderCard(match);
 
@@ -145,7 +146,7 @@ describe("DossierCard receipt verdict", () => {
 				?.getAttribute("aria-hidden"),
 		).toBe("true");
 		expect(badge?.querySelector(".receipt-status__text")?.textContent).toBe(
-			"Verified",
+			"Score unaltered",
 		);
 		// Beside the score, not instead of it.
 		expect(
@@ -173,7 +174,7 @@ describe("DossierCard receipt verdict", () => {
 			expect(headBadge(container)?.getAttribute("data-status")).toBe("invalid");
 		});
 		expect(headBadge(container)?.textContent).toContain(
-			"Not verified — tampered or invalid signature",
+			"Score altered — don't rely on it",
 		);
 	});
 
@@ -189,7 +190,7 @@ describe("DossierCard receipt verdict", () => {
 			);
 		});
 		expect(headBadge(container)?.textContent).toContain(
-			"Not verified — untrusted signer",
+			"Score proof from another device",
 		);
 	});
 
@@ -226,7 +227,7 @@ describe("DossierCard receipt verdict", () => {
 		const { container } = renderCard(baseMatch());
 		expect(container.querySelector(".receipt-status")).toBeNull();
 		expect(container.querySelector(".match-card__receipt")).toBeNull();
-		expect(screen.queryByText("Score receipt")).toBeNull();
+		expect(screen.queryByText("Score proof")).toBeNull();
 	});
 });
 
@@ -250,7 +251,7 @@ describe("DossierCard trust-anchor states", () => {
 		expect(badge).not.toBeNull();
 		expect(badge?.getAttribute("data-status")).toBe("pending");
 		expect(badge?.querySelector(".receipt-status__text")?.textContent).toBe(
-			"Verification pending…",
+			"Checking score proof…",
 		);
 
 		// And it resolves into the real verdict, not a dead placeholder.
@@ -284,7 +285,7 @@ describe("DossierCard trust-anchor states", () => {
 				?.getAttribute("aria-hidden"),
 		).toBe("true");
 		expect(badge?.querySelector(".receipt-status__text")?.textContent).toBe(
-			"Verification unavailable",
+			"Score proof can't be checked here",
 		);
 
 		// No receipt panel may open against a missing trust anchor (fail-closed),
@@ -337,7 +338,7 @@ describe("DossierCard receipt panel", () => {
 		});
 		const disclosure = container.querySelector("details.match-card__receipt");
 		expect(disclosure?.querySelector("summary")?.textContent).toBe(
-			"Score receipt",
+			"Score proof",
 		);
 
 		const panel = container.querySelector("section.receipt-panel");
@@ -350,11 +351,12 @@ describe("DossierCard receipt panel", () => {
 		// Envelope metadata comes from the receipt-ui panel itself.
 		expect(panel?.textContent).toContain("Ed25519");
 		// The sealed subject renders through the card's payload renderer.
-		expect(screen.getByText("sealed score")).toBeTruthy();
+		expect(screen.getByText("score")).toBeTruthy();
 		expect(panel?.textContent).toContain(
 			String(match.score_receipt?.payload.score),
 		);
-		expect(panel?.textContent).toContain("STRONG");
+		expect(panel?.textContent).toContain("(Strong)");
+		expect(panel?.textContent).not.toContain("STRONG");
 		expect(screen.getByText("engine-test-1")).toBeTruthy();
 		expect(screen.getByText("watchlist-test-1")).toBeTruthy();
 	});
@@ -381,21 +383,21 @@ describe("DossierCard retrieval provenance", () => {
 		openWhy();
 		expect(
 			screen.getByText(
-				"Found via: meaning (vector) · exact name token · sound-alike (Double Metaphone)",
+				"Found by: similar name · same word in the name · sounds similar",
 			),
 		).toBeVisible();
-		expect(screen.queryByText(/found by pronunciation only/)).toBeNull();
+		expect(
+			screen.queryByText(/found only because it sounds similar/),
+		).toBeNull();
 	});
 
 	it("adds a plain note when pronunciation was the ONLY channel", () => {
 		renderCard({ ...baseMatch(), retrieved_via: ["phonetic"] });
 		openWhy();
-		expect(
-			screen.getByText("Found via: sound-alike (Double Metaphone)"),
-		).toBeVisible();
+		expect(screen.getByText("Found by: sounds similar")).toBeVisible();
 		expect(
 			screen.getByText(
-				"This name was found by pronunciation only. Pronunciation never adds to the score — the score above still decides.",
+				"This name was found only because it sounds similar. Sound never adds to the score — the score above still decides.",
 			),
 		).toBeVisible();
 	});
@@ -403,10 +405,86 @@ describe("DossierCard retrieval provenance", () => {
 	it("omits the line for a match without provenance (e.g. a stored row)", () => {
 		renderCard(baseMatch());
 		openWhy();
-		expect(screen.queryByText(/^Found via:/)).toBeNull();
+		expect(screen.queryByText(/^Found by:/)).toBeNull();
 		cleanup();
 		renderCard({ ...baseMatch(), retrieved_via: [] });
 		openWhy();
-		expect(screen.queryByText(/^Found via:/)).toBeNull();
+		expect(screen.queryByText(/^Found by:/)).toBeNull();
+	});
+});
+
+// Plain words on every result card. The codes stay in the data (the match, the
+// signed receipt, exports); a visitor reads words. Each literal is pinned.
+describe("DossierCard plain labels", () => {
+	function scoredMatch(over: Partial<Match> = {}): Match {
+		return {
+			...baseMatch(),
+			source_list: "UK_OFSI",
+			reasons: [
+				{
+					signal: "name_vector",
+					value: 0.753,
+					weight: 0.55,
+					contribution: 0.414,
+					description: "Vector similarity: 0.753",
+				},
+				{
+					signal: "name_sequence",
+					value: 0.387,
+					weight: 0.25,
+					contribution: 0.097,
+					description: "Sequence similarity: 0.387",
+				},
+			],
+			explanation: "Match due to: strong vector similarity, alias match",
+			...over,
+		};
+	}
+
+	it("tags the result with the plain name of the list it came from", () => {
+		const { container } = renderCard(scoredMatch());
+		expect(container.querySelector(".match-card__list")?.textContent).toBe(
+			"UK Sanctions List",
+		);
+		expect(container.textContent).not.toContain("UK_OFSI");
+	});
+
+	it("names the risk category in words", () => {
+		const { container } = renderCard(scoredMatch());
+		expect(container.querySelector(".match-card__badge")?.textContent).toBe(
+			"Sanctioned",
+		);
+	});
+
+	it("explains the score in plain words, never engine terms", () => {
+		const { container } = renderCard(scoredMatch());
+		fireEvent.click(screen.getByText("Why this score?"));
+		expect(screen.getByText("Name likeness")).toBeVisible();
+		expect(screen.getByText("75% alike")).toBeVisible();
+		expect(screen.getByText("Spelling close")).toBeVisible();
+		expect(screen.getByText("39% alike")).toBeVisible();
+		expect(
+			screen.getByText(
+				"Why it matched: the names are very alike, matches a listed alias",
+			),
+		).toBeVisible();
+		const text = container.textContent ?? "";
+		for (const jargon of [
+			"name_vector",
+			"name_sequence",
+			"Vector similarity",
+			"Sequence similarity",
+			"vector",
+			"Metaphone",
+		]) {
+			expect(text).not.toContain(jargon);
+		}
+	});
+
+	it("says a no-reason low score is weak instead of printing the engine line", () => {
+		renderCard(
+			scoredMatch({ explanation: "Low confidence match (score: 0.492)" }),
+		);
+		expect(screen.getByText("Weak match — check it by hand")).toBeVisible();
 	});
 });

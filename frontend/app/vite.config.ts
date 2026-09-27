@@ -177,6 +177,12 @@ export default defineConfig({
 		// module URL; esbuild pre-bundling breaks that resolution (official
 		// @sqlite.org/sqlite-wasm guidance for Vite).
 		exclude: ["@sqlite.org/sqlite-wasm"],
+		// The landing page reads the signed catalog on first paint, which reaches
+		// the bundle-sync worker's import of this entry. Left to runtime discovery,
+		// Vite optimizes it mid-page and force-reloads ("optimized dependencies
+		// changed. reloading"), which destroyed the receipt lane's page.evaluate
+		// context on a cold dep cache (CI). Pre-bundle it at server start instead.
+		include: ["@amlfilter/browser > @edgeproc/browser/worker"],
 	},
 	worker: {
 		// The DB worker imports the sqlite-wasm ES module; classic-script

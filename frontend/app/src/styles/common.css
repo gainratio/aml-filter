@@ -861,6 +861,19 @@ textarea:focus-visible {
 	box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
 }
 
+/*
+ * Review board disposition select. The base `.form-select` is `width: 100%`;
+ * inside an auto-layout table cell a percentage width gives the control no
+ * min-content size, so the column squeezes it and cuts the chosen option
+ * ("Not a ma…"). Sizing it to its widest option keeps the text whole; the
+ * `.table-scroll` wrapper scrolls sideways instead of clipping.
+ */
+.form-select.review-resolve-select {
+	width: auto;
+	min-width: max-content;
+	flex: 0 0 auto;
+}
+
 .form-grid {
 	align-items: end;
 }

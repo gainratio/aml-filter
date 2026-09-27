@@ -29,9 +29,7 @@ describe("static discovery artifacts", () => {
 	test("the root document is crawlable before React boots", () => {
 		const document = parseHtml("index.html");
 
-		expect(document.title).toBe(
-			"AML-Filter | In-Browser Sanctions Screening Demo",
-		);
+		expect(document.title).toBe("AML-Filter | In-Browser Sanctions Screening");
 		expect(metaContent(document, 'meta[name="description"]')).toContain(
 			"in-browser sanctions screening",
 		);
@@ -42,6 +40,13 @@ describe("static discovery artifacts", () => {
 		expect(
 			document.querySelector("#root")?.textContent?.replace(/\s+/g, " "),
 		).toContain("not a compliance product");
+	});
+
+	test("the crawlable copy describes a live product, never a demo", () => {
+		// The claim: the landing describes the live product truthfully. The
+		// pre-React HTML and llms.txt are what crawlers and answer engines read.
+		expect(readAppFile("index.html")).not.toMatch(/\bdemo(nstration)?\b/i);
+		expect(readPublicFile("llms.txt")).not.toMatch(/\bdemo(nstration)?\b/i);
 	});
 
 	test("the root document publishes Open Graph, Twitter, and JSON-LD metadata", () => {

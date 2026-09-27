@@ -4,7 +4,7 @@
 		"title": "Sanctions screening that runs <em>entirely in your browser</em>.",
 		"lede": "Screening a name usually means shipping your customers’ names to a third-party SaaS. AML-Filter turns that inside out. The sanctions list syncs in as a signed bundle, is ed25519-verified in the tab, and the matcher runs locally — so nothing you type leaves the device. Private, backend-free, and free to operate.",
 		"audience": "For small and medium-sized businesses with KYC obligations: onboard customers, screen sanctions locally, and keep customer data on the device.",
-		"ctaPrimary": "▶ Try the live demo",
+		"ctaPrimary": "▶ Screen a name now",
 		"ctaSecondary": "Open the workstation",
 		"footnote": "First load fetches the matcher model plus the signed bundle; after that both are cached, so later visits start fast. You still need a network connection to open the page — there is no offline mode."
 	},
@@ -13,16 +13,18 @@
 		"title": "What it costs to run",
 		"note": "measured / real figures",
 		"infra": {
-			"label": "backend infra to run the demo",
+			"label": "backend infra to run it",
 			"sub": "no API, no vector DB, no servers in the path"
 		},
 		"matcher": {
 			"label": "MiniLM matcher, cached once",
 			"sub": "all-MiniLM-L6-v2 quantized ONNX, run in the tab"
 		},
-		"entities": {
-			"label": "sanctions entities on the demo list",
-			"sub": "fictional demo bundle · the workstation loads real lists"
+		"lists": {
+			"label_one": "entry across {{count}} public sanctions list",
+			"label_other": "entries across {{count}} public sanctions lists",
+			"fallback": "Four public sanctions lists: US OFAC, EU, UN and the UK Sanctions List",
+			"fallbackSub": "read from the signed list catalog, verified in this tab"
 		},
 		"pii": {
 			"label": "of what you type leave the device",

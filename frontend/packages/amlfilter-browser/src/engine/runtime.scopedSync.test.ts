@@ -168,3 +168,36 @@ describe("EngineRuntime hands the list selection to the sync", () => {
 		expect(seen).toEqual([[]]);
 	});
 });
+
+// The landing page states the live list counts. Reading them must not download
+// every list: an EMPTY selection syncs the signed catalog alone (pointer +
+// manifest + catalog chunk, ~123 KB on production instead of ~58 MB).
+describe("EngineRuntime.catalogOnlyLists", () => {
+	it("syncs the catalog alone and returns every list's metadata", async () => {
+		const seen: Array<ReadonlyArray<string> | undefined> = [];
+		const runtime = new EngineRuntime(depsRecording(seen));
+
+		const lists = await runtime.catalogOnlyLists(CONFIG);
+
+		expect(seen).toEqual([[]]);
+		expect(lists.map((list) => [list.id, list.entitiesCount])).toEqual([
+			["OFAC_SDN", 19_181],
+			["EU_CONSOLIDATED", 5_000],
+			["UK_OFSI", 4_000],
+			["UN_CONSOLIDATED", 1_000],
+		]);
+	});
+
+	it("does not leave a catalog-only source behind for a later boot", async () => {
+		const seen: Array<ReadonlyArray<string> | undefined> = [];
+		const runtime = new EngineRuntime(depsRecording(seen));
+
+		await runtime.catalogOnlyLists(CONFIG);
+		await runtime.bootstrap(CONFIG, undefined, {
+			enabledLists: ["OFAC_SDN"],
+			residency: "streaming",
+		});
+
+		expect(seen).toEqual([[], ["OFAC_SDN"]]);
+	});
+});

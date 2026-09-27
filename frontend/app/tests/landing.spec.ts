@@ -31,7 +31,17 @@ test.describe("public landing (/)", () => {
 		await expect(
 			page.getByRole("region", { name: /compliance workstation/i }),
 		).toBeVisible();
-		await expect(page.getByText(/portfolio engineering demo/i)).toBeVisible();
+		await expect(
+			page.getByText(/searches public sanctions data entirely/i),
+		).toBeVisible();
+		// A live product, not a demo: no "demo" wording anywhere on the landing.
+		await expect(page.locator("main")).not.toContainText(/\bdemo\b/i);
+		// The list tile reads the local signed catalog (committed bundle) and
+		// states its real entry total — never the old fixture "demo list" count.
+		const metrics = page.getByRole("region", { name: /metrics/i });
+		await expect(
+			metrics.getByText(/entries across \d+ public sanctions lists?/i),
+		).toBeVisible({ timeout: 30_000 });
 
 		expect(consoleErrors).toEqual([]);
 	});
@@ -60,9 +70,9 @@ test.describe("public landing (/)", () => {
 		expect(Number(style.fontWeight)).toBeGreaterThanOrEqual(700);
 	});
 
-	test("primary CTA navigates to the in-browser demo", async ({ page }) => {
+	test("primary CTA navigates to in-browser screening", async ({ page }) => {
 		await page.goto("http://localhost:5173/");
-		await page.getByRole("link", { name: /try the live demo/i }).click();
+		await page.getByRole("link", { name: /screen a name now/i }).click();
 		await expect(page).toHaveURL(/.*\/screen/);
 	});
 

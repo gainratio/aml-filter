@@ -11,6 +11,19 @@ import {
 	type ReviewMatchListParams,
 	type ReviewResolutionStatus,
 } from "../lib/api";
+import {
+	listName,
+	matchEventLabel,
+	resolutionLabel,
+	tierLabel,
+} from "../lib/plainLabels";
+
+/**
+ * Codes (`STRONG`, `FALSE_POSITIVE`, `UK_OFSI`, …) stay the data: option
+ * values, API params, exports. Every visible word goes through plainLabels, so
+ * the board shows plain words and never a raw code.
+ */
+const REVIEW_NAMESPACES = ["review", "common"] as const;
 
 const TIER_FILTERS: MatchTier[] = ["STRONG", "POSSIBLE", "WEAK"];
 
@@ -94,7 +107,7 @@ interface HistoryEntry {
 type HistoryState = Record<string, HistoryEntry>;
 
 export default function ReviewBoardPage() {
-	const { t } = useTranslation("review");
+	const { t } = useTranslation(REVIEW_NAMESPACES);
 	const [matches, setMatches] = useState<ReviewMatch[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -220,7 +233,7 @@ export default function ReviewBoardPage() {
 						<option value="">{t("filters.tier.all")}</option>
 						{TIER_FILTERS.map((tierValue) => (
 							<option key={tierValue} value={tierValue}>
-								{tierValue}
+								{tierLabel(tierValue, t)}
 							</option>
 						))}
 					</select>
@@ -240,7 +253,7 @@ export default function ReviewBoardPage() {
 						<option value="">{t("filters.status.all")}</option>
 						{STATUS_FILTERS.map((s) => (
 							<option key={s} value={s}>
-								{s}
+								{resolutionLabel(s, t)}
 							</option>
 						))}
 					</select>
@@ -342,13 +355,15 @@ function MatchRow({
 	history,
 	onToggleHistory,
 }: MatchRowProps) {
-	const { t } = useTranslation("review");
+	const { t } = useTranslation(REVIEW_NAMESPACES);
 	const ref = match.customer_reference ?? match.match_id;
 	return (
 		<>
 			<tr>
 				<td>
-					<span className={tierBadgeClass(match.tier)}>{match.tier}</span>
+					<span className={tierBadgeClass(match.tier)}>
+						{tierLabel(match.tier, t)}
+					</span>
 				</td>
 				<td>
 					<div>
@@ -358,14 +373,16 @@ function MatchRow({
 				</td>
 				<td>{match.sanctioned_name}</td>
 				<td>
-					<span className="badge badge-muted">{match.source_list}</span>
+					<span className="badge badge-muted">
+						{listName(match.source_list, t)}
+					</span>
 				</td>
 				<td>
 					{t("card.score", { score: (match.match_score * 100).toFixed(1) })}
 				</td>
 				<td>
 					<span className={statusBadgeClass(match.resolution_status)}>
-						{match.resolution_status}
+						{resolutionLabel(match.resolution_status, t)}
 					</span>
 					{match.review_state === "CHANGED" && (
 						<div className="mt-sm">
@@ -441,17 +458,19 @@ function HistoryDrawer({ history }: HistoryDrawerProps) {
 }
 
 function HistoryItem({ event }: { event: MatchEvent }) {
-	const { t } = useTranslation("review");
+	const { t } = useTranslation(REVIEW_NAMESPACES);
+	const statusText = (code: string | null): string =>
+		code ? resolutionLabel(code, t) : t("history.unknownStatus");
 	const transition =
 		event.from_status || event.to_status
 			? t("history.transition", {
-					from: event.from_status ?? t("history.unknownStatus"),
-					to: event.to_status ?? t("history.unknownStatus"),
+					from: statusText(event.from_status),
+					to: statusText(event.to_status),
 				})
 			: "";
 	return (
 		<li>
-			<strong>{event.event_type}</strong>
+			<strong>{matchEventLabel(event.event_type, t)}</strong>
 			{transition}
 			{t("history.separator")}
 			{formatEventAt(event.at)}
@@ -484,7 +503,7 @@ function ResolveControls({
 	onChange,
 	onResolve,
 }: ResolveControlsProps) {
-	const { t } = useTranslation("review");
+	const { t } = useTranslation(REVIEW_NAMESPACES);
 	const ref = match.customer_reference ?? match.match_id;
 	return (
 		<div className="flex-gap-sm">
@@ -494,11 +513,11 @@ function ResolveControls({
 				onChange={(e) =>
 					onChange("disposition", e.target.value as ReviewDisposition)
 				}
-				className="form-select"
+				className="form-select review-resolve-select"
 			>
 				{DISPOSITIONS.map((d) => (
 					<option key={d} value={d}>
-						{d}
+						{resolutionLabel(d, t)}
 					</option>
 				))}
 			</select>
