@@ -19,6 +19,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to UKSL Unique IDs (e.g. `UK_OFSI:AQD0194`), so existing UK matches will appear once
   more for review; the old matches are logged `SUPPRESSED`.
 
+- **README rewritten in plain English for a compliance reader.** It now opens with what
+  the tool is and who it is for, then the problem, then a "Try it" on the live site with
+  a real sanctioned name (`Vladimir Putin`) and screenshots of the real result and the
+  review page. It says plainly that the search page checks only the US list and that
+  adding a customer checks all four. Engineering detail (package map, retrieval and
+  scoring, security summary, what the gate proves, build-time configuration, Dagger,
+  browser support) moved to `docs/ARCHITECTURE.md`, `docs/DEPLOY.md`, and
+  `docs/MEMORY-ARCHITECTURE.md`. The README contract test now pins the new section order,
+  the OFAC-only fact, and a ban on internal jargon. The "Run it yourself" section
+  documents `dev` (demo list) only, because `dev:live` currently fails verification
+  locally. A "Technical docs" line under the intro links the developer guide,
+  architecture, matching, watchlist format, and deploy docs, and "More detail" links
+  every technical doc; the contract test pins both.
+
+- **New `docs/GETTING_STARTED.md` for developers.** Exact prerequisites (Node 22.13.0,
+  pnpm via corepack, Python 3.13 + uv, Playwright browsers) and the local traps we hit,
+  clone to install to `pnpm gate` with timings from a fresh clone, a map of the
+  workspace packages, a first-change walkthrough (test first), and the PR process.
+
 - **README follows the portfolio template.** A plain-language first screen: a tagline
   that says what it does and for whom, "At a glance" (including exactly what leaves the
   device), and a "Try it in 60 seconds" walkthrough whose hero screenshot and pasted

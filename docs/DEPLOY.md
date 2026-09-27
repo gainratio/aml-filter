@@ -280,6 +280,38 @@ exact policy to the minified build so a worker/WASM regression fails before depl
 The complete threat/privacy, recovery, and numeric performance contract is in
 [`OPERATIONS.md`](OPERATIONS.md).
 
+## Build-time configuration
+
+None of these are needed for the local demo. They are build-time Vite variables, set in
+`frontend/app/.env` (gitignored; see [`frontend/app/.env.example`](../frontend/app/.env.example)).
+There are no secrets in the app: it holds only the public verification key.
+
+| Variable | Default | What it changes |
+| --- | --- | --- |
+| `VITE_BUNDLE_BASE_URL` | same-origin `/bundle/origin` | Where the signed list bundle is fetched from. The pinned public key is always read same-origin, never from here. `dev:live` / `build:live` set it to `/bundle/live`. |
+| `VITE_MODEL_LOAD_IDLE_TIMEOUT_MS` | `90000` | How long model loading may make no progress before boot fails loudly. |
+| `VITE_BOOT_TIMEOUT_MS` | `900000` | Upper bound for the whole boot (list sync + verify + model warm-up) before `/screen` fails loudly. |
+
+Per-list thresholds, strictness, list selection, and the analyst name are set in the
+app's **Settings** page and stored in the browser. Publishing signed lists needs a
+private signing key, which is never committed; see [Operations](OPERATIONS.md).
+
+The build stages the verified model and ONNX-WASM assets from local dependencies, so
+the production browser never downloads executable code or model weights from a
+third-party CDN.
+
+## Run the gate or build with Dagger
+
+The same gate is a portable Dagger Function. With Dagger 0.21.8 installed:
+
+```bash
+dagger check
+dagger call build export --path=frontend/app/dist
+```
+
+The module is thin: it composes Dagger's directory, container, and cache objects around
+the existing repository commands.
+
 ## Operational caveats
 
 - **Same embedder on both sides.** The publisher precomputes name vectors with the same

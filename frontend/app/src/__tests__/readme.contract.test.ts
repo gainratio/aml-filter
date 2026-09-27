@@ -3,14 +3,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-// README contract — the portfolio README template, enforced inside `pnpm gate`.
+// README contract, enforced inside `pnpm gate`.
 //
-// The first screen of the root README.md (title → tagline → badges → hero →
-// "At a glance" → "Try it in 60 seconds") is written for a smart
-// non-specialist, and it drifts the moment nobody checks it: a tagline edited in
-// the README but not in package.json, a fifth badge, a renamed label, a dropped
-// hero caption, a relative link to a file that moved. Deliberately dumb: string
-// and regex checks only, no markdown parser — it guards shape, not prose.
+// The README is written for a compliance person at a small company, not an
+// engineer: what it is, the problem, a live "Try it" with a real sanctioned name,
+// how it works in plain words, which lists, what it does not do, then how to run
+// it. It drifts the moment nobody checks it: a tagline edited in the README but
+// not in package.json, a section reordered, internal jargon creeping back in, a
+// relative link to a file that moved. Deliberately dumb: string and regex checks
+// only, no markdown parser. It guards shape and a few load-bearing facts, not prose.
 
 const repoRoot = resolve(
 	dirname(fileURLToPath(import.meta.url)),
@@ -24,17 +25,52 @@ const readme = readFileSync(resolve(repoRoot, "README.md"), "utf8");
 /** The workspace root and the app both publish the tagline as their description. */
 const PACKAGE_JSONS = ["frontend/package.json", "frontend/app/package.json"];
 
-const AT_A_GLANCE = "## At a glance";
-const TRY_IT = "## Try it in 60 seconds";
+const TRY_IT = "## Try it";
 const HOW_IT_WORKS = "## How it works";
-const LABELS = [
-	"**What it does**",
-	"**Who it's for**",
-	"**What stays on your device / what leaves it**",
-	"**Runs on**",
-	"**Not for**",
-	"**Status**",
+const LISTS = "## Which lists, and how fresh";
+const LIMITS = "## What it does not do";
+const RUN_IT = "## Run it yourself";
+const DEVELOP = "## Develop";
+const MORE_DETAIL = "## More detail";
+const SECTION_ORDER = [
+	TRY_IT,
+	HOW_IT_WORKS,
+	LISTS,
+	LIMITS,
+	RUN_IT,
+	DEVELOP,
+	MORE_DETAIL,
 ];
+
+/** The prominent docs line under the intro, pinned verbatim. */
+const TECH_DOCS_LINE =
+	"**Technical docs:** [Getting started for developers](docs/GETTING_STARTED.md) · " +
+	"[Architecture](docs/ARCHITECTURE.md) · " +
+	"[How matching works](docs/ARCHITECTURE.md#retrieval-and-scoring-in-one-paragraph) · " +
+	"[Watchlist format](docs/WATCHLIST_FORMAT.md) · [Deploy](docs/DEPLOY.md)";
+
+/** Every technical doc must be reachable from "More detail". */
+const MORE_DETAIL_TARGETS = [
+	"docs/GETTING_STARTED.md",
+	"docs/QUICKSTART.md",
+	"docs/ARCHITECTURE.md",
+	"docs/WATCHLIST_FORMAT.md",
+	"docs/RECALL.md",
+	"docs/MEMORY-ARCHITECTURE.md",
+	"docs/DEPLOY.md",
+	"docs/OPERATIONS.md",
+	"SECURITY.md",
+	"CONTRIBUTING.md",
+	"CHANGELOG.md",
+];
+
+/** Internal vocabulary and hype that make a README hard to read. */
+const BANNED =
+	/northstar|\bseams?\b|\blego\b|trust envelope|fail[- ]closed|\bgate\b|\bfleet\b|portfolio|production[- ]ready|blazing|\brobust\b|enterprise[- ]grade|seamless|receipt/i;
+
+/** README prose with fenced and inline code removed (commands may say `pnpm gate`). */
+const prose = (): string =>
+	readme.replace(/^```[\s\S]*?^```/gm, "").replace(/`[^`\n]*`/g, "");
 
 const at = (needle: string): number => readme.indexOf(needle);
 
@@ -76,31 +112,60 @@ describe("README contract", () => {
 		}
 	});
 
-	it("shows at most four badges before 'At a glance'", () => {
-		expect(at(AT_A_GLANCE)).toBeGreaterThan(0);
-		const badges = readme.slice(0, at(AT_A_GLANCE)).split("[![").length - 1;
-		expect(badges).toBeLessThanOrEqual(4);
+	it("shows at most two badges before 'Try it'", () => {
+		expect(at(TRY_IT)).toBeGreaterThan(0);
+		const badges = readme.slice(0, at(TRY_IT)).split("[![").length - 1;
+		expect(badges).toBeLessThanOrEqual(2);
 	});
 
-	it("puts every bolded At-a-glance label on the first screen", () => {
-		const firstScreen = readme.slice(0, at(HOW_IT_WORKS));
-		for (const label of LABELS) {
-			expect(firstScreen, label).toContain(`- ${label} — `);
-		}
+	it("orders Try it, How it works, lists, limits, then Run it yourself", () => {
+		const positions = SECTION_ORDER.map((heading) => at(heading));
+		expect(positions.every((p) => p > 0)).toBe(true);
+		expect([...positions].sort((x, y) => x - y)).toEqual(positions);
 	});
 
-	it("orders hero caption, 'Try it in 60 seconds', then 'How it works'", () => {
-		const caption = at("Real output of the example below");
-		expect(caption).toBeGreaterThan(0);
-		expect(at(TRY_IT)).toBeGreaterThan(caption);
-		expect(at(HOW_IT_WORKS)).toBeGreaterThan(at(TRY_IT));
+	it("puts the technical docs line directly under the intro, before 'Try it'", () => {
+		const line = at(TECH_DOCS_LINE);
+		expect(line).toBeGreaterThan(0);
+		expect(readme.slice(line + TECH_DOCS_LINE.length, at(TRY_IT)).trim()).toBe(
+			"",
+		);
+	});
+
+	it("links the developer guide from 'Develop'", () => {
+		const develop = readme.slice(at(DEVELOP), at(MORE_DETAIL));
+		expect(develop).toContain("](docs/GETTING_STARTED.md)");
+	});
+
+	it("links every technical doc from 'More detail'", () => {
+		const more = readme.slice(at(MORE_DETAIL));
+		const missing = MORE_DETAIL_TARGETS.filter(
+			(t) => !more.includes(`](${t})`),
+		);
+		expect(missing).toEqual([]);
+	});
+
+	it("puts the live site and a real sanctioned name with its screenshot in 'Try it'", () => {
+		const tryIt = readme.slice(at(TRY_IT), at(HOW_IT_WORKS));
+		expect(tryIt).toContain("https://aml-filter.com/screen");
+		expect(tryIt).toContain("`Vladimir Putin`");
+		expect(tryIt).toContain("](docs/assets/screen-putin.png)");
+	});
+
+	it("says the search page checks only the US list", () => {
+		// ScreenPage.tsx screens OFAC_SDN only; all four lists run on Customers.
+		expect(readme).toContain("The search page checks only the US list (OFAC).");
 	});
 
 	it("never claims the app works with no network", () => {
 		// There is no service worker: list caching is not offline support.
-		const firstScreen = readme.slice(0, at(HOW_IT_WORKS));
-		expect(firstScreen).toContain("no offline mode");
+		const limits = readme.slice(at(LIMITS), at(RUN_IT));
+		expect(limits).toContain("There is no offline mode.");
 		expect(readme).not.toMatch(/works offline|offline-capable|offline first/i);
+	});
+
+	it("keeps internal jargon and hype out of the README", () => {
+		expect(prose()).not.toMatch(BANNED);
 	});
 
 	it("links the interactive architecture map, whose source exists", () => {

@@ -13,6 +13,9 @@ is **pnpm + Biome** — no bun, ESLint, or Prettier.
 
 ## Local setup
 
+New here? [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) walks you from a fresh
+clone to a passing local build and your first change.
+
 ```bash
 cd frontend
 corepack enable

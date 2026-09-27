@@ -541,9 +541,100 @@ stable.
   re-review transitions are recorded, never rewritten. SQLite triggers enforce this, so
   it binds any code path rather than only the ones written so far — but it is not
   tamper-evidence: the file is local, there is no hash chain, and an operator with direct
-  SQLite access can drop the triggers. See the README's "What append-only means here".
+  SQLite access can drop the triggers. See [Security summary](#security-summary).
 - **Your data stays local.** KYC records live only in the in-tab SQLite-WASM/OPFS
   database; nothing is sent to a server.
+
+## Package map
+
+AML-Filter is four small, separately tested pieces. There is no backend in the path.
+
+| Package | Responsibility |
+| --- | --- |
+| `@amlfilter/publisher` | Converts public source lists into signed, content-addressed static bundles. |
+| `@amlfilter/browser` | Verifies bundles, embeds the query, retrieves candidates, and composes the Assay scorer. |
+| `@amlfilter/workstation` | Owns customer records, review state, rescans, and the SQLite audit ledger. |
+| React app | Composes the three into the Screen, Customers, Review, and Settings pages. |
+
+```text
+aml-filter/
+├── frontend/                  pnpm workspace
+│   ├── app/                   React + Vite browser app
+│   └── packages/
+│       ├── amlfilter-browser/ verification, retrieval, scoring
+│       ├── amlfilter-publisher/ source adapters and signed bundles
+│       └── amlfilter-workstation/ SQLite KYC workflow
+├── eval/                      independent Python evaluation harness
+└── docs/                      architecture and operating guides
+```
+
+## Retrieval and scoring in one paragraph
+
+Publisher adapters support the U.S. Treasury OFAC SDN list, the EU Consolidated list, the
+UN Consolidated list, and the UK Sanctions List (FCDO; asset-freeze designations only —
+OFSI's old Consolidated List closed on 2026-06-03). Candidate retrieval unions two
+bounded paths in one Worker-owned database: MiniLM nearest neighbours through
+sqlite-vector, plus exact canonical-token and Double-Metaphone postings through SQLite.
+TypeScript creates the lookup keys and applies the transparent final policy;
+`@edgeproc/assay` combines vector similarity, sequence similarity, alias, date-of-birth,
+and country evidence. Phonetics can widen the candidate set but cannot by itself declare
+a match. Each result records `retrieved_via` (which channels reached it); the "Why this
+score?" panel shows it as "Found via" context, and it is never a score term. Each result
+includes ordered contributions and a stable input hash, and the signed score receipt
+seals that evidence. Frozen golden fixtures lock score and tier behaviour; the recall
+gate measures retrieval against the real OFAC corpus and fails below its published
+floors ([RECALL.md](RECALL.md)).
+
+## Security summary
+
+- **Verified:** the signed `latest` pointer (with a sequence number that may only go up),
+  the content-addressed manifest, and every chunk are checked with Ed25519 + SHA-256
+  against the one public key pinned in the app build
+  ([`frontend/app/public/public.key`](../frontend/app/public/public.key)), never a key
+  carried inside the bundle. The same check re-runs over bytes read back from the
+  browser's cache. The 23 MB model is checked against pinned SHA-256 digests at build time.
+- **Refuses rather than warns:** a bad signature, hash mismatch, older-than-seen list
+  (rollback), or incomplete update never becomes an active list, and the app shows an
+  error instead of an empty result. A rollback is explained before the app lets you clear
+  the cache; it never clears on its own.
+- **Not protected:** a compromised device or browser, a malicious browser extension, or
+  someone with access to your browser profile. The review ledger is append-only by
+  database triggers, but it is a local file with no hash chain, not tamper-evidence.
+  Whether a match is legally a match is always the reviewer's call.
+- **Customer data stays local:** customer records and review history live in
+  SQLite-WASM on the browser's Origin Private File System.
+- **Spreadsheet boundaries:** imports are validated and bounded; exports escape
+  spreadsheet formulas.
+- **Score receipts** seal Assay method `amlfilter.additive.v2`, ordered component
+  contributions, and input fingerprints, not customer text.
+- **Deletion is explicit:** deleting a customer removes that customer's matches and
+  review history in the same SQLite transaction.
+- **One network destination:** the hosted site's Content-Security-Policy sets
+  `connect-src 'self'` ([`frontend/app/public/_headers`](../frontend/app/public/_headers)).
+- **Verify a release:** `curl -fsSL https://aml-filter.com/build.json` names the exact
+  deployed commit; `pnpm --filter aml-filter-app bundle:live` mirrors the live signed
+  lists and verifies the pointer, manifest, and every chunk against the pinned key.
+
+Report a vulnerability through [SECURITY.md](../SECURITY.md).
+
+## What the release gate proves
+
+| Claim | Backed by |
+| --- | --- |
+| Tampered, unsigned, or rolled-back lists are refused | `pnpm test:e2e:bundle` (real Chromium, incl. `rollback-recovery.spec.ts`) and the `@amlfilter/browser` unit suites |
+| The committed demo bundle verifies against the committed key in a real tab | `pnpm test:e2e:c1` and `pnpm test:e2e:kyc` against the minified production build |
+| Retrieval recall stays above published floors on the real OFAC corpus | `pnpm --filter @amlfilter/publisher run gate:recall` ([RECALL.md](RECALL.md)) |
+| Score and tier behaviour do not drift | frozen golden fixtures (`amlfilter-browser/src/engine/__fixtures__/scoring/golden.json`, `amlfilter-workstation/src/__fixtures__/tiering/golden.json`) |
+| The receipt signs, verifies, and rejects tampering in Chromium, Firefox, and WebKit | `pnpm test:e2e:receipt` |
+| A phone tab survives the model and lists | `pnpm test:e2e:mobile:ci` (iPhone-shaped WebKit, Android Chromium) |
+
+`pnpm gate` runs strict type checks, lint, unit and coverage suites, production builds,
+the recall and evaluation gates, translation checks, signed-bundle contracts, and the
+real-browser KYC, receipt, bundle, and mobile lanes.
+
+It does **not** prove behaviour on a physical iPhone (checked by hand), that the lists
+are complete or legally sufficient for your obligations, or that a match or non-match
+is correct. It proves the software does what it says with the lists it was given.
 
 ## Further reading
 

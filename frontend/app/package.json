@@ -1,7 +1,7 @@
 {
 	"name": "aml-filter-app",
 	"version": "4.0.0",
-	"description": "Checks your customers' names against government sanctions lists inside your browser, for small compliance teams.",
+	"description": "Free sanctions screening for small businesses: check a customer's name against government lists, in your browser.",
 	"type": "module",
 	"private": true,
 	"scripts": {

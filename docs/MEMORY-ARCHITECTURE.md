@@ -72,3 +72,23 @@ SQLite-WASM Worker and OPFS database for customers, matches, settings, and audit
 No customer record or query is written to the public-list databases or bundle cache.
 This keeps the design composable: the shared package owns vector execution, the signed
 bundle owns public-data durability, and the workstation owns private transactional data.
+
+## Browser support and memory safeguards
+
+The model and sanctions lists are large enough to exhaust a mobile tab if they are
+loaded carelessly. The app therefore:
+
+- serializes boot behind one shared promise;
+- keeps one runtime owner instead of compiling duplicate ONNX sessions;
+- uses one-list-at-a-time vector residency on mobile, unknown-memory devices, and
+  desktops reporting 8 GB or less;
+- delegates signed-bundle transport, verification, cross-tab locking, and durable
+  storage to `@edgeproc/browser` pinned to a reviewed public commit;
+- disposes the old engine before a reload, then builds and swaps the replacement;
+- prevents overlapping update checks and clears recurring timers on unmount.
+
+The supported baseline is the current and previous desktop Chrome, Edge, Firefox, and
+Safari 17+. Mobile Safari and Chrome use the bounded-memory path. Embedded WebViews are
+outside the release contract. Screening requires Workers, durable browser storage
+(OPFS or IndexedDB), WebCrypto, Web Locks, and a secure context. The KYC workstation
+additionally requires OPFS for its SQLite database.
