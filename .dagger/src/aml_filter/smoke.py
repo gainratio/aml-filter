@@ -29,6 +29,16 @@ class SmokeRun:
     output: str
 
 
+@dataclass(frozen=True)
+class RollbackOutcome:
+    """Verified rollback evidence from the shared cloudflare-pages module."""
+
+    from_deployment_id: str
+    to_deployment_id: str
+    live_deployment_id: str
+    live_deployment_url: str
+
+
 def smoke_passes(*, returning: bool) -> str:
     """Return the Playwright --grep for the passes this run must prove."""
     return "@fresh|@returning" if returning else "@fresh"
@@ -70,3 +80,38 @@ def prime_note(run: SmokeRun) -> str:
         "the previous release failed its own smoke:\n"
         f"{_tail(run.output, PRIME_FAILURE_LINES)}"
     )
+
+
+def _rollback_line(rollback: RollbackOutcome) -> str:
+    return (
+        f"rolled production back from {rollback.from_deployment_id} to "
+        f"{rollback.to_deployment_id} (live {rollback.live_deployment_id} "
+        f"{rollback.live_deployment_url})"
+    )
+
+
+def _recovery_line(recovery: SmokeRun) -> str:
+    if recovery.exit_code == 0:
+        return "recovery smoke PASSED on the restored release; fix the release before redeploying"
+    return (
+        f"recovery smoke FAILED (exit {recovery.exit_code}): production is STILL BROKEN after "
+        f"rollback. Investigate now.\n{_tail(recovery.output, MAX_FAILURE_LINES)}"
+    )
+
+
+def recovery_failure(
+    smoke: SmokeRun,
+    deployment: str,
+    rollback: RollbackOutcome | str,
+    recovery: SmokeRun | None,
+) -> LiveSmokeFailedError:
+    """The one loud error after a red smoke: rollback result, then live recheck."""
+    head = f"post-deploy check FAILED (exit {smoke.exit_code}) on deployment {deployment}"
+    if isinstance(rollback, str) or recovery is None:
+        detail = (
+            f"automatic rollback FAILED: {rollback}. Production may still serve the bad "
+            "release: roll back to the previous production deployment by hand now"
+        )
+    else:
+        detail = f"{_rollback_line(rollback)}; {_recovery_line(recovery)}"
+    return LiveSmokeFailedError(f"{head}; {detail}\n{_tail(smoke.output, MAX_FAILURE_LINES)}")

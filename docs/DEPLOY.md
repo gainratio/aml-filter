@@ -247,8 +247,13 @@ for returning visitors because nothing opened the live site after a deploy.
   release that is live *then*. After the upload the same profile reloads and repeats the
   journey, which is the path a cached visitor takes.
 
-A red smoke fails the workflow and names the Pages deployment to roll back. Rollback is
-manual for now: the shared `cloudflare-pages` Dagger module has no rollback function yet.
+Before the upload, the pipeline records the deployment production serves now
+(`previous-production-deployment`, read-only; no upload happens if it can't be read).
+If the smoke goes red, or the live site serves the wrong commit or bundle identity, it calls the shared module's `rollback` with that ID (once per job), which
+confirms Cloudflare now serves it, and then re-runs the fresh smoke against
+`https://aml-filter.com`. The job **fails either way**. The error says whether
+production recovered ("recovery smoke PASSED"), is STILL BROKEN after the rollback, or
+could not be rolled back automatically (roll back by hand).
 [`live-smoke.yml`](../.github/workflows/live-smoke.yml) runs the fresh pass every four
 hours.
 
