@@ -18,56 +18,9 @@ import { expect, type Page } from "@playwright/test";
  * The console must stay clean the whole way.
  */
 
-/** One known designation per list: the name a user types, the designated name
- * the match renders, and the list it must be tagged with. Chosen from the live
- * catalog (2026-09-25) as long-standing, high-profile designations. */
-export interface ListProbe {
-	readonly list: string;
-	readonly query: string;
-	readonly name: RegExp;
-	/** The designation's published identifiers, entered as an analyst would. */
-	readonly dob?: string;
-	readonly country?: string;
-}
+import { LIST_PROBES, type ListProbe, reviewBadgeText } from "./probes";
 
-export const LIST_PROBES: readonly ListProbe[] = [
-	{
-		list: "OFAC_SDN",
-		query: "Maduro Moros Nicolas",
-		name: /maduro moros nicolas/i,
-		dob: "1962-11-23",
-		country: "VE",
-	},
-	{
-		list: "EU_CONSOLIDATED",
-		query: "Roman Abramovich",
-		name: /roman abramovi/i,
-		dob: "1966-10-24",
-		country: "RU",
-	},
-	{
-		list: "UN_CONSOLIDATED",
-		query: "Kim Jong Sik",
-		name: /kim jong sik/i,
-		country: "KP",
-	},
-	// A UK Sanctions List (FCDO) asset-freeze designation — the list that was
-	// silently carried forward for weeks.
-	{
-		list: "UK_OFSI",
-		query: "Igor Ivanovich Sechin",
-		name: /igor ivanovich sechin/i,
-		dob: "1960-09-07",
-		country: "RU",
-	},
-];
-
-/** The public /screen route screens OFAC only, by design (ScreenPage.tsx). */
-export const SCREEN_PROBE: ListProbe = {
-	list: "OFAC_SDN",
-	query: "Nicolas Maduro Moros",
-	name: /maduro moros nicolas/i,
-};
+export { LIST_PROBES, type ListProbe, SCREEN_PROBE } from "./probes";
 
 async function fillProbeIdentifiers(
 	page: Page,
@@ -262,7 +215,7 @@ export async function expectReviewRowsPerList(
 			.filter({ hasText: probe.name })
 			.filter({
 				has: page.locator(".badge-muted", {
-					hasText: new RegExp(`^${probe.list}$`),
+					hasText: new RegExp(`^${reviewBadgeText(probe.list)}$`),
 				}),
 			})
 			.first();
