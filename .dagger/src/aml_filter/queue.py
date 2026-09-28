@@ -97,7 +97,7 @@ def fetch_runs(repository: str, token: str, workflow_file: str) -> str:
     try:
         status, body = _get(runs_path(repository, workflow_file), token)
         text = body.decode("utf-8")
-    except OSError, HTTPException, UnicodeDecodeError:
+    except (OSError, HTTPException, UnicodeDecodeError):
         raise unavailable from None
     if status != HTTPStatus.OK:
         raise unavailable

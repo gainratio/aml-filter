@@ -25,7 +25,10 @@ dagger-io = { path = "sdk", editable = true }
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+# The module runs on 3.14, but hseshadr/ci's fleet policy parses this source with
+# Python 3.13. At py314 the formatter strips the parentheses from multi-type excepts
+# (PEP 758), which 3.13 cannot parse. See tests/test_fleet_parse_contract.py.
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "C901", "B", "UP", "SIM", "N", "RUF", "ASYNC", "S", "PL"]
