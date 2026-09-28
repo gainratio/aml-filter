@@ -66,3 +66,18 @@ const LIST_LABELS: Readonly<Record<string, string>> = common.labels.lists;
 export function reviewBadgeText(list: string): string {
 	return LIST_LABELS[list] ?? list;
 }
+
+function escapeRegExp(text: string): string {
+	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** What the smoke accepts as a list's Review Board badge: the whole badge must
+ * be that list's raw code OR its plain name, nothing else. The smoke runs
+ * against two releases in one deploy (@prime on the one still live, then
+ * @fresh/@returning on the new one), and #152 changed the badge from the code
+ * to the name, so a pattern that knows only one spelling fails one of them.
+ * Another list's code or name never matches. */
+export function reviewBadgePattern(list: string): RegExp {
+	const spellings = [...new Set([list, reviewBadgeText(list)])];
+	return new RegExp(`^(?:${spellings.map(escapeRegExp).join("|")})$`);
+}
