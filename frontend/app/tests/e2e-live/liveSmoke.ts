@@ -65,21 +65,29 @@ export function watchConsole(page: Page): ConsoleWatch {
 }
 
 /** A first visit to the workstation asks for an analyst name (stored only in
- * this browser). Answer it like a user; a returning profile skips straight on. */
+ * this browser). Answer it like a user; a returning profile skips straight on.
+ *
+ * The gate is recognised by its "Start reviewing" button, NOT by an "Analyst
+ * name" textbox: /settings on an already-onboarded profile has its own "Analyst
+ * name" field (to rename yourself), and keying on that sent an onboarded,
+ * unprimed returning profile hunting for a gate button that is not there (the
+ * 2026-09-28 deploy's @returning failure). */
 async function passOnboarding(page: Page): Promise<void> {
-	const name = page.getByRole("textbox", { name: "Analyst name" });
+	const start = page.getByRole("button", { name: "Start reviewing" });
 	const lists = page.locator(
 		`#watchlist-${LIST_PROBES[0]?.list ?? "OFAC_SDN"}`,
 	);
 	await expect(
-		name.or(lists).or(page.locator('[role="alert"]')).first(),
+		start.or(lists).or(page.locator('[role="alert"]')).first(),
 	).toBeVisible({
 		timeout: BOOT_TIMEOUT_MS,
 	});
 	await failOnAlert(page, "/settings");
-	if (await name.isVisible()) {
-		await name.fill("Live smoke");
-		await page.getByRole("button", { name: "Start reviewing" }).click();
+	if (await start.isVisible()) {
+		await page
+			.getByRole("textbox", { name: "Analyst name" })
+			.fill("Live smoke");
+		await start.click();
 	}
 }
 

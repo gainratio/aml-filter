@@ -54,9 +54,18 @@ allowBuilds:
 # Vite reaches nanoid through PostCSS; versions before 3.3.17 can loop forever
 # for a zero-size custom alphabet request. The `<4` ceiling avoids a silent
 # transitive major-version jump.
+#
+# Pin transitive undici to 7.29.1 for GHSA-3wwx-pv8p-q78v (DoS via an unhandled
+# error in WebSocket permessage-deflate decompression; vulnerable >=7.28.0
+# <7.29.1). wrangler>miniflare pins undici EXACTLY at 7.29.0, so no direct bump
+# reaches it. The selector only rewrites the vulnerable 7.x range; the separate
+# undici 8.x copy is untouched. The advisory turned main CI red on 2026-09-29
+# (`pnpm audit --audit-level low`), which silently skipped the deploy and blocked
+# every watchlist publish (they require an exact-green main).
 overrides:
   adm-zip: "0.6.1"
   protobufjs: ">=7.6.5 <8"
   sharp: "^0.35.4"
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.17 <4"
+  "undici@>=7.28.0 <7.29.1": "7.29.1"

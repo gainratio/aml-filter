@@ -421,15 +421,22 @@ class AmlFilter:
 
     @staticmethod
     async def _rollback(plan: RecoveryPlan) -> RollbackOutcome | str:
-        """Restore the recorded target; a fail-closed refusal becomes its reason."""
+        """Restore the recorded target; a fail-closed refusal becomes its reason.
+
+        The rollback is a cache="never" call, so every query against the lazy object
+        runs it again, and a second run refuses as a no-op. Execute it ONCE via id(),
+        then read the stored evidence (the same pattern as the deploy evidence).
+        """
         request = plan.request
         rolled = dag.cloudflare_pages().rollback(
             request.api_token, request.account_id, TARGET.project, deployment_id=plan.target
         )
         try:
+            object_id = dagger.CloudflarePagesProductionRollbackEvidenceID(await rolled.id())
+            stored = dag.load_cloudflare_pages_production_rollback_evidence_from_id(object_id)
             return RollbackOutcome(
-                await rolled.from_deployment_id(), await rolled.to_deployment_id(),
-                await rolled.live_deployment_id(), await rolled.live_deployment_url(),
+                await stored.from_deployment_id(), await stored.to_deployment_id(),
+                await stored.live_deployment_id(), await stored.live_deployment_url(),
             )  # fmt: skip
         except (dagger.DaggerError, RuntimeError) as error:
             return str(error)

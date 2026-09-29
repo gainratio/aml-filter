@@ -569,15 +569,50 @@ class ProductionRecorder:
 
 
 class RollbackRecorder:
-    """Verified rollback evidence, or the module's fail-closed refusal."""
+    """The LAZY rollback call, as Dagger really runs it.
+
+    ci's ``CloudflarePages.rollback`` is ``cache="never"``, so every query against
+    this object (each field read, or ``id()``) executes the rollback on Cloudflare
+    again. The first execution restores the target; any later one finds the target
+    already live and refuses, exactly as the real module does. Reading four fields
+    therefore rolls back once and then fails three times.
+    """
 
     def __init__(self, context: RecordedDelivery) -> None:
         self.context = context
 
-    async def from_deployment_id(self) -> str:
+    def _execute(self) -> None:
         self.context.events.append("materialize:rollback")
         if self.context.fail_rollback:
             raise RuntimeError("target is already live")
+        if self.context.events.count("materialize:rollback") > 1:
+            raise RuntimeError("Rollback target is already live; refusing a no-op rollback")
+
+    async def id(self) -> str:
+        self._execute()
+        return "rollback-evidence-id"
+
+    async def from_deployment_id(self) -> str:
+        self._execute()
+        return "deployment-123"
+
+    async def to_deployment_id(self) -> str:
+        self._execute()
+        return "deployment-good"
+
+    async def live_deployment_id(self) -> str:
+        self._execute()
+        return "deployment-good"
+
+    async def live_deployment_url(self) -> str:
+        self._execute()
+        return "https://deployment-good.pages.dev"
+
+
+class StoredRollbackRecorder:
+    """Rollback evidence reloaded by ID: reading it never re-executes the rollback."""
+
+    async def from_deployment_id(self) -> str:
         return "deployment-123"
 
     async def to_deployment_id(self) -> str:
@@ -682,6 +717,13 @@ class DeliveryDagRecorder:
         assert str(evidence_id) == "provider-evidence-id"
         self.context.events.append("load:provider-evidence-id")
         return StoredProviderEvidenceRecorder(self.context.events)
+
+    def load_cloudflare_pages_production_rollback_evidence_from_id(
+        self, evidence_id: object
+    ) -> StoredRollbackRecorder:
+        assert str(evidence_id) == "rollback-evidence-id"
+        self.context.events.append("load:rollback-evidence-id")
+        return StoredRollbackRecorder()
 
 
 class ProductContainerRecorder:
@@ -2198,6 +2240,29 @@ async def test_should_roll_back_exactly_once_when_smoke_fails(
         await subject._publish(recorded_request(context, ReleaseKind.CODE))
     rollbacks = [e for e in context.events if e.startswith("construct:rollback")]
     assert rollbacks == ["construct:rollback:deployment-good"]
+
+
+@pytest.mark.anyio
+async def test_should_execute_the_rollback_once_and_run_recovery_when_the_smoke_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the 2026-09-28 deploy. The rollback worked, but reading its four
+    # evidence fields re-ran the cache="never" call; the second run refused as a
+    # no-op, the job reported "automatic rollback FAILED", and the recovery smoke
+    # never ran. Counting constructions could not see it: only one was built.
+    context = recorded_delivery()
+    context.smoke_exit = 1
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(LiveSmokeFailedError) as raised:
+        await subject._publish(recorded_request(context, ReleaseKind.CODE))
+    assert context.events.count("materialize:rollback") == 1
+    assert "load:rollback-evidence-id" in context.events
+    assert f"recovery-smoke:{RECORDED_SHA}" in context.events
+    message = str(raised.value)
+    assert "automatic rollback FAILED" not in message
+    assert "rolled production back from deployment-123 to deployment-good" in message
 
 
 @pytest.mark.anyio
