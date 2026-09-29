@@ -74,6 +74,30 @@ bundle on its own schedule and opens an issue when a list goes stale. That guard
 because this cron failed for 22 consecutive days (2026-06-21 → 07-12, a missing signing
 secret) and the only signal was a red dot nobody was watching.
 
+**What the nightly run needs to be green.** Every publish and deploy needs the `Dagger`
+check green on the exact `main` head: the full quality gate (publisher tests included),
+the audit of the dependencies that ship (`pnpm audit --prod`), and the secret scan. The
+build then signs the bundle, verifies it, verifies it again live, and runs the live smoke,
+rolling back if the smoke fails. Advisories in build and deploy tooling (`pnpm audit
+--dev`: vite, vitest, wrangler) are checked by a separate workflow,
+[`dev-tool-audit.yml`](../.github/workflows/dev-tool-audit.yml). A red dev-tool audit fails
+the PR and `main`, and **every code release** re-runs it and refuses to ship: `deploy.yml`,
+the publish that follows a merge, and a manual publish. Only the **scheduled** nightly
+refresh skips it, and Dagger reads the trigger from GitHub's record of the run, not from
+an argument. The rule exists because on 2026-09-29 an undici advisory under wrangler
+turned the whole CI red, and the nightly refresh stopped for two days while nothing that
+ships to visitors had changed. The nightly still deploys the app built from `main`, so
+while a dev-tool advisory is open that build comes from tooling with a known advisory.
+That is the accepted trade-off; fix the advisory quickly.
+
+**When a production run fails.** `deploy.yml`, `publish-watchlist.yml`, `live-smoke.yml`,
+and `watchlist-freshness.yml` each end with a `Report production failure` job. It runs the
+`production-alert` Dagger function with a token that can only read the checkout and write
+issues. A failure opens one issue, **"Production deploy/publish failed"** (label
+`production-alert`, so GitHub emails the owner), or adds the run to it if it is already
+open. The body lists every workflow that is still failing. When that workflow's next run
+is green it comes off the list, and the issue closes itself once the list is empty.
+
 **What it does.** Install workspace deps and pinned edge-proc → resolve the version
 stamp → fetch and embed the live source lists → fetch and signature-verify the live
 `latest` pointer, deriving the next `sequence` by incrementing it (a pre-sequence

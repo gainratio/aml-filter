@@ -91,12 +91,21 @@ const AUTHORIZER_TRIGGERS = "push: branches: [main] pull_request:";
 const SECURITY_AUDIT_TRIGGERS =
 	'schedule: - cron: "0 9 * * 1" workflow_dispatch:';
 const READ_ONLY_PERMISSIONS = "contents: read";
+const ALERT_MARKER = "\n  alert:\n";
+const ALERT_CALL = `production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"`;
+const ALERTED_WORKFLOWS = [
+	"deploy.yml",
+	"live-smoke.yml",
+	"publish-watchlist.yml",
+	"watchlist-freshness.yml",
+];
 
 describe("thin Dagger ingress", () => {
-	it("keeps only the six orchestration entrypoints", () => {
+	it("keeps only the seven orchestration entrypoints", () => {
 		expect(workflows()).toEqual([
 			"dagger.yml",
 			"deploy.yml",
+			"dev-tool-audit.yml",
 			"live-smoke.yml",
 			"publish-watchlist.yml",
 			"security-audit.yml",
@@ -146,12 +155,17 @@ describe("thin Dagger ingress", () => {
 		}
 	});
 
-	it("exposes the sole PR and push gate as exact Dagger", () => {
+	it("exposes Dagger as the only authorizing PR and push gate", () => {
 		const yaml = read("dagger.yml");
 		const eventIngress = workflows().filter((file) =>
 			/^ {2}(?:push|pull_request):/m.test(read(file)),
 		);
-		expect(eventIngress).toEqual(["dagger.yml"]);
+		// The dev-tool audit also gates PRs and main, but under its own check name, so
+		// Foundation green_main (which reads only the "Dagger" check) never sees it.
+		expect(eventIngress).toEqual(["dagger.yml", "dev-tool-audit.yml"]);
+		expect(jobDisplayName(read("dev-tool-audit.yml"), "audit")).toBe(
+			"Dev-tool audit",
+		);
 		expect(workflowTriggers(yaml)).toBe(AUTHORIZER_TRIGGERS);
 		expect(workflowPermissions(yaml)).toBe(READ_ONLY_PERMISSIONS);
 		expect(jobDisplayName(yaml, "checks")).toBe("Dagger");
@@ -251,9 +265,11 @@ describe("thin Dagger ingress", () => {
 
 	it("runs freshness entirely inside a fail-closed Dagger entrypoint", () => {
 		const yaml = read("watchlist-freshness.yml");
+		const probe = yaml.slice(0, yaml.indexOf(ALERT_MARKER));
 		expect(yaml).toContain("permissions:\n  contents: read\n");
 		expect(yaml).toContain("call: freshness sync");
-		expect(yaml).not.toMatch(/issues:\s*write/);
+		// Only the separate alert job may write issues, and only through Dagger.
+		expect(probe).not.toMatch(/issues:\s*write/);
 		expect(yaml).not.toContain("actions/github-script");
 		expect(yaml).not.toContain("BREACHED=");
 	});
@@ -312,6 +328,46 @@ describe("thin Dagger ingress", () => {
 			expect(queue).not.toMatch(
 				/secrets\.|environment:|concurrency:|queue: max/,
 			);
+		}
+	});
+
+	it.each(ALERTED_WORKFLOWS)(
+		"reports a failed %s run to one issue through Dagger",
+		(file) => {
+			const yaml = read(file);
+			expect(yaml, file).toContain(ALERT_MARKER);
+			const alert = yaml.slice(yaml.indexOf(ALERT_MARKER));
+			expect(jobDisplayName(alert, "alert")).toBe("Report production failure");
+			expect(alert).toMatch(/^ {4}if: always\(\)/m);
+			expect(alert).toContain(
+				"    permissions:\n      contents: read\n      issues: write\n    steps:",
+			);
+			expect(actionInputs(alert, "dagger/dagger-for-github")).toBe(
+				`version: "0.21.8" call: ${ALERT_CALL}`,
+			);
+			expect(alert).not.toMatch(/secrets\.|environment:/);
+			// Nothing outside the alert job may write issues.
+			expect(yaml.slice(0, yaml.indexOf(ALERT_MARKER))).not.toMatch(
+				/issues:\s*write/,
+			);
+		},
+	);
+
+	it("audits dev tooling on every PR, main push, and weekly", () => {
+		const yaml = read("dev-tool-audit.yml");
+		expect(workflowTriggers(yaml)).toBe(
+			'push: branches: [main] pull_request: schedule: - cron: "0 9 * * 1"',
+		);
+		expect(workflowPermissions(yaml)).toBe(READ_ONLY_PERMISSIONS);
+		expect(actionInputs(yaml, "dagger/dagger-for-github")).toBe(
+			'version: "0.21.8" call: dev-tool-audit sync',
+		);
+	});
+
+	it("never lets a workflow claim its own trigger to Dagger", () => {
+		// Dagger reads the run's event from GitHub; no caller can claim "schedule".
+		for (const file of workflows()) {
+			expect(read(file), file).not.toMatch(/--event|GITHUB_EVENT_NAME/);
 		}
 	});
 });

@@ -57,7 +57,9 @@ application-supported device-level reset.
   `Float32Array` transferred across worker boundaries instead of cloned.
 - **Supply chain or key exposure.** Runtime dependencies are lockfile-pinned, the model
   and staged WASM assets are SHA-256/size checked, the signing seed exists only as a
-  GitHub secret, dependency audit has no ignore list, and gitleaks scans full history.
+  GitHub secret, the dependency audits (shipped deps in the `Dagger` check, dev tooling in
+  `dev-tool-audit.yml` and before every code release) have no ignore list, and gitleaks
+  scans full history.
 
 ## Numeric SLA and resource budgets
 

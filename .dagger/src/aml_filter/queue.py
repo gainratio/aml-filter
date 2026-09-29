@@ -151,3 +151,37 @@ async def wait_for_turn(
         if attempt + 1 < policy.attempts:
             await sleep(policy.poll_seconds)
     raise ReleaseTurnTimeoutError(f"older production runs still active: {ahead}")
+
+
+def run_path(repository: str, run_id: int) -> str:
+    return f"/repos/{repository}/actions/runs/{run_id}"
+
+
+def fetch_run_event(repository: str, token: str, run_id: int) -> str:
+    """Return the event GitHub recorded for this exact run (e.g. ``schedule``)."""
+    unavailable = RunListUnavailableError(f"cannot read run {run_id}")
+    try:
+        status, body = _get(run_path(repository, run_id), token)
+        text = body.decode("utf-8")
+    except (OSError, HTTPException, UnicodeDecodeError):
+        raise unavailable from None
+    if status != HTTPStatus.OK:
+        raise unavailable
+    return parse_run_event(text, run_id)
+
+
+def _run_record(body: str, run_id: int) -> Mapping[str, object]:
+    try:
+        document: object = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise MalformedRunListError("run record is not JSON") from error
+    if not isinstance(document, dict) or document.get("id") != run_id:
+        raise MalformedRunListError("run record is not this run")
+    return document
+
+
+def parse_run_event(body: str, run_id: int) -> str:
+    event = _run_record(body, run_id).get("event")
+    if not isinstance(event, str) or not event:
+        raise MalformedRunListError("run record has no event")
+    return event

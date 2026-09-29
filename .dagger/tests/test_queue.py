@@ -287,3 +287,76 @@ async def test_should_grant_release_turn_after_older_writes_complete(
 async def test_should_refuse_release_turn_for_malformed_run_id() -> None:
     with pytest.raises(MalformedRunListError):
         await main_module.grant_release_turn(cast(Secret, FakeSecret()), "42; rm", FAST)
+
+
+# --- which event started a run: GitHub's record, never the caller's claim ---------------
+
+
+def test_should_read_the_trigger_from_githubs_record_of_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    serve(monkeypatch, FakeResponse(200, json.dumps({"id": 42, "event": "schedule"}).encode()))
+
+    # When
+    event = queue_module.fetch_run_event("hseshadr/aml-filter", "sekrit-token", 42)
+
+    # Then
+    _, _, method, path, headers = FakeConnection.seen[0]
+    assert (method, path) == ("GET", "/repos/hseshadr/aml-filter/actions/runs/42")
+    assert headers["Authorization"] == "Bearer sekrit-token"
+    assert event == "schedule"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"not json",
+        b"[]",
+        b'{"id": 42}',
+        b'{"id": 42, "event": ""}',
+        b'{"id": 43, "event": "schedule"}',
+    ],
+)
+def test_should_refuse_a_run_record_that_is_not_exactly_this_run(
+    monkeypatch: pytest.MonkeyPatch, body: bytes
+) -> None:
+    # Given
+    serve(monkeypatch, FakeResponse(200, body))
+
+    # When / Then
+    with pytest.raises(MalformedRunListError):
+        queue_module.fetch_run_event("hseshadr/aml-filter", "sekrit-token", 42)
+
+
+@pytest.mark.parametrize("response", [OSError("Bearer sekrit-token"), FakeResponse(404, b"{}")])
+def test_should_fail_closed_when_the_run_record_is_unreadable(
+    monkeypatch: pytest.MonkeyPatch, response: FakeResponse | OSError
+) -> None:
+    # Given
+    serve(monkeypatch, response)
+
+    # When / Then
+    with pytest.raises(RunListUnavailableError) as caught:
+        queue_module.fetch_run_event("hseshadr/aml-filter", "sekrit-token", 42)
+    assert "sekrit-token" not in str(caught.value)
+
+
+@pytest.mark.anyio
+async def test_should_ask_github_for_this_repositorys_run_when_resolving_the_trigger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    calls: list[tuple[str, str, int]] = []
+
+    def fetch(repository: str, token: str, run_id: int) -> str:
+        calls.append((repository, token, run_id))
+        return "schedule"
+
+    monkeypatch.setattr(main_module, "fetch_run_event", fetch)
+
+    # When
+    event = await main_module.release_event(cast(Secret, FakeSecret()), "42")
+
+    # Then
+    assert (event, calls) == ("schedule", [(main_module.REPOSITORY, "sekrit-token", 42)])

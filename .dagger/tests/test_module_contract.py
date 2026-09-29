@@ -96,11 +96,12 @@ FORBIDDEN_SCRIPT_EXPRESSION: Final = re.compile(
 )
 EXPECTED_WORKFLOW_JOBS: Final = {
     "dagger.yml": frozenset({"checks"}),
-    "deploy.yml": frozenset({"deploy", "queue"}),
-    "live-smoke.yml": frozenset({"smoke"}),
-    "publish-watchlist.yml": frozenset({"publish", "queue"}),
+    "deploy.yml": frozenset({"deploy", "queue", "alert"}),
+    "dev-tool-audit.yml": frozenset({"audit"}),
+    "live-smoke.yml": frozenset({"smoke", "alert"}),
+    "publish-watchlist.yml": frozenset({"publish", "queue", "alert"}),
     "security-audit.yml": frozenset({"security"}),
-    "watchlist-freshness.yml": frozenset({"freshness"}),
+    "watchlist-freshness.yml": frozenset({"freshness", "alert"}),
 }
 QUEUE_JOB: Final = "queue"
 QUEUE_JOB_NAME: Final = "Wait for earlier production writes"
@@ -113,6 +114,7 @@ QUEUE_INPUTS: Final = {
 EXPECTED_WORKFLOW_NAMES: Final = {
     "dagger.yml": "Dagger",
     "deploy.yml": "Deploy aml-filter.com",
+    "dev-tool-audit.yml": "Dev-tool audit",
     "live-smoke.yml": "Live smoke",
     "publish-watchlist.yml": "Publish watchlist",
     "security-audit.yml": "Security audit",
@@ -121,10 +123,41 @@ EXPECTED_WORKFLOW_NAMES: Final = {
 EXPECTED_WORKFLOW_PERMISSIONS: Final = {
     "dagger.yml": READ_ONLY_PERMISSIONS,
     "deploy.yml": DELIVERY_PERMISSIONS,
+    "dev-tool-audit.yml": READ_ONLY_PERMISSIONS,
     "live-smoke.yml": READ_ONLY_PERMISSIONS,
     "publish-watchlist.yml": DELIVERY_PERMISSIONS,
     "security-audit.yml": READ_ONLY_PERMISSIONS,
     "watchlist-freshness.yml": READ_ONLY_PERMISSIONS,
+}
+# The dev-tool audit is its own workflow so the "Dagger" check that authorizes the
+# nightly sanctions publish (Foundation green_main) never goes red for build tooling.
+DEV_TOOL_AUDIT_TRIGGERS: Final = {
+    "push": {"branches": ["main"]},
+    "pull_request": None,
+    "schedule": [{"cron": "0 9 * * 1"}],
+}
+DEV_TOOL_AUDIT_CONCURRENCY: Final = {
+    "group": "dev-tool-audit-${{ github.ref }}",
+    "cancel-in-progress": True,
+}
+DEV_TOOL_AUDIT_INPUTS: Final = {"version": "0.21.8", "call": "dev-tool-audit sync"}
+PROD_AUDIT: Final = "exec:pnpm audit --prod --audit-level low"
+DEV_AUDIT: Final = "exec:pnpm audit --dev --audit-level low"
+# Every production workflow reports into ONE deduplicated issue via Dagger. The job
+# gets only the token scope that needs: read the checkout, write issues.
+ALERT_JOB: Final = "alert"
+ALERT_JOB_NAME: Final = "Report production failure"
+ALERT_PERMISSIONS: Final = {"contents": "read", "issues": "write"}
+ALERT_TIMEOUT_MINUTES: Final = 10
+ALERT_CALL: Final = (
+    "production-alert --github-token=env://GITHUB_TOKEN "
+    '--workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"'
+)
+ALERT_WATCHES: Final = {
+    "deploy.yml": ("queue", "deploy"),
+    "publish-watchlist.yml": ("queue", "publish"),
+    "live-smoke.yml": ("smoke",),
+    "watchlist-freshness.yml": ("freshness",),
 }
 MUTATION_FUNCTIONS: Final = {
     ("deploy.yml", "deploy"): "deploy",
@@ -339,6 +372,9 @@ class CiProductRecorder:
     def dependency_audit(self) -> Container:
         return cast(Container, CiContainerRecorder("audit", self.events, self.failure))
 
+    def dev_tool_audit(self) -> Container:
+        return cast(Container, CiContainerRecorder("dev-tool-audit", self.events, self.failure))
+
     def secret_scan(self, commit_sha: str) -> Container:
         assert commit_sha == RECORDED_SHA
         return cast(Container, CiContainerRecorder("secret-scan", self.events, self.failure))
@@ -366,6 +402,7 @@ def recorded_ci(monkeypatch: pytest.MonkeyPatch, failure: str = "") -> RecordedC
     monkeypatch.setattr(main_module, "dag", recorder)
     monkeypatch.setattr(AmlFilter, "quality", products.quality)
     monkeypatch.setattr(AmlFilter, "dependency_audit", products.dependency_audit)
+    monkeypatch.setattr(AmlFilter, "dev_tool_audit", products.dev_tool_audit)
     monkeypatch.setattr(AmlFilter, "secret_scan", products.secret_scan)
     subject = object.__new__(AmlFilter)
     subject.source = caller
@@ -689,6 +726,9 @@ class RecordedDelivery:
     fail_target: bool = False
     fail_live: bool = False
     fail_rollback: bool = False
+    fail_dev_audit: bool = False
+    run_event: str = "workflow_run"
+    asked_events: list[str] = field(default_factory=list)
 
 
 class DeliveryDagRecorder:
@@ -738,6 +778,11 @@ class ProductContainerRecorder:
         return self.context.release if self.label == "release" else self.context.app
 
     async def sync(self) -> ProductContainerRecorder:
+        if self.label == "dev-tool-audit":
+            self.context.events.append("dev-tool-audit")
+            if self.context.fail_dev_audit:
+                raise DaggerError("pnpm audit --dev: 1 high (.>wrangler>miniflare>undici)")
+            return self
         self.context.events.append("preview")
         return self
 
@@ -771,6 +816,10 @@ class ProductMethodRecorder:
         assert version
         self.context.events.append(f"sign:{kind.value}")
         return cast(Container, ProductContainerRecorder("release", self.context))
+
+    def dev_tool_audit_of(self, source: Directory) -> Container:
+        assert source is self.context.bound_source, "audit must cover the green-main source"
+        return cast(Container, ProductContainerRecorder("dev-tool-audit", self.context))
 
     def release_app(
         self,
@@ -861,6 +910,14 @@ def install_product_recorders(
     monkeypatch.setattr(main_module, "dag", DeliveryDagRecorder(context))
     monkeypatch.setattr(AmlFilter, "_signed_release", recorder.signed_release)
     monkeypatch.setattr(AmlFilter, "_release_app", recorder.release_app)
+    monkeypatch.setattr(AmlFilter, "_dev_tool_audit_of", recorder.dev_tool_audit_of)
+
+    async def release_event(github_token: Secret, run_id: str) -> str:
+        assert github_token is context.github_token
+        context.asked_events.append(run_id)
+        return context.run_event
+
+    monkeypatch.setattr(main_module, "release_event", release_event)
     monkeypatch.setattr(AmlFilter, "_preview_verify", recorder.preview_verify)
     monkeypatch.setattr(AmlFilter, "_live_verify", recorder.live_verify)
     monkeypatch.setattr(AmlFilter, "_prime_profile", recorder.prime_profile)
@@ -909,10 +966,12 @@ FUNCTIONS: Final = frozenset(
         "ci",
         "dependency-audit",
         "deploy",
+        "dev-tool-audit",
         "freshness",
         "live-smoke",
         "live-verify",
         "preview",
+        "production-alert",
         "publish-watchlist",
         "quality",
         "release-turn",
@@ -920,7 +979,9 @@ FUNCTIONS: Final = frozenset(
         "signed-origin",
     }
 )
-CHECKS: Final = frozenset({"aml-filter:dependency-audit", "aml-filter:quality"})
+CHECKS: Final = frozenset(
+    {"aml-filter:dependency-audit", "aml-filter:dev-tool-audit", "aml-filter:quality"}
+)
 
 
 def workflow_paths(directory: Path = WORKFLOW_DIRECTORY) -> tuple[Path, ...]:
@@ -1126,8 +1187,44 @@ def assert_nonmutation_job(
     )
 
 
+def alert_condition(filename: str) -> str:
+    """Run after every outcome of the watched jobs, but not when nothing was authorized."""
+    watched = ALERT_WATCHES[filename]
+    if len(watched) == 1:
+        return "always()"
+    return f"always() && needs.{watched[0]}.result != 'skipped'"
+
+
+def alert_outcome(filename: str) -> str:
+    """Anything but a green production job (failed, cancelled, queue died) is a failure."""
+    watched = ALERT_WATCHES[filename][-1]
+    return f"${{{{ needs.{watched}.result == 'success' && 'success' || 'failure' }}}}"
+
+
+def assert_alert_job(filename: str, job: Mapping[str, object]) -> None:
+    """Require the one issue-writing job: minimal token, no secret, runs on failure."""
+    assert job.get("permissions") == ALERT_PERMISSIONS, "alert permissions must be minimal"
+    assert job.get("needs") == list(ALERT_WATCHES[filename]), "alert must watch the writers"
+    condition = " ".join(str(job.get("if", "")).split())
+    assert condition == alert_condition(filename), "alert must run when a watched job fails"
+    assert job.get("environment") is None, "environment is forbidden in the alert job"
+    assert "secrets." not in json.dumps(job).lower(), "secret inputs are forbidden in alerts"
+    assert job.get("name") == ALERT_JOB_NAME
+    assert job.get("timeout-minutes") == ALERT_TIMEOUT_MINUTES
+    assert tuple(step.get("uses") for step in step_bodies(job)) == DELIVERY_ACTIONS
+    checkout = action_step(job, CHECKOUT_ACTION)
+    assert mapping_field(checkout, "with") == {"persist-credentials": False}
+    dagger_step = action_step(job, DAGGER_ACTION)
+    env = {"GITHUB_TOKEN": "${{ github.token }}", "OUTCOME": alert_outcome(filename)}
+    assert dagger_step.get("env") == env, "alert env must be exact"
+    assert mapping_field(dagger_step, "with") == {"version": "0.21.8", "call": ALERT_CALL}
+
+
 def assert_safe_job(filename: str, name: str, job: Mapping[str, object]) -> None:
     """Reject job-local privilege and every direct transport path."""
+    if name == ALERT_JOB and filename in ALERT_WATCHES:
+        assert_alert_job(filename, job)
+        return
     assert job.get("permissions") is None, "job permissions are forbidden"
     assert job.get("env") is None, "job env is forbidden"
     steps = step_bodies(job)
@@ -1677,8 +1774,9 @@ def test_should_budget_delivery_time_for_the_post_deploy_live_smoke() -> None:
 def test_should_probe_the_live_site_every_four_hours_outside_production() -> None:
     # Given
     workflow = workflow_inventory()["live-smoke.yml"]
-    serialized = json.dumps(workflow)
     job = job_body(workflow, "smoke")
+    # The probe itself holds no token; only the separate alert job may write issues.
+    serialized = json.dumps({**workflow, "jobs": {"smoke": job}})
 
     # When / Then
     assert mapping_field(workflow, "on") == {
@@ -1697,7 +1795,9 @@ def test_should_probe_the_live_site_every_four_hours_outside_production() -> Non
 def test_should_keep_freshness_read_only_and_outside_production() -> None:
     # Given
     workflow = workflow_inventory()["watchlist-freshness.yml"]
-    serialized = json.dumps(workflow)
+    # The probe itself holds no token; only the separate alert job may write issues.
+    probe = {"freshness": job_body(workflow, "freshness")}
+    serialized = json.dumps({**workflow, "jobs": probe})
 
     # When / Then
     assert mapping_field(workflow, "permissions") == {"contents": "read"}
@@ -2553,3 +2653,232 @@ def test_should_reject_malformed_sha_at_real_foundation_boundary() -> None:
     # Then
     assert result.returncode == 1
     assert "SHA must be a lowercase 40-character hexadecimal value" in result.stderr
+
+
+# --- Dev-tool advisories never freeze the nightly sanctions refresh -------------------
+
+
+def audit_command(monkeypatch: pytest.MonkeyPatch, audit: str) -> list[str]:
+    """Record the exact command an audit function runs over the caller's snapshot."""
+    events: list[str] = []
+    caller = cast(Directory, object())
+
+    def node(_subject: AmlFilter, source: Directory) -> Container:
+        assert source is caller
+        return cast(Container, ReleaseContainerRecorder(events))
+
+    monkeypatch.setattr(AmlFilter, "_node", node)
+    subject = object.__new__(AmlFilter)
+    subject.source = caller
+    getattr(subject, audit)()
+    return events
+
+
+def test_should_audit_only_shipped_dependencies_in_the_authorizing_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given / When / Then: runtime deps (app bundle, publisher) stay in the Dagger check,
+    # so a runtime advisory still blocks every deploy AND every publish.
+    assert audit_command(monkeypatch, "dependency_audit") == [PROD_AUDIT]
+
+
+def test_should_audit_dev_tooling_in_its_own_function(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Given / When / Then: pnpm decides dev vs prod from the lockfile; no hand list.
+    assert audit_command(monkeypatch, "dev_tool_audit") == [DEV_AUDIT]
+
+
+@pytest.mark.anyio
+async def test_should_keep_the_dev_tool_audit_out_of_the_authorizing_dagger_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the dev-tool audit would fail if ci() ran it.
+    context = recorded_ci(monkeypatch, "dev-tool-audit")
+
+    # When
+    await cast(Awaitable[str], context.subject.ci(RECORDED_SHA))
+
+    # Then
+    assert "dev-tool-audit" not in context.events
+
+
+def publication(context: RecordedDelivery, kind: ReleaseKind, event: str) -> PublishRequest:
+    """GitHub, not the caller, reports which event started run 9999."""
+    context.run_event = event
+    return recorded_request(context, kind)
+
+
+@pytest.mark.anyio
+async def test_should_publish_the_nightly_refresh_while_a_dev_tool_advisory_is_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a red dev-tool audit (the 2026-09-29 undici-in-wrangler incident).
+    context = recorded_delivery()
+    context.fail_dev_audit = True
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When
+    result = await subject._publish(publication(context, ReleaseKind.WATCHLIST, "schedule"))
+
+    # Then: the data still ships, through every data gate.
+    assert context.asked_events == ["9999"]
+    assert result.startswith("provider deployment verified")
+    assert "dev-tool-audit" not in context.events
+    assert "sign:watchlist" in context.events and "live" in context.events
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("kind", "event"),
+    [
+        (ReleaseKind.CODE, ""),
+        (ReleaseKind.CODE, "schedule"),
+        (ReleaseKind.WATCHLIST, "workflow_run"),
+        (ReleaseKind.WATCHLIST, "workflow_dispatch"),
+        (ReleaseKind.WATCHLIST, ""),
+    ],
+)
+async def test_should_refuse_to_ship_code_before_building_when_dev_tool_audit_is_red(
+    monkeypatch: pytest.MonkeyPatch, kind: ReleaseKind, event: str
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.fail_dev_audit = True
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When / Then
+    with pytest.raises(main_module.FullGreenRequiredError, match="fully green main"):
+        await subject._publish(publication(context, kind, event))
+    assert context.events.count("dev-tool-audit") == 1
+    assert not any(event.startswith("sign:") for event in context.events)
+    assert "construct:deploy" not in context.events
+
+
+@pytest.mark.anyio
+async def test_should_audit_dev_tooling_before_signing_when_code_deploys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When
+    await subject._publish(publication(context, ReleaseKind.CODE, ""))
+
+    # Then
+    assert context.events.index("dev-tool-audit") < context.events.index("sign:code")
+
+
+def test_should_give_no_caller_a_way_to_claim_the_nightly_exemption() -> None:
+    # Given / When
+    deploy = inspect.signature(AmlFilter.deploy).parameters
+    publish = inspect.signature(AmlFilter.publish_watchlist).parameters
+
+    # Then: the trigger comes from GitHub's record of the run, never from an argument.
+    assert "event" not in deploy
+    assert "event" not in publish
+
+
+@pytest.mark.anyio
+async def test_should_not_ask_github_for_the_trigger_when_code_deploys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    subject = install_product_recorders(monkeypatch, context)
+
+    # When
+    await subject._publish(publication(context, ReleaseKind.CODE, "schedule"))
+
+    # Then: a code deploy is fully gated whatever started it.
+    assert context.asked_events == []
+    assert "dev-tool-audit" in context.events
+
+
+# --- workflow shape: the audit split and the production-failure alert -----------------
+
+
+def assert_dev_tool_audit_workflow(workflow: Mapping[str, object]) -> None:
+    """Require a PR/main/weekly dev-tool audit that can never authorize a release."""
+    assert workflow.get("name") == "Dev-tool audit"
+    assert mapping_field(workflow, "on") == DEV_TOOL_AUDIT_TRIGGERS
+    assert mapping_field(workflow, "permissions") == READ_ONLY_PERMISSIONS
+    audit = job_body(workflow, "audit")
+    assert audit.get("name") == "Dev-tool audit", "the dev-tool audit must not be named Dagger"
+    assert mapping_field(audit, "concurrency") == DEV_TOOL_AUDIT_CONCURRENCY
+    assert tuple(step.get("uses") for step in step_bodies(audit)) == DELIVERY_ACTIONS
+    assert mapping_field(action_step(audit, CHECKOUT_ACTION), "with") == CI_CHECKOUT_INPUTS
+    assert mapping_field(action_step(audit, DAGGER_ACTION), "with") == DEV_TOOL_AUDIT_INPUTS
+
+
+def test_should_run_the_dev_tool_audit_on_every_pr_and_main_push() -> None:
+    # Given / When / Then
+    assert_dev_tool_audit_workflow(workflow_inventory()["dev-tool-audit.yml"])
+
+
+def test_should_reject_the_dagger_name_on_the_dev_tool_audit() -> None:
+    # Given: naming it "Dagger" would put it back inside green_main's authorization.
+    workflow = deepcopy(dict(workflow_inventory()["dev-tool-audit.yml"]))
+    cast(dict[str, object], cast(dict[str, object], workflow["jobs"])["audit"])["name"] = "Dagger"
+
+    # When / Then
+    with pytest.raises(AssertionError, match="must not be named Dagger"):
+        assert_dev_tool_audit_workflow(workflow)
+
+
+def test_should_pass_no_trigger_argument_from_any_workflow() -> None:
+    # Given / When
+    serialized = json.dumps(workflow_inventory())
+
+    # Then
+    assert "--event" not in serialized and "GITHUB_EVENT_NAME" not in serialized
+
+
+@pytest.mark.parametrize("filename", sorted(ALERT_WATCHES))
+def test_should_report_every_production_failure_to_one_issue(filename: str) -> None:
+    # Given / When / Then
+    assert_alert_job(filename, job_body(workflow_inventory()[filename], ALERT_JOB))
+
+
+def mutated_alert(filename: str, key: str, value: object) -> Mapping[str, object]:
+    job = deepcopy(dict(job_body(workflow_inventory()[filename], ALERT_JOB)))
+    job[key] = value
+    return job
+
+
+@pytest.mark.parametrize(
+    "permissions",
+    [
+        {"contents": "write", "issues": "write"},
+        {"contents": "read", "issues": "write", "actions": "write"},
+        "write-all",
+        None,
+    ],
+)
+def test_should_reject_alert_permissions_beyond_issues_write(permissions: object) -> None:
+    # Given
+    job = mutated_alert("publish-watchlist.yml", "permissions", permissions)
+
+    # When / Then
+    with pytest.raises(AssertionError, match="alert permissions must be minimal"):
+        assert_alert_job("publish-watchlist.yml", job)
+
+
+@pytest.mark.parametrize(
+    "condition", ["", "failure()", "needs.queue.result != 'skipped'", "success()"]
+)
+def test_should_reject_an_alert_that_would_not_run_after_a_failure(condition: str) -> None:
+    # Given
+    job = mutated_alert("deploy.yml", "if", condition)
+
+    # When / Then
+    with pytest.raises(AssertionError, match="alert must run when a watched job fails"):
+        assert_alert_job("deploy.yml", job)
+
+
+def test_should_reject_a_secret_in_the_alert_job() -> None:
+    # Given
+    job = mutated_alert("live-smoke.yml", "env", {"KEY": "${{ secrets.WATCHLIST_SIGNING_KEY }}"})
+
+    # When / Then
+    with pytest.raises(AssertionError, match="secret inputs are forbidden in alerts"):
+        assert_alert_job("live-smoke.yml", job)

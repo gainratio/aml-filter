@@ -85,3 +85,27 @@ jobs:
         with:
           version: "0.21.8"
           call: release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID"
+
+  alert:
+    name: Report production failure
+    # Any failure opens or updates ONE issue, "Production deploy/publish failed" (GitHub
+    # emails the owner); the next green run closes it. Runs inside Dagger (no shell step),
+    # with a token that can only read the checkout and write issues.
+    needs: [queue, publish]
+    if: always() && needs.queue.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ needs.publish.result == 'success' && 'success' || 'failure' }}
+        with:
+          version: "0.21.8"
+          call: production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"
