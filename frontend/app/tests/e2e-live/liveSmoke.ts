@@ -18,7 +18,7 @@ import { expect, type Page } from "@playwright/test";
  * The console must stay clean the whole way.
  */
 
-import { LIST_PROBES, type ListProbe, reviewBadgeText } from "./probes";
+import { LIST_PROBES, type ListProbe, reviewBadgePattern } from "./probes";
 
 export { LIST_PROBES, type ListProbe, SCREEN_PROBE } from "./probes";
 
@@ -215,7 +215,7 @@ export async function expectReviewRowsPerList(
 			.filter({ hasText: probe.name })
 			.filter({
 				has: page.locator(".badge-muted", {
-					hasText: new RegExp(`^${reviewBadgeText(probe.list)}$`),
+					hasText: reviewBadgePattern(probe.list),
 				}),
 			})
 			.first();
