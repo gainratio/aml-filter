@@ -130,13 +130,20 @@ function localDemoPubkeyPin(): Plugin {
 				"(it pairs with the committed demo bundle). Production ships public/public.key.",
 		);
 	};
+	// `--mode live` (dev:live / build:live) serves the REAL bundle mirrored from
+	// aml-filter.com, signed with the PRODUCTION key, so there the production pin
+	// is the matching one and the demo key must NOT be swapped in. Swapping it made
+	// every local live preview fail closed with "signature verification failed".
+	const pinsDemoKey = (mode: string): boolean => mode !== "live";
 	return {
 		name: "amlfilter:local-demo-pubkey-pin",
 		configureServer(server) {
+			if (!pinsDemoKey(server.config.mode)) return;
 			announce(server.config.logger);
 			server.middlewares.use(serveDemoPubkey);
 		},
 		configurePreviewServer(server) {
+			if (!pinsDemoKey(server.config.mode)) return;
 			announce(server.config.logger);
 			server.middlewares.use(serveDemoPubkey);
 		},

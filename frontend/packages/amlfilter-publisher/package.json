@@ -38,7 +38,7 @@
 		"@edgeproc/browser": "github:hseshadr/edgeproc-browser#02171df60afc8b09d6439112ea7ea3202338d46a",
 		"@huggingface/transformers": "4.2.0",
 		"@noble/ed25519": "^3.2.0",
-		"undici": "7.29.0"
+		"undici": "7.29.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",

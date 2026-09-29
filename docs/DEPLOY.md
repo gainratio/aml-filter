@@ -265,6 +265,22 @@ pnpm test:e2e:live --grep @fresh
 dagger call live-smoke stdout
 ```
 
+**Before you merge anything that touches the UI or the smoke, run every pass locally.**
+Production must not be the first place the smoke runs. From `frontend/` (Node 22):
+
+```bash
+pnpm smoke:local
+```
+
+It builds this tree and the release aml-filter.com serves now as production-like
+`--mode live` builds (real signed lists mirrored from production, verified against the
+production key, `build.json` stamped), then runs, all on one local origin so browser
+storage carries over like a real returning visitor: `@prime` against production
+(read-only), `@prime` against the old build, `@returning` in that profile after the
+port switches to your build, and `@fresh`. Exit status is the verdict.
+`PREVIOUS_REF=<ref>` picks a different old release; `SKIP_PRODUCTION_PRIME=1` skips the
+production pass.
+
 Watch it fail on purpose. The rehearsal proxy serves the real site on
 `http://localhost:4191` with one property broken:
 
