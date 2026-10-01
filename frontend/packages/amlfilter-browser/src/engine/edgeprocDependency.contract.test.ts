@@ -30,7 +30,7 @@ import packageJsonText from "../../package.json?raw";
 import vectorIndexSource from "./vectorIndex.ts?raw";
 
 const EDGE_PROC_BROWSER_REVISION =
-	"github:hseshadr/edgeproc-browser#02171df60afc8b09d6439112ea7ea3202338d46a";
+	"github:hseshadr/edgeproc-browser#0a604bf8293e52fcc973074dcaa2afa1f970016d";
 const PUBLIC_IMPORTS = [
 	"@edgeproc/browser",
 	"@edgeproc/browser/vector",
