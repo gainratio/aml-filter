@@ -1,0 +1,37 @@
+name: Dev-tool audit
+
+# `pnpm audit --dev`: advisories in build, test, and deploy tooling (vite, vitest,
+# wrangler). Nothing here ships to visitors. A red run fails the PR and main, and every
+# code release re-runs this audit and refuses to ship. It is deliberately NOT part of the
+# "Dagger" check: that check is what the nightly sanctions publish requires, and a tooling
+# advisory must not freeze the lists (2026-09-29: an undici advisory under wrangler did).
+# The shipped (prod) dependencies stay in the Dagger check and block everything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Dev-tool audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: dev-tool-audit-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Audit dev tooling
+        uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
+        with:
+          version: "0.21.8"
+          call: dev-tool-audit sync

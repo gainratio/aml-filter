@@ -24,6 +24,7 @@ from dagger import (
     object_type,
 )
 
+from .alert import alert_report, https_transport, raise_or_clear_alert
 from .policy import (
     ReleaseIdentity,
     ReleaseKind,
@@ -31,9 +32,10 @@ from .policy import (
     parse_release_identity,
     release_identity,
     release_version,
+    requires_full_green,
     whole_bundle_fallback_days,
 )
-from .queue import TurnPolicy, fetch_runs, parse_run_id, wait_for_turn
+from .queue import TurnPolicy, fetch_run_event, fetch_runs, parse_run_id, wait_for_turn
 from .smoke import (
     SMOKE_LISTS,
     RollbackOutcome,
@@ -80,6 +82,12 @@ PLAYWRIGHT_INSTALL: Final = split(
     "pnpm --filter aml-filter-app exec playwright install --with-deps chromium firefox webkit"
 )
 APP_BUILD: Final = split("pnpm --filter aml-filter-app run build")
+# pnpm splits the audit by dependency type from the lockfile. `--prod` covers what ships
+# (the browser bundle, the publisher runtime) and runs inside the authorizing Dagger
+# check; `--dev` covers build/test/deploy tooling (vite, vitest, wrangler) and runs in
+# its own workflow plus in front of every code release. Together they are the full audit.
+RUNTIME_AUDIT: Final = split("pnpm audit --prod --audit-level low")
+DEV_TOOL_AUDIT: Final = split("pnpm audit --dev --audit-level low")
 FRESHNESS_CHECK: Final = [
     "pnpm",
     "--silent",
@@ -223,6 +231,10 @@ class ReleaseSourceMismatchError(ValueError):
     """The caller's product identity is not the authorized green-main SHA."""
 
 
+class FullGreenRequiredError(RuntimeError):
+    """A code release was asked for while the dev-tool audit is red."""
+
+
 def mount_caches(container: Container, caches: tuple[tuple[str, str], ...]) -> Container:
     for path, name in caches:
         container = container.with_mounted_cache(path, dag.cache_volume(name))
@@ -252,6 +264,12 @@ async def grant_release_turn(github_token: Secret, run_id: str, policy: TurnPoli
 
     waited = await wait_for_turn(fetch, own, policy, asyncio.sleep)
     return f"release turn granted to run {own} after waiting on runs {list(waited)}"
+
+
+async def release_event(github_token: Secret, run_id: str) -> str:
+    """Ask GitHub which event started this run; a caller cannot claim the exemption."""
+    token = await github_token.plaintext()
+    return await asyncio.to_thread(fetch_run_event, REPOSITORY, token, parse_run_id(run_id))
 
 
 @object_type
@@ -462,6 +480,23 @@ class AmlFilter:
             commit_sha=commit_sha,
         )
 
+    def _dev_tool_audit_of(self, source: Directory) -> Container:
+        return self._node(source).with_exec(DEV_TOOL_AUDIT)
+
+    async def _require_full_green(
+        self, request: PublishRequest, identity: ReleaseIdentity, source: Directory
+    ) -> None:
+        """Code only ships from a fully green main; only the nightly data refresh is exempt."""
+        code = request.kind is ReleaseKind.CODE
+        event = "" if code else await release_event(request.github_token, identity.run_id)
+        if not requires_full_green(request.kind, event):
+            return
+        try:
+            await self._dev_tool_audit_of(source).sync()
+        except dagger.DaggerError as error:
+            message = "code releases need a fully green main: the dev-tool audit is red"
+            raise FullGreenRequiredError(message) from error
+
     async def _release_context(self, github_token: Secret) -> ReleaseContext:
         shared = dag.foundation()
         raw = shared.green_main(github_token=github_token, repository=TARGET.repository)
@@ -543,6 +578,7 @@ class AmlFilter:
         identity = parse_release_identity(request.release_id)
         context = await self._release_context(request.github_token)
         self._require_matching_source(identity, context)
+        await self._require_full_green(request, identity, context.source)
         release, app = await self._build_publication(request, context, identity)
         profile, primed = await self._prime_profile(context.source, identity)
         target = await self._rollback_target(request)
@@ -570,8 +606,14 @@ class AmlFilter:
     @function
     @check
     def dependency_audit(self) -> Container:
-        """Audit the locked frontend dependency graph without suppressions."""
-        return self._node(self.source).with_exec(["pnpm", "audit", "--audit-level", "low"])
+        """Audit the shipped (production) dependency graph without suppressions."""
+        return self._node(self.source).with_exec(RUNTIME_AUDIT)
+
+    @function
+    @check
+    def dev_tool_audit(self) -> Container:
+        """Audit build, test, and deploy tooling (devDependencies) without suppressions."""
+        return self._dev_tool_audit_of(self.source)
 
     @function
     @check
@@ -653,5 +695,15 @@ class AmlFilter:
         github_token: Secret,
         release_id: str,
     ) -> str:
+        """Refresh the signed lists; only a scheduled run may skip the dev-tool audit."""
         secrets = signing_key, cloudflare_api_token, cloudflare_account_id, github_token
         return await self._publish(PublishRequest(ReleaseKind.WATCHLIST, *secrets, release_id))
+
+    @function
+    async def production_alert(
+        self, github_token: Secret, workflow: str, run_id: str, outcome: str
+    ) -> str:
+        """Open, update, or close the one 'Production deploy/publish failed' issue."""
+        report = alert_report(workflow, run_id, outcome)
+        transport = https_transport(await github_token.plaintext())
+        return await asyncio.to_thread(raise_or_clear_alert, transport, report)

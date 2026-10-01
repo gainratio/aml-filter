@@ -30,6 +30,22 @@ class ReleaseIdentity:
     run_id: str
 
 
+# The only trigger that may ship without the dev-tool audit: the nightly sanctions refresh.
+DATA_ONLY_EVENT: Final = "schedule"
+
+
+def requires_full_green(kind: ReleaseKind, event: str) -> bool:
+    """Whether this release must also pass the dev-tool audit (a fully green main).
+
+    Code deploys, post-merge publishes, and manual publishes always do. Only the
+    scheduled watchlist refresh is gated on the Dagger check alone (quality, runtime
+    dependency audit, secret scan) plus signing, verification, live smoke and
+    rollback, so an advisory in build tooling cannot freeze the sanctions data.
+    Any other or unknown event fails closed.
+    """
+    return not (kind is ReleaseKind.WATCHLIST and event == DATA_ONLY_EVENT)
+
+
 def whole_bundle_fallback_days(kind: ReleaseKind) -> int:
     """Return the code-deploy fallback bound; nightly refreshes must fail."""
     if kind is ReleaseKind.WATCHLIST:
