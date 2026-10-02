@@ -42,6 +42,8 @@ describe("openBundleSource shared-engine contract", () => {
 					fetchedChunks: 2,
 					totalChunks: 5,
 					bytesFetched: 128,
+					bytesTotal: 640,
+					bytesDone: 256,
 				});
 				return Promise.resolve(RESULT);
 			},

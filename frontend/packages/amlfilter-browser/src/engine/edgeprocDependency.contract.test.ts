@@ -30,7 +30,7 @@ import packageJsonText from "../../package.json?raw";
 import vectorIndexSource from "./vectorIndex.ts?raw";
 
 const EDGE_PROC_BROWSER_REVISION =
-	"github:hseshadr/edgeproc-browser#02171df60afc8b09d6439112ea7ea3202338d46a";
+	"github:hseshadr/edgeproc-browser#0749e66b4260ffcd02b1d039eb2eaa26cd970da7";
 const PUBLIC_IMPORTS = [
 	"@edgeproc/browser",
 	"@edgeproc/browser/vector",
@@ -52,7 +52,9 @@ describe("@edgeproc/browser consumer dependency", () => {
 	it("resolves both public entrypoints from the installed standalone package", () => {
 		for (const packageImport of PUBLIC_IMPORTS) {
 			const resolved = import.meta.resolve(packageImport);
-			expect(resolved).toContain("/node_modules/@edgeproc/browser/dist/");
+			// The dependency key stays @edgeproc/browser; since 0.1.1 the package
+			// itself is named @gainratio/browser, so pnpm's real path carries that name.
+			expect(resolved).toContain("/node_modules/@gainratio/browser/dist/");
 			expect(resolved).not.toContain("/oss/edgeproc-browser/dist/");
 			expect(resolved).not.toContain("/amlfilter-browser/src/");
 		}
