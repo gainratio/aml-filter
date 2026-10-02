@@ -14,7 +14,7 @@ minimumReleaseAge: 0
 # node-side embedding parity tests: onnxruntime-node is the native ONNX backend,
 # protobufjs compiles its proto bindings, sharp builds its native image binary.
 allowBuilds:
-  "@edgeproc/browser": true # exact Git dependency runs its deterministic prepare build
+  "@gainratio/browser": true # exact Git dependency runs its deterministic prepare build
   esbuild: true
   onnxruntime-node: true
   protobufjs: true
