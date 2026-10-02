@@ -35,7 +35,7 @@
 	},
 	"dependencies": {
 		"@amlfilter/browser": "workspace:*",
-		"@edgeproc/browser": "github:hseshadr/edgeproc-browser#0a604bf8293e52fcc973074dcaa2afa1f970016d",
+		"@edgeproc/browser": "github:hseshadr/edgeproc-browser#0749e66b4260ffcd02b1d039eb2eaa26cd970da7",
 		"@huggingface/transformers": "4.2.0",
 		"@noble/ed25519": "^3.2.0",
 		"undici": "7.29.1"
