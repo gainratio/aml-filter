@@ -248,6 +248,8 @@ describe("openBundleSource — over the committed demo bundle", () => {
 					fetchedChunks: 1,
 					totalChunks: 1,
 					bytesFetched: 10,
+					bytesTotal: 10,
+					bytesDone: 10,
 				});
 				return inner.sync(baseUrl, pubkeyUrl);
 			},

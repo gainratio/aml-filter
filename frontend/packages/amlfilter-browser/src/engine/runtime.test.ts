@@ -1,6 +1,6 @@
 import {
 	DEFAULT_REQUEST_TIMEOUT_MS,
-	FETCH_TIMEOUT_MS,
+	FETCH_STALL_TIMEOUT_MS,
 } from "@edgeproc/browser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BundleSource } from "./bundleSource";
@@ -212,7 +212,7 @@ describe("bootTimeoutMs (overall boot deadline override, fail-closed)", () => {
 	 * terminating healthy downloads.
 	 */
 	it("is the loosest bound: the stall detectors stay tighter", () => {
-		expect(FETCH_TIMEOUT_MS).toBeLessThan(BOOT_TIMEOUT_MS);
+		expect(FETCH_STALL_TIMEOUT_MS).toBeLessThan(BOOT_TIMEOUT_MS);
 		expect(DEFAULT_REQUEST_TIMEOUT_MS).toBeLessThan(BOOT_TIMEOUT_MS);
 		expect(MODEL_LOAD_IDLE_TIMEOUT_MS).toBeLessThan(BOOT_TIMEOUT_MS);
 	});

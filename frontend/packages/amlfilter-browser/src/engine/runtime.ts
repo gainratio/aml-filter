@@ -93,7 +93,7 @@ export const MODEL_LOAD_IDLE_TIMEOUT_MS = 90_000;
  * IT IS A BACKSTOP, NOT THE STALL DETECTOR — and it was 180 s until 2026-08-01,
  * which made it the wrong thing entirely. A stalled boot is already caught in
  * seconds by two tighter bounds that key on SILENCE rather than on elapsed time:
- * `FETCH_TIMEOUT_MS` (15 s per transport fetch) and the engine client's
+ * `FETCH_STALL_TIMEOUT_MS` (30 s with no bytes on a transport fetch) and the engine client's
  * `DEFAULT_REQUEST_TIMEOUT_MS` (30 s with no `sync-progress` tick, re-armed by
  * every chunk). A wedged Worker, a dead origin, a hung fetch — all of those
  * surface long before this ceiling is anywhere near.
