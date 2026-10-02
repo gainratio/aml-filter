@@ -52,7 +52,9 @@ describe("@edgeproc/browser consumer dependency", () => {
 	it("resolves both public entrypoints from the installed standalone package", () => {
 		for (const packageImport of PUBLIC_IMPORTS) {
 			const resolved = import.meta.resolve(packageImport);
-			expect(resolved).toContain("/node_modules/@edgeproc/browser/dist/");
+			// The dependency key stays @edgeproc/browser; since 0.1.1 the package
+			// itself is named @gainratio/browser, so pnpm's real path carries that name.
+			expect(resolved).toContain("/node_modules/@gainratio/browser/dist/");
 			expect(resolved).not.toContain("/oss/edgeproc-browser/dist/");
 			expect(resolved).not.toContain("/amlfilter-browser/src/");
 		}
