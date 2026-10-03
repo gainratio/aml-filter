@@ -204,8 +204,8 @@ PROVIDER_MARKERS: Final = (
     "--cloudflare",
 )
 YAML_DEPENDENCY: Final = "ruamel-yaml>=0.18.16,<0.19.0"
-# hseshadr/ci main: merge of ci#61 (bounded GitHub workflow clock skew).
-CENTRAL_SHA: Final = "73329cb501989bc65c63525f19feaa35f0e7c0a6"
+# hseshadr/ci main: merge of ci#64 (includes ci#61 bounded clock skew).
+CENTRAL_SHA: Final = "a895f726e9786bcfd2bdf68f87d3d5c4b411f702"
 FOUNDATION_MODULE: Final = f"github.com/hseshadr/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
 CLOUDFLARE_MODULE: Final = f"github.com/hseshadr/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
 REAL_PROVIDER_DEPENDENCIES: Final = (

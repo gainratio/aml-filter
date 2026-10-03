@@ -56,8 +56,8 @@ UV_IMAGE: Final = (
 )
 EDGEPROC_REPO: Final = "https://github.com/hseshadr/edge-proc"
 EDGEPROC_COMMIT: Final = "e3bfb570feb8619c823df63b6c012fd8c8c6a9b6"
-# hseshadr/ci main: merge of ci#61 (bounded GitHub workflow clock skew).
-CENTRAL_MODULE_SHA: Final = "73329cb501989bc65c63525f19feaa35f0e7c0a6"
+# hseshadr/ci main: merge of ci#64 (includes ci#61 bounded clock skew).
+CENTRAL_MODULE_SHA: Final = "a895f726e9786bcfd2bdf68f87d3d5c4b411f702"
 TARGET: Final = AmlTarget.production()
 REPOSITORY: Final = TARGET.repository
 REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
