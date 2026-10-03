@@ -284,6 +284,10 @@ class AmlFilter:
         container = container.with_env_variable("COREPACK_HOME", "/root/.cache/corepack")
         container = container.with_exec(["npm", "install", "--global", "corepack@0.34.5"])
         container = container.with_exec(["corepack", "enable"])
+        # onnxruntime-node's postinstall otherwise downloads the CUDA 12 provider from
+        # NuGet on linux/x64. We only run its bundled CPU runtime, and that download
+        # timed out CI (2026-09-30). `skip` is the package's documented install flag.
+        container = container.with_env_variable("ONNXRUNTIME_NODE_INSTALL", "skip")
         return container.with_exec(["pnpm", "install", "--frozen-lockfile"])
 
     def _with_uv(self, container: Container) -> Container:
