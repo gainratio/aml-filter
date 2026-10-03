@@ -259,8 +259,50 @@ describe("fetchWithTimeout identifies itself to upstream feeds", () => {
 		const pending = fetchWithTimeout("https://example.test/feed", "UK", 50, {
 			attempts: 2,
 		});
-		await vi.advanceTimersByTimeAsync(1_000);
+		await vi.advanceTimersByTimeAsync(5_000);
 		await expect(pending).resolves.toMatchObject({ status: 200 });
+	});
+
+	// 2026-10-02: the EU webgate answered its static public token with a one-off
+	// `401 Unauthorized`. 401 was terminal, so EU_CONSOLIDATED was carried forward
+	// after ONE request and the freshness monitor went red until the next nightly
+	// publish fetched it fine. None of the four feeds takes credentials, so a 401
+	// from them is an upstream edge glitch, not a wrong key.
+	it("retries a 401 from a public feed before giving up", async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(new Response("", { status: 401 }))
+			.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+		const response = await fetchWithTimeout(
+			"https://example.test/feed",
+			"EU",
+			50,
+			{ sleep: noSleep },
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	// 2026-09-25: three EU attempts inside ~3s all hit UND_ERR_CONNECT_TIMEOUT and
+	// the list was carried. The default window must outlast a short upstream blip:
+	// 4 attempts, pausing 5s, 10s, 20s (35s of waiting at most per feed).
+	it("by default spreads 4 attempts over a 35-second backoff window", async () => {
+		const slept: number[] = [];
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(new Response("", { status: 503 }));
+
+		await expect(
+			fetchWithTimeout("https://example.test/feed", "EU", 50, {
+				sleep: async (ms: number) => {
+					slept.push(ms);
+				},
+			}),
+		).rejects.toThrow(/EU.*503/s);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(slept).toEqual([5_000, 10_000, 20_000]);
 	});
 
 	it("does not burn retries on a permanent 404", async () => {

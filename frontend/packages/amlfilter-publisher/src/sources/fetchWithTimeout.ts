@@ -8,8 +8,11 @@
 //      with a contactable URL is the baseline these publishers expect.
 //   2. RETRIES TRANSIENTLY. A single 429/503/connection-reset from an upstream
 //      must not be a one-shot kill for a release, so those get a small number of
-//      attempts with growing backoff. A permanent answer (404, 400) is NOT
-//      retried — burning the budget on it only delays the real error.
+//      attempts with growing backoff (5s, 10s, 20s: a three-second window lost
+//      EU to one connect-timeout burst on 2026-09-25). A permanent answer (404,
+//      400) is NOT retried — burning the budget on it only delays the real error.
+//      401 IS retried: no feed takes credentials, and the EU webgate answered
+//      its static public token with a one-off 401 on 2026-10-02.
 //   3. NAMES A WAF BLOCK FOR WHAT IT IS. AWS WAF's `challenge` action answers
 //      HTTP **202 with an empty body** — `response.ok` is TRUE. Passed through,
 //      that hands zero bytes to a CSV parser and surfaces thousands of lines
@@ -56,10 +59,10 @@ export const FEED_DISPATCHER = createFeedDispatcher();
 export const SOURCE_FETCH_TIMEOUT_MS = 45_000;
 
 /** Total attempts (1 initial + retries) for a transiently-failing feed. */
-export const FEED_FETCH_ATTEMPTS = 3;
+export const FEED_FETCH_ATTEMPTS = 4;
 
 /** First backoff pause; each further retry doubles it. */
-const BACKOFF_BASE_MS = 1_000;
+const BACKOFF_BASE_MS = 5_000;
 
 /** How this publisher identifies itself to every upstream sanctions feed.
  * Overridable via SOURCE_USER_AGENT so an operator can adjust it without a code
@@ -138,6 +141,7 @@ const defaultSleep = (ms: number): Promise<void> =>
 /** Statuses worth another attempt: rate limits, edge blocks, server faults. */
 function isRetryableStatus(status: number): boolean {
 	return (
+		status === 401 ||
 		status === 403 ||
 		status === 408 ||
 		status === 425 ||
