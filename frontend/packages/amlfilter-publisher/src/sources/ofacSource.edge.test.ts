@@ -4,6 +4,7 @@
 // that cannot prove upstream freshness is refused.
 
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { rejectionAfterBackoff } from "./backoffTestClock.ts";
 import { CSL_FILE, ofacSource, withKeyHint } from "./ofacSource.ts";
 import { SOURCE_UPDATED_AT_KEY } from "./source.ts";
 
@@ -83,9 +84,9 @@ describe("ofacSource.fetchRaw", () => {
 					}),
 			),
 		);
-		await expect(ofacSource.fetchRaw()).rejects.toThrow(
-			"failed: 503 Service Unavailable",
-		);
+		// 503 is retried with real backoff pauses; fast-forward them.
+		const error = await rejectionAfterBackoff(() => ofacSource.fetchRaw());
+		expect(error.message).toContain("failed: 503 Service Unavailable");
 	});
 });
 
