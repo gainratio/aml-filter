@@ -2882,3 +2882,41 @@ def test_should_reject_a_secret_in_the_alert_job() -> None:
     # When / Then
     with pytest.raises(AssertionError, match="secret inputs are forbidden in alerts"):
         assert_alert_job("live-smoke.yml", job)
+
+
+class NodeBaseRecorder(ReleaseContainerRecorder):
+    """A container recorder that can also be the root image."""
+
+    def from_(self, address: str) -> NodeBaseRecorder:
+        self.events.append(f"from:{address}")
+        return self
+
+    def with_workdir(self, path: str) -> NodeBaseRecorder:
+        self.events.append(f"workdir:{path}")
+        return self
+
+
+class NodeDagRecorder(ReleaseDagRecorder):
+    """Provide only the Dagger calls needed by ``_node``."""
+
+    def container(self) -> NodeBaseRecorder:
+        return NodeBaseRecorder(self.events)
+
+
+def test_should_skip_the_onnxruntime_cuda_download_when_dependencies_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: onnxruntime-node's postinstall fetches the CUDA 12 provider from NuGet
+    # on linux/x64 unless ONNXRUNTIME_NODE_INSTALL=skip. aml-filter only runs the
+    # bundled CPU runtime, and that download timed out CI on 2026-09-30.
+    events: list[str] = []
+    monkeypatch.setattr(main_module, "dag", NodeDagRecorder(events))
+    subject = object.__new__(AmlFilter)
+
+    # When
+    subject._node(cast(Directory, object()))
+
+    # Then
+    install = events.index("exec:pnpm install --frozen-lockfile")
+    skip = events.index("env:ONNXRUNTIME_NODE_INSTALL=skip")
+    assert skip < install
