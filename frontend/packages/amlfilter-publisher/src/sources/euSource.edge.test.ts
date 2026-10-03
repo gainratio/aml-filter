@@ -4,6 +4,7 @@
 // defaults, and fetchRaw against a stubbed fetch (keyed file + non-OK failure).
 
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { rejectionAfterBackoff } from "./backoffTestClock.ts";
 import { EU_RAW_FILE, euSource } from "./euSource.ts";
 
 const EDGE_XML = [
@@ -106,8 +107,7 @@ describe("euSource.fetchRaw", () => {
 		// The rejection now comes from the shared fetch seam (which also owns the
 		// retry budget), so assert the STATUS it must name rather than the prose
 		// around it — the style ofacSource.edge.test.ts already uses.
-		await expect(euSource.fetchRaw()).rejects.toThrow(
-			"failed: 502 Bad Gateway",
-		);
+		const error = await rejectionAfterBackoff(() => euSource.fetchRaw());
+		expect(error.message).toContain("failed: 502 Bad Gateway");
 	});
 });
