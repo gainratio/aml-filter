@@ -39,7 +39,7 @@ the in-tab sanctions search (all four lists on a computer), then `/customers` an
 The Customers page supports preview-first local CSV/XLS/XLSX import and XLSX customer
 table export; the spreadsheet is not a full match/audit backup.
 
-The scorer composes the exact registry release `@edgeproc/assay@0.5.0-dev.3` behind
+The scorer composes the exact registry release `@gainratio/assay@0.5.0-dev.6` behind
 AML-Filter's typed five-signal contract. It emits stable input hashes and ordered
 component contributions that are sealed into each score receipt.
 

@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
-import { additive } from "@edgeproc/assay";
-import { generateSeedHex, publicKeyHex, signPayload } from "@edgeproc/avow";
+import { additive } from "@gainratio/assay";
+import { generateSeedHex, publicKeyHex, signPayload } from "@gainratio/avow";
 import { describe, expect, it } from "vitest";
 import { calculateAssayScore } from "./assayScoring";
 import {
@@ -189,19 +189,21 @@ describe("Assay-backed match score receipt", () => {
 	it("rejects a valid signature that omits current Assay proof", async () => {
 		const seed = generateSeedHex();
 		const pinned = await publicKeyHex(seed);
-		const unproved = {
-			...matchScoreSubject(
-				{
-					score: EVIDENCE.score,
-					tier: "STRONG",
-					possibleThreshold: 0.65,
-					assay: EVIDENCE,
-				},
-				CONTEXT,
-			),
-			assay: undefined,
-			possible_threshold: undefined,
-		} as unknown as MatchScoreSubject;
+		// Omit the keys outright. avow >= 0.5 refuses `undefined` anywhere in a
+		// payload (it is not JSON), where 0.4 silently dropped such keys.
+		const {
+			assay: _assay,
+			possible_threshold: _threshold,
+			...unproved
+		} = matchScoreSubject(
+			{
+				score: EVIDENCE.score,
+				tier: "STRONG",
+				possibleThreshold: 0.65,
+				assay: EVIDENCE,
+			},
+			CONTEXT,
+		) as MatchScoreSubject & { possible_threshold?: number };
 
 		await expect(
 			verifyMatchReceipt(await signPayload(unproved, seed), pinned),

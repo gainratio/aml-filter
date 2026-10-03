@@ -16,7 +16,7 @@ dependencies = [
   #
   # Exact immutable release: the decision evidence must not drift underneath a
   # protected source revision.
-  "assay-engine[metrics]==0.5.0.dev3",
+  "assay-engine[metrics]==0.5.0.dev6",
   "pydantic>=2.11",
 ]
 

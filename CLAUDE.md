@@ -237,7 +237,7 @@ alike; any signature or hash mismatch aborts the load, with no silent empty list
 
 ### Key Patterns
 - **One scoring contract**: the AML adapter composes exact
-  `@edgeproc/assay@0.5.0-dev.3`, then emits its score, stable input hash, ordered
+  `@gainratio/assay@0.5.0-dev.6`, then emits its score, stable input hash, ordered
   component evidence, `reasons[]`, and a plain-language `explanation`. The contract is
   parity-locked by a frozen golden snapshot (see Testing).
 - **Local-first**: customer data lives only in the browser (SQLite-WASM over OPFS) and

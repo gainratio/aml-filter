@@ -16,7 +16,7 @@ import {
 	ReceiptPanel,
 	type ReceiptStatus,
 	useReceiptVerification,
-} from "@edgeproc/receipt-ui";
+} from "@gainratio/receipt-ui";
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";

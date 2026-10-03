@@ -39,9 +39,9 @@
 	"dependencies": {
 		"@amlfilter/browser": "workspace:*",
 		"@amlfilter/workstation": "workspace:*",
-		"@edgeproc/errors": "^0.1.2",
-		"@edgeproc/receipt-ui": "0.2.0",
-		"@hpcc-js/wasm-zstd": "^1.16.1",
+		"@gainratio/errors": "^0.2.1",
+		"@gainratio/receipt-ui": "^0.3.0",
+		"@hpcc-js/wasm-zstd": "^1.16.2",
 		"@huggingface/transformers": "4.2.0",
 		"@noble/ed25519": "^3.2.0",
 		"i18next": "^26.4.2",

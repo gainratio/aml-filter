@@ -1,7 +1,7 @@
 // The sealer's own contract: what it stamps, what it hashes, and the two cases
 // where it deliberately produces nothing.
 
-import { publicKeyHex } from "@edgeproc/avow";
+import { publicKeyHex } from "@gainratio/avow";
 import { describe, expect, it, vi } from "vitest";
 import { calculateAssayScore } from "./assayScoring";
 import type { Match, ScreenQuery } from "./domain";
