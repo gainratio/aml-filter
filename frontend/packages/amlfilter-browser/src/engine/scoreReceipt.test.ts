@@ -43,9 +43,10 @@
 import {
 	generateSeedHex,
 	publicKeyHex,
+	ReceiptSchemaMismatch,
 	SignatureInvalid,
 	signPayload,
-} from "@edgeproc/avow";
+} from "@gainratio/avow";
 import { describe, expect, it } from "vitest";
 import { calculateAssayScore } from "./assayScoring";
 import {
@@ -185,6 +186,24 @@ describe("signMatchReceipt + verifyMatchReceipt", () => {
 		await expect(verifyMatchReceipt(forged, pinned)).rejects.toBeInstanceOf(
 			SignatureInvalid,
 		);
+	});
+
+	// avow 0.5 versions the envelope: every receipt carries
+	// `schema: "avow.receipt/v1"`, and verification refuses one that does not,
+	// before it looks at the hash, signer or signature.
+	it("seals the avow.receipt/v1 envelope and REJECTS a receipt without it", async () => {
+		const seed = generateSeedHex();
+		const pinned = await publicKeyHex(seed);
+		const receipt = await signMatchReceipt(
+			matchScoreSubject(MATCH, CONTEXT),
+			seed,
+		);
+		expect(receipt.schema).toBe("avow.receipt/v1");
+
+		const { schema: _dropped, ...unversioned } = receipt;
+		await expect(
+			verifyMatchReceipt(unversioned as typeof receipt, pinned),
+		).rejects.toBeInstanceOf(ReceiptSchemaMismatch);
 	});
 });
 

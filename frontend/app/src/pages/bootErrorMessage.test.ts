@@ -4,7 +4,7 @@ import {
 	QuotaError,
 } from "@amlfilter/browser";
 import { IntegrityError } from "@amlfilter/browser/engine";
-import { starterPack } from "@edgeproc/errors";
+import { starterPack } from "@gainratio/errors";
 import { describe, expect, it } from "vitest";
 import i18n from "../i18n";
 import {
@@ -93,17 +93,17 @@ describe("deviceUnsupportedMessage", () => {
 	});
 });
 
-describe("@edgeproc/errors adoption (canonical-errors standard)", () => {
+describe("@gainratio/errors adoption (canonical-errors standard)", () => {
 	// The bundle-load error path now classifies raw boot failures through the
-	// PUBLISHED @edgeproc/errors registry (the npm package) instead of an
+	// PUBLISHED @gainratio/errors registry (the npm package) instead of an
 	// ad-hoc if-chain. These tests prove two things: (1) the published library is
 	// really what does the work — `bundleErrorRegistry` is a genuine
-	// @edgeproc/errors Registry built from its `starterPack` codes; and (2) the
+	// @gainratio/errors Registry built from its `starterPack` codes; and (2) the
 	// coded classification is BEHAVIOR-IDENTICAL — each failure still renders the
 	// exact same existing `errors:*` string, so no user-visible copy or i18n key
 	// moved.
 
-	it("exposes a genuine @edgeproc/errors Registry built from the published starterPack", () => {
+	it("exposes a genuine @gainratio/errors Registry built from the published starterPack", () => {
 		for (const method of [
 			"has",
 			"get",
@@ -265,7 +265,7 @@ describe("@edgeproc/errors adoption (canonical-errors standard)", () => {
 		expect(problem.availableBytes).toBe(2);
 	});
 
-	it("keeps only own string / finite-number params on the Problem Details wire (@edgeproc/errors >= 0.1.2)", () => {
+	it("keeps only own string / finite-number params on the Problem Details wire (@gainratio/errors >= 0.1.2)", () => {
 		// 0.1.2 filters extension members: objects, booleans, null and non-finite
 		// numbers are outside the ParamValue contract and never reach the wire, and
 		// toJSON / __proto__ / constructor / prototype can never be member names.

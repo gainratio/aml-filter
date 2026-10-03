@@ -103,7 +103,7 @@ test("Avow score receipt signs + verifies in a real browser", async ({
 			};
 			const subject = mod.matchScoreSubject(MATCH, CONTEXT);
 
-			// Real Ed25519 signing through @edgeproc/avow -> @noble/ed25519.
+			// Real Ed25519 signing through @gainratio/avow -> @noble/ed25519.
 			const receipt = await mod.signMatchReceipt(subject, seedHex());
 			const pinned = receipt.public_key;
 

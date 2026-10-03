@@ -5,13 +5,13 @@ import {
 	httpStatusOf,
 	starterPack,
 	type TFunction,
-} from "@edgeproc/errors";
+} from "@gainratio/errors";
 import i18n from "../i18n";
 
 /**
  * How a raw failure's searchable message is derived — the thrown `Error`'s
  * `.message`, or the stringified value for a non-Error. Kept identical to the
- * pre-@edgeproc/errors boot logic so classification stays byte-for-byte
+ * pre-@gainratio/errors boot logic so classification stays byte-for-byte
  * unchanged.
  */
 function messageOf(error: unknown): string {
@@ -83,7 +83,7 @@ const VERIFICATION_FAILURES: ReadonlySet<string> = new Set([
 
 /**
  * AML-Filter's bundle-load error catalog, expressed in the shared
- * `@edgeproc/errors` vocabulary (the portfolio canonical-errors standard,
+ * `@gainratio/errors` vocabulary (the portfolio canonical-errors standard,
  * installed from npm). Each code is REUSED from the library's
  * `starterPack`; on top of the starter data we attach the exact detection the
  * app already uses — its typed boot errors (`DeviceUnsupportedError`,
@@ -145,7 +145,7 @@ const BUNDLE_ERROR_CATALOG = {
 
 /**
  * The AML-Filter bundle-load error registry — the single place a raw cold-boot
- * failure is classified into a canonical `@edgeproc/errors` code, built with the
+ * failure is classified into a canonical `@gainratio/errors` code, built with the
  * shared library. Exported so the classification is inspectable and testable as
  * the library's own `Registry` (and so a server surface can later reuse the same
  * codes for RFC 9457 Problem Details without re-deriving them).
@@ -166,7 +166,7 @@ export type BundleErrorKind =
 	| "unknown";
 
 /**
- * Map a canonical `@edgeproc/errors` code back to the local `BundleErrorKind` the
+ * Map a canonical `@gainratio/errors` code back to the local `BundleErrorKind` the
  * boot path switches on. Keeping `BundleErrorKind` as the public shape means the
  * registry replaces the classification without touching how the UI branches.
  */
@@ -182,7 +182,7 @@ const CODE_TO_KIND: Readonly<Record<string, BundleErrorKind>> = {
 
 /**
  * Classify a caught cold-boot failure into one bundle-error kind via the shared
- * `@edgeproc/errors` registry (`bundleErrorRegistry`) — the same coded behavior
+ * `@gainratio/errors` registry (`bundleErrorRegistry`) — the same coded behavior
  * as the app's previous typed-error branches, now expressed in the portfolio's
  * canonical-errors vocabulary — then map the canonical code back to the local
  * `BundleErrorKind`.
@@ -210,7 +210,7 @@ const translate: TFunction = (key, params) => i18n.t(key, params ?? {});
  * because retrying can't add a missing browser capability. Names the missing
  * features when known so a technical visitor can see why.
  *
- * The base sentence is resolved through the shared `@edgeproc/errors` registry
+ * The base sentence is resolved through the shared `@gainratio/errors` registry
  * (the canonical `bundle.device_unsupported` code, whose i18n key is this app's
  * existing `errors:device.unsupported`) — same rendered bytes, now behind a
  * portfolio-standard code.
@@ -242,7 +242,7 @@ export function deviceUnsupportedMessage(
  * Keeps the "could not load the screening bundle" substring the C1 cold-boot
  * alert assertion (screen-cold-blocked.spec.ts) matches.
  *
- * The caught failure is classified through the shared `@edgeproc/errors` registry
+ * The caught failure is classified through the shared `@gainratio/errors` registry
  * (`classifyBundleError`) so each cause carries a stable canonical code. Every
  * reachable retryable cause — a failed download, a timed-out or unreachable
  * fetch, a storage-quota refusal, or a fail-closed integrity/signature error —

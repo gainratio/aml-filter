@@ -5,7 +5,7 @@
 // plain-language summary. Pure + deterministic; locked by the frozen golden in
 // __fixtures__/scoring/golden.json.
 
-import type { ScoreResult as AssayScoreResult } from "@edgeproc/assay";
+import type { ScoreResult as AssayScoreResult } from "@gainratio/assay";
 import {
 	calculateAssayScore,
 	type ScoringSignalValues,

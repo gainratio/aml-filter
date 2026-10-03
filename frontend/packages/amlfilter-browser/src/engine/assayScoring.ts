@@ -3,7 +3,7 @@ import {
 	type AdditiveTerm,
 	additive,
 	type ScoreResult,
-} from "@edgeproc/assay";
+} from "@gainratio/assay";
 import { classifyTier, type MatchTier, STRONG_TIER_FLOOR } from "./tiering";
 
 export const SCORING_POLICY_VERSION = "amlfilter.additive.v2";

@@ -1,7 +1,7 @@
 // Avow score receipt — seal an in-tab risk/match score into a signed,
 // offline-verifiable Avow receipt. Assay computes the score; this module seals
 // that score, its ordered Assay component evidence, and the AML tier in the
-// `@edgeproc/avow` envelope (RFC-8785 canonical bytes + Ed25519), so a reviewer
+// `@gainratio/avow` envelope (RFC-8785 canonical bytes + Ed25519), so a reviewer
 // (or an auditor) can later verify "this score, for this watchlist version, was
 // produced by this installation" without trusting any server.
 //
@@ -31,13 +31,13 @@
 import {
 	type ScoreResult as AssayScoreResult,
 	parseScoreResult,
-} from "@edgeproc/assay";
+} from "@gainratio/assay";
 import {
 	type JsonValue,
 	type SignedReceipt,
 	signPayload,
 	verifySignature,
-} from "@edgeproc/avow";
+} from "@gainratio/avow";
 
 import {
 	calculateAssayScore,
@@ -124,7 +124,7 @@ export interface ScoreReceiptContext {
 
 /**
  * The signed subject. A `type` (not `interface`) so it carries an implicit
- * index signature and satisfies `@edgeproc/avow`'s `JsonValue` bound.
+ * index signature and satisfies `@gainratio/avow`'s `JsonValue` bound.
  */
 export type MatchScoreSubject = {
 	readonly kind: "aml.match_score";

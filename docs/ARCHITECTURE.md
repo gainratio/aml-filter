@@ -76,7 +76,7 @@ normalize → embed → SQLite vector + lexical retrieve → explainable weighte
    unions those ids with sqlite-vector neighbours; `MultiListScreeningEngine` then merges
    and deterministically re-ranks the per-list candidates.
 4. **Score.** `computeScore` (`scoring.ts`) adapts five typed AML signals into the exact
-   `@edgeproc/assay@0.5.0-dev.3` additive contract. Assay is the score source of truth.
+   `@gainratio/assay@0.5.0-dev.6` additive contract. Assay is the score source of truth.
 5. **Threshold → reasons.** A candidate whose final score is **at or above the active
    threshold for its list** becomes a match (per-list threshold =
    `perList[id] ?? query.threshold ?? default`). Each match carries `reasons[]` (one per
@@ -354,7 +354,7 @@ engine computed.
 the engine hands each scored match to a sealer built by `createMatchReceiptSealer`
 (`engine/matchReceipts.ts`), which signs with a **per-install Ed25519 key**
 (`engine/installKey.ts` — generated on first use, stored in this browser's
-`localStorage`). Receipts use the `@edgeproc/avow` format — RFC-8785 canonical JSON
+`localStorage`). Receipts use the `@gainratio/avow` format — RFC-8785 canonical JSON
 signed with Ed25519 (`engine/scoreReceipt.ts`).
 
 **The sealed subject.** The receipt seals `{ score, tier, engine version, watchlist
@@ -415,11 +415,9 @@ screen, not as an attestation of the environment.
 
 **i18n and the panel labels.** Every app-rendered string — the chip labels, all six
 states — goes through i18next like the rest of the app. The expanded receipt panel
-itself is rendered by `@edgeproc/receipt-ui` 0.1.0, whose internal labels ("Algorithm",
-"Signer", …) are English-only. receipt-ui 0.2.0 adds an injectable-labels API (released
-on the library's main branch; its npm publish is pending), and its adoption here is
-**pending** until that exact registry artifact and its integrity are verified. Until then
-the panel-internal labels remain English. (The `DossierCard` source comment points readers
+itself is rendered by `@gainratio/receipt-ui` 0.3.0. The app does not yet pass that
+library's injectable labels, so the panel-internal labels ("Algorithm", "Signer", …)
+remain English. (The `DossierCard` source comment points readers
 here.)
 
 ## Local data model (SQLite-WASM)
@@ -576,7 +574,7 @@ OFSI's old Consolidated List closed on 2026-06-03). Candidate retrieval unions t
 bounded paths in one Worker-owned database: MiniLM nearest neighbours through
 sqlite-vector, plus exact canonical-token and Double-Metaphone postings through SQLite.
 TypeScript creates the lookup keys and applies the transparent final policy;
-`@edgeproc/assay` combines vector similarity, sequence similarity, alias, date-of-birth,
+`@gainratio/assay` combines vector similarity, sequence similarity, alias, date-of-birth,
 and country evidence. Phonetics can widen the candidate set but cannot by itself declare
 a match. Each result records `retrieved_via` (which channels reached it); the "Why this
 score?" panel shows it as "Found via" context, and it is never a score term. Each result

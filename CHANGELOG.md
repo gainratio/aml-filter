@@ -8,6 +8,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The owner's libraries move to their newest releases and new `@gainratio` names.**
+  `@edgeproc/avow ^0.4.1` -> `@gainratio/avow ^0.5.2`, `@edgeproc/receipt-ui 0.2.0` ->
+  `@gainratio/receipt-ui ^0.3.0`, `@edgeproc/errors ^0.1.2` -> `@gainratio/errors ^0.2.1`,
+  `@edgeproc/assay 0.5.0-dev.3` -> `@gainratio/assay 0.5.0-dev.6`, and the eval's
+  `assay-engine==0.5.0.dev3` -> `==0.5.0.dev6` (both Assay pins stay exact on purpose:
+  the decision evidence must not drift under a protected revision). Assay dev4-dev6
+  carry no scoring change. avow 0.5 adds a required `schema: "avow.receipt/v1"` to every
+  receipt and refuses one without it; aml-filter seals and verifies each score receipt
+  in the same page session and never stores, exports or imports one, so no existing
+  receipt is affected. A new test pins the schema and the refusal. The Git-pinned
+  browser runtime moves `0749e66` -> `edd9971` (each SQLite store now takes an
+  exclusive per-store Web Lock, so two tabs take turns; reads across tabs are
+  serialized), keeping the `@edgeproc/browser` dependency key that almamesh uses, and
+  `@hpcc-js/wasm-zstd` is held to one copy at 1.16.2.
+
 - **The UK list now comes from the FCDO UK Sanctions List, asset-freeze designations
   only.** OFSI closed its Consolidated List on 2026-06-03 and the adapter was still
   reading that frozen file, so UK screening was months stale (it missed ~550 current
@@ -70,12 +85,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Known issues
 
-- **`@edgeproc/receipt-ui` 0.2.0 declares a peer range that excludes the installed
-  `@edgeproc/avow` 0.4.1.** Its peer is `@edgeproc/avow: ^0.1.0`, which under 0.x caret
-  rules means `>=0.1.0 <0.2.0`, so `pnpm peers check` reports it unmet. 0.2.0 is the
-  newest receipt-ui on npm (checked 2026-09-24), so there is nothing to bump to; the
-  mismatch is recorded here and not forced (no `peerDependencyRules` override). The fix
-  belongs upstream: a receipt-ui release that widens the peer to the avow 0.4 line.
+- ~~`@edgeproc/receipt-ui` 0.2.0 declared a peer range that excluded the installed
+  `@edgeproc/avow` 0.4.1.~~ Fixed: `@gainratio/receipt-ui` 0.3.0 peers on
+  `@gainratio/avow ^0.5.2`, and `pnpm peers check` reports no issues.
 
 ### Security
 

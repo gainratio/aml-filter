@@ -9,8 +9,8 @@
 //   - SearchResponse       -> aml_filter/domain/search.py
 //   - OfacBundleMeta       -> aml_filter/bundle/meta.py
 
-import type { ScoreResult as AssayScoreResult } from "@edgeproc/assay";
-import type { SignedReceipt } from "@edgeproc/avow";
+import type { ScoreResult as AssayScoreResult } from "@gainratio/assay";
+import type { SignedReceipt } from "@gainratio/avow";
 import type { MatchScoreSubject } from "./scoreReceipt";
 
 /** PERSON or ORGANIZATION — the only entity types OFAC screening recognizes. */

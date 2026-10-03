@@ -17,9 +17,24 @@ const browserPackageFile = resolve(
 	"package.json",
 );
 const lockFile = resolve(appDir, "..", "pnpm-lock.yaml");
-const ASSAY_VERSION = "0.5.0-dev.3";
+const appPackageFile = resolve(appDir, "package.json");
+const workstationPackageFile = resolve(
+	appDir,
+	"..",
+	"packages",
+	"amlfilter-workstation",
+	"package.json",
+);
+const publisherPackageFile = resolve(
+	appDir,
+	"..",
+	"packages",
+	"amlfilter-publisher",
+	"package.json",
+);
+const ASSAY_VERSION = "0.5.0-dev.6";
 const ASSAY_SRI =
-	"sha512-s0NBvvTvbc7Y6z50oqaIPraN0hd6RRd9vY4dPXkWpB3DTGKCuJ8c4Kz2eX1KjEqF7PecQ4FyqzAYvgxIrJsQYg==";
+	"sha512-VOH1brU6gHHOZ1jRO4DXRPseSCnOLAlKewlfuzYumG3Kswb9KvrngoN5mPv7rdw61O3EuqGQO+WFPON8AV3NzQ==";
 
 function releaseAgeMinutes(yaml: string): number | undefined {
 	const match = yaml.match(/^\s*minimumReleaseAge\s*:\s*(\d+)\s*$/m);
@@ -43,8 +58,33 @@ describe("pnpm dependency policy", () => {
 	it("pins the reviewed Assay npm artifact and registry integrity", () => {
 		const manifest = JSON.parse(readFileSync(browserPackageFile, "utf8"));
 		const lock = readFileSync(lockFile, "utf8");
-		expect(manifest.dependencies?.["@edgeproc/assay"]).toBe(ASSAY_VERSION);
-		expect(lock).toContain(`'@edgeproc/assay@${ASSAY_VERSION}':`);
+		expect(manifest.dependencies?.["@gainratio/assay"]).toBe(ASSAY_VERSION);
+		expect(lock).toContain(`'@gainratio/assay@${ASSAY_VERSION}':`);
 		expect(lock).toContain(`resolution: {integrity: ${ASSAY_SRI}}`);
+	});
+
+	// The owner's npm libraries moved from @edgeproc/* to @gainratio/*; the old
+	// names are deprecated and get no new releases. Only the Git-pinned browser
+	// runtime keeps its @edgeproc/browser dependency key (the same alias almamesh
+	// uses); its package name is already @gainratio/browser.
+	it("takes the owner's npm libraries under their @gainratio names only", () => {
+		const manifests = [
+			appPackageFile,
+			browserPackageFile,
+			workstationPackageFile,
+			publisherPackageFile,
+		].map((file) => JSON.parse(readFileSync(file, "utf8")));
+		const edgeprocKeys = manifests
+			.flatMap((manifest) => [
+				...Object.keys(manifest.dependencies ?? {}),
+				...Object.keys(manifest.devDependencies ?? {}),
+			])
+			.filter((name) => name.startsWith("@edgeproc/"));
+		expect(new Set(edgeprocKeys)).toEqual(new Set(["@edgeproc/browser"]));
+		const [app, browser, workstation] = manifests;
+		expect(app.dependencies?.["@gainratio/errors"]).toBe("^0.2.1");
+		expect(app.dependencies?.["@gainratio/receipt-ui"]).toBe("^0.3.0");
+		expect(browser.dependencies?.["@gainratio/avow"]).toBe("^0.5.2");
+		expect(workstation.dependencies?.["@gainratio/avow"]).toBe("^0.5.2");
 	});
 });

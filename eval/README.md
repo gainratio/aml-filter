@@ -4,7 +4,7 @@
 half: of the alerts the product raises, how many are the entity you screened, and how often does a
 real sanctions match produce nothing at all. It reads an artifact the TypeScript emitter writes and
 scores it with [`assay-engine`](https://pypi.org/project/assay-engine/) pinned to
-`0.5.0.dev3`. It ships **zero bytes** to the browser.
+`0.5.0.dev6`. It ships **zero bytes** to the browser.
 
 Before you quote any number here, read
 [`src/amlfilter_eval/collision.py`](./src/amlfilter_eval/collision.py). It carries one assumption

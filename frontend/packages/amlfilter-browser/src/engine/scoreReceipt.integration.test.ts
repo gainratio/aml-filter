@@ -9,7 +9,7 @@
 //
 // If the wiring is ever removed, these fail on a missing receipt.
 
-import { publicKeyHex } from "@edgeproc/avow";
+import { publicKeyHex } from "@gainratio/avow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BundleSource } from "./bundleSource";
 import type { Embedder } from "./embedder";
