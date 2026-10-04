@@ -20,7 +20,8 @@ import { expect, type Page, type Request } from "@playwright/test";
 
 import {
 	type FailedRequestFacts,
-	isCompletedThenCancelled,
+	isExcusedFailedRequest,
+	parseContentLength,
 } from "./failedRequests";
 import { LIST_PROBES, type ListProbe, reviewBadgePattern } from "./probes";
 
@@ -50,26 +51,38 @@ export interface ConsoleWatch {
 	settled(): Promise<void>;
 }
 
+/** The encoded body size Playwright received, or `null` when it cannot say. */
+async function receivedBodyBytes(request: Request): Promise<number | null> {
+	const sizes = await request.sizes().catch(() => null);
+	return sizes?.responseBodySize ?? null;
+}
+
 /** Read what Playwright knows about a failed request. */
 async function failedRequestFacts(
 	request: Request,
+	finished: ReadonlySet<Request>,
 ): Promise<FailedRequestFacts> {
 	const response = await request.response().catch(() => null);
 	return {
+		url: request.url(),
 		errorText: request.failure()?.errorText ?? "unknown",
 		status: response?.status() ?? null,
-		responseEnd: request.timing().responseEnd,
+		finished: finished.has(request),
+		receivedBodyBytes:
+			response === null ? null : await receivedBodyBytes(request),
+		contentLength: parseContentLength(response?.headers()["content-length"]),
 	};
 }
 
-/** Add a failed request to `problems` unless the browser merely cancelled it
- * after the whole response had arrived (see failedRequests.ts). */
+/** Add a failed request to `problems` unless it is the pointer request the
+ * browser cancelled after its whole body arrived (see failedRequests.ts). */
 async function recordFailedRequest(
 	request: Request,
+	finished: ReadonlySet<Request>,
 	problems: string[],
 ): Promise<void> {
-	const facts = await failedRequestFacts(request);
-	if (!isCompletedThenCancelled(facts)) {
+	const facts = await failedRequestFacts(request, finished);
+	if (!isExcusedFailedRequest(facts)) {
 		problems.push(`requestfailed: ${request.url()} (${facts.errorText})`);
 	}
 }
@@ -85,10 +98,12 @@ export function watchConsole(page: Page): ConsoleWatch {
 		}
 	});
 	const pending: Promise<void>[] = [];
+	const finished = new Set<Request>();
+	page.on("requestfinished", (request) => finished.add(request));
 	page.on("requestfailed", (request) => {
 		const origin = new URL(page.url() || request.url()).origin;
 		if (request.url().startsWith(origin)) {
-			pending.push(recordFailedRequest(request, problems));
+			pending.push(recordFailedRequest(request, finished, problems));
 		}
 	});
 	return { problems, settled: async () => void (await Promise.all(pending)) };

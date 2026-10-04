@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type BrowserContext,
-	chromium,
+	type BrowserType,
 	expect,
 	type Page,
 	test,
@@ -87,10 +87,13 @@ function requireProfile(): string {
 	return PROFILE;
 }
 
+/** A persistent profile in the engine this project runs (chromium, firefox or
+ * webkit); each engine needs its own profile directory. */
 async function persistentPage(
+	engine: BrowserType,
 	baseURL: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
-	const context = await chromium.launchPersistentContext(requireProfile(), {
+	const context = await engine.launchPersistentContext(requireProfile(), {
 		baseURL,
 		headless: true,
 	});
@@ -138,8 +141,13 @@ test("@fresh a first-time visitor screens every list on the live site", async ({
 
 test("@prime cache the currently-live release into the returning profile", async ({
 	baseURL,
+	browserName,
+	playwright,
 }) => {
-	const { context, page } = await persistentPage(baseURL ?? "");
+	const { context, page } = await persistentPage(
+		playwright[browserName],
+		baseURL ?? "",
+	);
 	try {
 		await enableEveryList(page);
 		await screenAndWorkstation(page, "prime");
@@ -158,10 +166,15 @@ test("@prime cache the currently-live release into the returning profile", async
 
 test("@returning a visitor cached on the previous release reloads and screens", async ({
 	baseURL,
+	browserName,
+	playwright,
 }, testInfo) => {
 	const markerPath = join(requireProfile(), PRIME_MARKER);
 	const primed = existsSync(markerPath);
-	const { context, page } = await persistentPage(baseURL ?? "");
+	const { context, page } = await persistentPage(
+		playwright[browserName],
+		baseURL ?? "",
+	);
 	try {
 		const watch = watchConsole(page);
 		await page.goto("/robots.txt");
