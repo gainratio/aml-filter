@@ -91,7 +91,10 @@ describe("buildCleanQueries", () => {
 	});
 
 	it("refuses to return a short set rather than moving the denominator", () => {
-		expect(() => build(10_000)).toThrow(/produced \d+ of 10000/);
+		// Five donors yield at most 5 x 4 = 20 ordered recombinations. Asking for
+		// one more than that ceiling exercises the refusal without burning the
+		// draw budget on an absurd count (10_000 requests meant 2M draws, 1-20 s).
+		expect(() => build(21)).toThrow(/produced 20 of 21 requested/);
 	});
 
 	it("refuses a corpus with nothing to recombine", () => {
@@ -167,8 +170,22 @@ describe("buildPlainQueries", () => {
 	});
 
 	it("refuses to return a short set rather than moving the denominator", () => {
-		expect(() => buildPlainQueries(CORPUS, owners, 10_000, 4)).toThrow(
-			/produced \d+ of 10000 requested plain names/,
+		// A list that publishes all but KEPT_GIVEN of the given names caps the
+		// reachable plain names at KEPT_GIVEN x families; asking for one more must
+		// refuse. Kept small on purpose: the budget is 200 draws per requested
+		// name, and the old unreachable count of 10_000 cost 2M draws (1-20 s).
+		const KEPT_GIVEN = 15;
+		const blocker = person(
+			"OFAC_SDN:99",
+			"BLOCKER, Vocabulary",
+			PLAIN_GIVEN_NAMES.slice(KEPT_GIVEN),
+		);
+		const lines = [...CORPUS, blocker];
+		const reachable = KEPT_GIVEN * PLAIN_FAMILY_NAMES.length;
+		expect(() =>
+			buildPlainQueries(lines, buildOwnerIndex(lines), reachable + 1, 4),
+		).toThrow(
+			new RegExp(`produced ${reachable} of ${reachable + 1} requested plain`),
 		);
 	});
 });
