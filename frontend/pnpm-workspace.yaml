@@ -73,3 +73,14 @@ overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.17 <4"
   "undici@>=7.28.0 <7.29.1": "7.29.1"
+
+# Backport of SQLite check-in 9168a6f1be (forum b2fbb61642, 2026-09-30) into the
+# opfs-sahpool VFS that holds the workstation's KYC database. Unpatched, its
+# xCheckReservedLock always reports a RESERVED lock, so SQLite never rolls back a
+# hot journal: a tab killed mid-transaction leaves a torn database that
+# integrity_check still calls "ok". No npm build carries the fix yet (3.53.4-build2
+# is cut from a 2026-07-24 source). Drop this patch when the dependency is bumped
+# to a build that includes the check-in; pnpm fails the install on an unused patch,
+# and tests/e2e-kyc/sahpool-crash-rollback.spec.ts goes red on an unfixed build.
+patchedDependencies:
+  '@sqlite.org/sqlite-wasm@3.53.0-build1': patches/@sqlite.org__sqlite-wasm@3.53.0-build1.patch
