@@ -4,6 +4,8 @@
  *   2. Watchlists (a checkbox per signed-catalog list — which lists are screened)
  *   3. Per-list overrides (a sensitivity override per ENABLED source list)
  *   4. Analyst name (the audit-trail signer, a SQLite settings row)
+ * plus the cached-lists control and the receipt signing key (export, import,
+ * reset — SigningKeySection).
  *
  * Apply persists the analyst name, re-bootstraps the engine over the chosen
  * watchlist set (a disabled list's matches drop out → SUPPRESSED on re-screen),
@@ -21,6 +23,7 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { SigningKeySection } from "../components/SigningKeySection";
 import { apiClient } from "../lib/api";
 import { listAge } from "../lib/listAge";
 import { workstation } from "../lib/workstation";
@@ -580,6 +583,8 @@ export default function SettingsPage() {
 				onRetry={loadFailed ? retryLoad : undefined}
 				t={t}
 			/>
+
+			<SigningKeySection />
 		</div>
 	);
 }

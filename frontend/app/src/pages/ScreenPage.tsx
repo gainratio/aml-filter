@@ -19,6 +19,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { CacheRecovery } from "../components/CacheRecovery";
 import { Footer } from "../components/Footer";
+import { SigningKeyNotice } from "../components/SigningKeyNotice";
 import { formatBytes } from "../lib/formatBytes";
 import { listAge } from "../lib/listAge";
 import { listName } from "../lib/plainLabels";
@@ -566,6 +567,7 @@ export function ScreenPage() {
 	return (
 		<div className="screen-page">
 			<h1>{t("header.title")}</h1>
+			<SigningKeyNotice />
 			<p className="screen-page__lede">{t("header.lede")}</p>
 
 			<BootBanner

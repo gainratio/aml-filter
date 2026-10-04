@@ -8,7 +8,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./engine": "./src/engine.ts",
-		"./watchlist": "./src/engine/watchlist.ts"
+		"./watchlist": "./src/engine/watchlist.ts",
+		"./testing": "./src/testing/memoryInstallKeySql.ts"
 	},
 	"scripts": {
 		"lint": "biome check .",
@@ -17,15 +18,16 @@
 		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
-		"@gainratio/browser": "^0.2.0",
 		"@gainratio/assay": "0.5.0-dev.6",
 		"@gainratio/avow": "^0.5.2",
+		"@gainratio/browser": "^0.2.0",
 		"@huggingface/transformers": "4.2.0",
 		"double-metaphone": "^2.0.1",
 		"fuzzball": "^2.2.6"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",
+		"@sqlite.org/sqlite-wasm": "3.53.0-build1",
 		"@types/node": "^26.6.3",
 		"@vitejs/plugin-react": "^6.1.1",
 		"@vitest/coverage-v8": "^5.0.2",

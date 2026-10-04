@@ -3,9 +3,14 @@
 
 import { publicKeyHex } from "@gainratio/avow";
 import { describe, expect, it, vi } from "vitest";
+import { memoryInstallKeySql } from "../testing/memoryInstallKeySql";
 import { calculateAssayScore } from "./assayScoring";
 import type { Match, ScreenQuery } from "./domain";
-import { INSTALL_SEED_KEY, type KeyStorage } from "./installKey";
+import {
+	INSTALL_SEED_KEY,
+	type InstallKeySource,
+	InstallKeys,
+} from "./installKey";
 import {
 	createMatchReceiptSealer,
 	inputsHash,
@@ -37,12 +42,21 @@ const SEVENTY_EVIDENCE = calculateAssayScore(
 	PRESETS.balanced.weights,
 );
 
-function storageWithSeed(seed: string = SEED): KeyStorage {
-	const map = new Map<string, string>([[INSTALL_SEED_KEY, seed]]);
+function storageWithSeed(seed: string = SEED): InstallKeySource {
 	return {
-		getItem: (k) => map.get(k) ?? null,
-		setItem: (k, v) => {
-			map.set(k, v);
+		load: async () => ({
+			seedHex: seed,
+			publicKeyHex: await publicKeyHex(seed),
+			resetFromCorruptSeed: false,
+			persistence: { kind: "opfs" },
+		}),
+	};
+}
+
+function failingSource(error: unknown): InstallKeySource {
+	return {
+		load: async () => {
+			throw error;
 		},
 	};
 }
@@ -159,22 +173,22 @@ describe("createMatchReceiptSealer", () => {
 		expect(sealed?.score_receipt?.payload.possible_threshold).toBe(0.3);
 	});
 
-	it("resolves the install key ONCE across repeated screens", async () => {
-		let reads = 0;
+	it("asks the key source on every screen, so a reset key takes effect", async () => {
+		// The source (InstallKeys) caches the key per tab; the sealer must not pin
+		// its own copy, or it would keep signing with a key the user just reset.
+		let loads = 0;
 		const inner = storageWithSeed();
-		const counting: KeyStorage = {
-			getItem: (k) => {
-				reads += 1;
-				return inner.getItem(k);
+		const sealer = createMatchReceiptSealer({
+			load: () => {
+				loads += 1;
+				return inner.load();
 			},
-			setItem: (k, v) => inner.setItem(k, v),
-		};
-		const sealer = createMatchReceiptSealer(counting);
+		});
 
 		await sealer.seal([match()], context());
 		await sealer.seal([match()], context());
 
-		expect(reads).toBe(1);
+		expect(loads).toBe(2);
 	});
 
 	it("produces NO receipts when the tab has no usable storage", async () => {
@@ -189,12 +203,9 @@ describe("createMatchReceiptSealer", () => {
 
 	it("returns matches without receipts when storage becomes unavailable", async () => {
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const sealer = createMatchReceiptSealer({
-			getItem: () => {
-				throw new DOMException("storage blocked", "SecurityError");
-			},
-			setItem: () => undefined,
-		});
+		const sealer = createMatchReceiptSealer(
+			failingSource(new DOMException("storage blocked", "SecurityError")),
+		);
 
 		const sealed = await sealer.seal([match()], context());
 
@@ -216,14 +227,40 @@ describe("createMatchReceiptSealer", () => {
 	});
 
 	it("short-circuits an empty match set without touching the key", async () => {
-		const sealer = createMatchReceiptSealer({
-			getItem: () => {
-				throw new Error("must not read the key for zero matches");
-			},
-			setItem: () => undefined,
-		});
+		const sealer = createMatchReceiptSealer(
+			failingSource(new Error("must not read the key for zero matches")),
+		);
 
 		await expect(sealer.seal([], context())).resolves.toEqual([]);
+	});
+});
+
+describe("receipts sealed before the SQLite migration", () => {
+	it("still verify under the migrated key", async () => {
+		// The old release signed with the localStorage seed.
+		const oldRelease = createMatchReceiptSealer(storageWithSeed(SEED));
+		const [sealed] = await oldRelease.seal([match()], context());
+		const receipt = sealed?.score_receipt;
+		if (receipt === undefined) {
+			throw new Error("expected a receipt");
+		}
+		const localStorageOfOldRelease = new Map([[INSTALL_SEED_KEY, SEED]]);
+
+		const migrated = await new InstallKeys({
+			openSql: (await memoryInstallKeySql()).open,
+			legacy: {
+				getItem: (k) => localStorageOfOldRelease.get(k) ?? null,
+				removeItem: (k) => {
+					localStorageOfOldRelease.delete(k);
+				},
+			},
+			channel: null,
+		}).load();
+
+		expect(localStorageOfOldRelease.size).toBe(0);
+		await expect(
+			verifyMatchReceipt(receipt, migrated.publicKeyHex),
+		).resolves.toBeUndefined();
 	});
 });
 

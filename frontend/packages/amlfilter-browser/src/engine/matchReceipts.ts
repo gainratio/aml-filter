@@ -7,11 +7,11 @@
 // envelope. Nothing here can change a score, a reason, or a tier boundary.
 //
 // Custody caveat (identical to scoreReceipt.ts): the signing seed lives in
-// browser storage, so a receipt is tamper-EVIDENT, not proof the host was
-// uncompromised at signing time.
+// browser storage (the SQLite install_key row), so a receipt is
+// tamper-EVIDENT, not proof the host was uncompromised at signing time.
 //
-// Availability: where the tab has no usable storage (a blocked-storage policy),
-// there is no stable install key, so no receipt is produced and the screen
+// Availability: where the install key cannot be loaded (no Worker, another tab
+// holding the key database), no receipt is produced and the screen
 // still returns its matches. Receipts are additive provenance — they are NOT
 // the fail-closed control that guards the signed watchlist bundle, and the
 // screening path must not go dark because provenance is unavailable.
@@ -19,10 +19,9 @@
 import { canonicalBytes, type JsonValue, sha256Hex } from "@gainratio/browser";
 import type { Match, ScreenQuery } from "./domain";
 import {
-	defaultKeyStorage,
 	type InstallKey,
-	type KeyStorage,
-	loadInstallKey,
+	type InstallKeySource,
+	installKeys,
 } from "./installKey";
 import {
 	InputsHashInvalid,
@@ -110,27 +109,25 @@ async function sealOne(
 }
 
 /**
- * The production sealer: resolves this install's signing key ONCE (memoized, so
- * a screen never re-derives the public key) and signs every returned match.
+ * The production sealer: signs every returned match with this install's key.
+ * The key source caches the key per tab (a screen never re-derives it) and
+ * drops the cache on reset/import, so the sealer asks it on every screen.
  */
 export function createMatchReceiptSealer(
-	storage: KeyStorage | null = defaultKeyStorage(),
+	keys: InstallKeySource | null = installKeys(),
 ): MatchReceiptSealer {
-	let keyPromise: Promise<InstallKey> | null = null;
 	return {
 		async seal(matches, context) {
-			if (storage === null || matches.length === 0) {
+			if (keys === null || matches.length === 0) {
 				return matches;
 			}
 			let key: InstallKey;
 			try {
-				keyPromise ??= loadInstallKey(storage);
-				key = await keyPromise;
+				key = await keys.load();
 			} catch (error: unknown) {
-				// Provenance is additive. A blocked/quota-failing storage provider or
-				// crypto failure must not turn an otherwise valid screening into an
-				// outage; clear the rejected promise so a later screen can retry.
-				keyPromise = null;
+				// Provenance is additive. An unavailable key store or a crypto
+				// failure must not turn an otherwise valid screening into an
+				// outage; the source does not cache failures, so a later screen retries.
 				console.warn("amlfilter.match_receipts.unavailable", {
 					error: error instanceof Error ? error.name : typeof error,
 					detail: error instanceof Error ? error.message : undefined,

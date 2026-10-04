@@ -87,6 +87,17 @@ describe("SettingsPage", () => {
 		);
 	});
 
+	it("offers the receipt signing key section (export, import, reset)", async () => {
+		render(<SettingsPage />);
+
+		expect(
+			await screen.findByRole("heading", { name: "Receipt signing key" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Reset signing key…" }),
+		).toBeInTheDocument();
+	});
+
 	it("selecting a different sensitivity then Apply calls setScreeningConfig with that sensitivity", async () => {
 		render(<SettingsPage />);
 		await waitFor(() =>

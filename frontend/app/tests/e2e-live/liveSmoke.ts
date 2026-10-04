@@ -1,3 +1,4 @@
+import { createPrivateKey, createPublicKey } from "node:crypto";
 import { expect, type Page, type Request } from "@playwright/test";
 
 /**
@@ -141,6 +142,49 @@ export async function enableEveryList(page: Page): Promise<void> {
 	const outcome = page.locator('.alert-success[role="status"], [role="alert"]');
 	await expect(outcome.first()).toBeVisible({ timeout: BOOT_TIMEOUT_MS });
 	await failOnAlert(page, "/settings apply");
+}
+
+/** Where releases before the SQLite install key kept the signing seed. */
+const LEGACY_SEED_KEY = "amlfilter.install_signing_seed.v1";
+/** PKCS#8 DER prefix for a raw 32-byte Ed25519 seed (RFC 8410). */
+const ED25519_PKCS8_PREFIX = "302e020100300506032b657004220420";
+
+/** Ed25519 public key (hex) for a seed, derived in Node, never printed. */
+function publicKeyOfSeed(seedHex: string): string {
+	const privateKey = createPrivateKey({
+		key: Buffer.from(ED25519_PKCS8_PREFIX + seedHex, "hex"),
+		format: "der",
+		type: "pkcs8",
+	});
+	const spki = createPublicKey(privateKey).export({
+		format: "der",
+		type: "spki",
+	});
+	return spki.subarray(-32).toString("hex");
+}
+
+/** The public key of an OLD release's localStorage seed, or null if none. */
+export async function legacySeedPublicKey(page: Page): Promise<string | null> {
+	const seed = await page.evaluate(
+		(key) => localStorage.getItem(key),
+		LEGACY_SEED_KEY,
+	);
+	return seed === null ? null : publicKeyOfSeed(seed);
+}
+
+/** The public key /settings shows, or null on a release without the card. */
+export async function settingsPublicKey(page: Page): Promise<string | null> {
+	await page.goto("/settings", { waitUntil: "domcontentloaded" });
+	await passOnboarding(page);
+	await expect(page.locator("#watchlist-OFAC_SDN")).toBeVisible({
+		timeout: BOOT_TIMEOUT_MS,
+	});
+	const shown = page.getByTestId("signing-public-key");
+	if ((await shown.count()) === 0) {
+		return null;
+	}
+	await expect(shown).toHaveText(/^[0-9a-f]{64}$/, { timeout: 30_000 });
+	return shown.textContent();
 }
 
 /** A visible error banner is the app refusing (e.g. a bundle that failed
