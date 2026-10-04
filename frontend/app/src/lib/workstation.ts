@@ -219,12 +219,14 @@ async function build(deps: WorkstationDeps): Promise<WorkstationHandle> {
 		);
 		return run;
 	};
+	const loadedVersion = (): string | null => deps.runtime.version();
 	const screener: NameScreener = {
 		screen: async (query: ScreenQuery): Promise<ScreenResponse> =>
 			(await bootEngine()).screen(query),
-		// The stamp of the lists that screen just ran against — what a customer's
-		// screening proof records and the Customers page compares to the loaded lists.
-		listVersion: (): string | null => deps.runtime.version(),
+		// The stamp of the lists that screen just ran against — the SAME accessor
+		// as the handle's watchlistVersion, so the proof a screen records and the
+		// version the Customers page compares it to can never diverge.
+		listVersion: loadedVersion,
 	};
 	const rescan = new RescanService(store, screener);
 	return {
@@ -232,7 +234,7 @@ async function build(deps: WorkstationDeps): Promise<WorkstationHandle> {
 		tracker: new LocalMatchTracker(store),
 		onboarding: new LocalOnboardingService(store, screener),
 		rescan,
-		watchlistVersion: (): string | null => deps.runtime.version(),
+		watchlistVersion: loadedVersion,
 		engineBoot: (onStage?: OnStage): Promise<void> =>
 			serial(async () => {
 				await bootEngine(onStage);

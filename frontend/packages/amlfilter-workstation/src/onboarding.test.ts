@@ -83,6 +83,7 @@ function makeScreener(matches: ReadonlyArray<Match>): NameScreener {
 				execution_time_ms: 1,
 			}),
 		),
+		listVersion: () => "DEMO_SDN@2026-05-01",
 	};
 }
 

@@ -22,17 +22,11 @@ export interface RescanSummary {
 }
 
 export interface SyncResult extends RescanSummary {
-	/** false => the watchlist was unchanged and no rescan ran. */
+	/** false => the watchlist was unchanged; only stale customers (if any) were re-screened. */
 	readonly changed: boolean;
 	/** The version now recorded as last-synced. */
 	readonly version: string;
 }
-
-const EMPTY_SUMMARY: RescanSummary = {
-	customersScanned: 0,
-	newHits: 0,
-	clearedHits: 0,
-};
 
 export class RescanService {
 	readonly #store: WorkstationStore;
@@ -63,7 +57,13 @@ export class RescanService {
 
 	/** Re-screen every customer; summarize new and cleared hits across all. */
 	public async rescanAll(): Promise<RescanSummary> {
-		const customers = await this.#store.listCustomers();
+		return this.#rescanEach(await this.#store.listCustomers());
+	}
+
+	/** Re-screen the given customers; summarize new and cleared hits. */
+	async #rescanEach(
+		customers: ReadonlyArray<CustomerRow>,
+	): Promise<RescanSummary> {
 		const priorByCustomer = await this.#priorEntityIds();
 		let newHits = 0;
 		let clearedHits = 0;
@@ -96,11 +96,27 @@ export class RescanService {
 	async #syncWatchlist(currentVersion: string): Promise<SyncResult> {
 		const lastSynced = await this.#store.getSetting(LAST_SYNCED_VERSION_KEY);
 		if (lastSynced === currentVersion) {
-			return { changed: false, version: currentVersion, ...EMPTY_SUMMARY };
+			const stale = await this.#screenStale(currentVersion);
+			return { changed: false, version: currentVersion, ...stale };
 		}
 		const summary = await this.rescanAll();
 		await this.#store.setSetting(LAST_SYNCED_VERSION_KEY, currentVersion);
 		return { changed: true, version: currentVersion, ...summary };
+	}
+
+	/**
+	 * Re-screen every customer without proof against `currentVersion`: never
+	 * screened (null), screened under other lists, or edited since. A missing
+	 * proof is STALE, never current — so a failed import screen is forced through
+	 * again on the next sync instead of reading clear.
+	 */
+	async #screenStale(currentVersion: string): Promise<RescanSummary> {
+		const customers = await this.#store.listCustomers();
+		return this.#rescanEach(
+			customers.filter(
+				(customer) => customer.screened_list_version !== currentVersion,
+			),
+		);
 	}
 
 	/**
@@ -131,7 +147,7 @@ export class RescanService {
 			dob: customer.dob,
 			threshold,
 		});
-		const listVersion = this.#screener.listVersion?.() ?? null;
+		const listVersion = this.#screener.listVersion();
 		const profile = canonicalProfile(customer.name, customer.country);
 		const tiered = response.matches.map((match) =>
 			tierMatch(match, profile, threshold),

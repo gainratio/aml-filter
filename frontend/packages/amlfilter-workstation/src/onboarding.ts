@@ -23,10 +23,10 @@ export interface NameScreener {
 	screen(query: ScreenQuery): Promise<ScreenResponse>;
 	/**
 	 * The composite stamp of the lists the engine has loaded, read right after a
-	 * screen. It is what a customer's screening proof records; absent or null
-	 * means the screen proves nothing about which lists it ran against.
+	 * screen. It is what a customer's screening proof records; null means the
+	 * screen proves nothing about which lists it ran against (stale, not current).
 	 */
-	listVersion?(): string | null;
+	listVersion(): string | null;
 }
 
 /**
@@ -92,7 +92,7 @@ export class LocalOnboardingService {
 			dob,
 			threshold,
 		});
-		const listVersion = this.#screener.listVersion?.() ?? null;
+		const listVersion = this.#screener.listVersion();
 		const profile = canonicalProfile(request.name, country);
 		const tiered = response.matches.map((match) =>
 			tierMatch(match, profile, threshold),
