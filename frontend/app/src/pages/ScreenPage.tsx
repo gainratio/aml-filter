@@ -903,6 +903,7 @@ function Results({
 						{t("results.matchCount", {
 							n: primary.length,
 							suffix: primary.length === 1 ? "" : "es",
+							level: levelLabel,
 							ms: search.ms,
 						})}
 					</p>
@@ -950,7 +951,9 @@ function Results({
 			 * A capped list looks exactly like a complete one: 25 near-identical
 			 * cards with nothing to say whether that is all of them. The engine
 			 * reports no total, so this states the cut-off and nothing more — never
-			 * "25 of N", which would be a number nobody measured.
+			 * "25 of N", which would be a number nobody measured. It names the
+			 * candidates COMPARED, not cards shown: the threshold may keep only one
+			 * of the 25, and "showing 25" next to "1 potential match" is false.
 			 */}
 			{search.capped && (primary.length > 0 || lowConfidence.length > 0) && (
 				<p className="screen-results__capped">

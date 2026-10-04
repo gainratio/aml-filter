@@ -62,10 +62,10 @@
 		"searching": "Searching…",
 		"searchError": "Screening failed — this name was NOT cleared. {{detail}}. Edit the name to try again.",
 		"noMatch": "No sanctions match “{{query}}”. Screened in {{ms}} ms.",
-		"matchCount": "{{n}} potential match{{suffix}} — screened in {{ms}} ms, in your browser.",
+		"matchCount": "{{n}} potential match{{suffix}} at the {{level}} threshold — screened in {{ms}} ms, in your browser.",
 		"noPrimaryMatch": "No match above the {{level}} threshold for “{{query}}”. Screened in {{ms}} ms.",
 		"lowConfidenceCount": "{{n}} low-confidence candidate{{suffix}} (below {{level}} threshold)",
-		"capped": "Showing the {{n}} closest matches — there may be more below the cut-off. Add a surname or middle name to narrow it."
+		"capped": "The search compared your name with the {{n}} closest names on the lists, so a weaker match further down could be missing. Add a surname or middle name to narrow it."
 	},
 	"dossier": {
 		"facts": {

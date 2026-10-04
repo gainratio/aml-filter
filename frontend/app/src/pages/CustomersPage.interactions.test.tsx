@@ -14,7 +14,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomerOnboardResponse, CustomerResponse } from "../lib/api";
 import { apiClient } from "../lib/api";
-import CustomersPage from "./CustomersPage";
+import { CustomersPage } from "./CustomersPage";
 
 vi.mock("../lib/api", () => ({
 	apiClient: {
@@ -23,6 +23,7 @@ vi.mock("../lib/api", () => ({
 		importCustomers: vi.fn(),
 		updateCustomer: vi.fn(),
 		deleteCustomer: vi.fn(),
+		listReviewMatches: vi.fn(),
 	},
 }));
 
@@ -99,6 +100,13 @@ async function renderWithCustomers(
 	);
 }
 
+/** Open the row editor, change one control, and Save. */
+function editField(label: RegExp, value: string): void {
+	fireEvent.click(screen.getByRole("button", { name: "Edit REF-001" }));
+	fireEvent.change(screen.getByLabelText(label), { target: { value } });
+	fireEvent.click(screen.getByRole("button", { name: "Save" }));
+}
+
 function submitMinimalOnboardForm(reference: string): void {
 	fireEvent.change(screen.getByLabelText(/customer reference/i), {
 		target: { value: reference },
@@ -113,6 +121,7 @@ describe("CustomersPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockClient.listCustomers.mockResolvedValue([]);
+		mockClient.listReviewMatches.mockResolvedValue([]);
 		mockWatchlistVersion.mockReturnValue("wl-v1");
 		mockFetchPublishedVersion.mockResolvedValue("wl-v1");
 		mockReloadWatchlist.mockResolvedValue(undefined);
@@ -135,10 +144,10 @@ describe("CustomersPage", () => {
 			const row = screen.getByText("REF-REJ").closest("tr");
 			if (!row) throw new Error("row not found");
 			expect(
-				within(row).getByText("REJECTED", { selector: "span.badge" }),
+				within(row).getByText("Rejected", { selector: "span.badge" }),
 			).toHaveClass("badge-danger");
 			expect(
-				within(row).getByText("HIGH", { selector: "span.badge" }),
+				within(row).getByText("High", { selector: "span.badge" }),
 			).toHaveClass("badge-danger");
 		});
 
@@ -154,9 +163,9 @@ describe("CustomersPage", () => {
 			const row = screen.getByText("REF-DRAFT").closest("tr");
 			if (!row) throw new Error("row not found");
 			expect(
-				within(row).getByText("DRAFT", { selector: "span.badge" }),
+				within(row).getByText("Draft", { selector: "span.badge" }),
 			).toHaveClass("badge-muted");
-			expect(within(row).getByText("UNRATED")).toHaveClass("badge-muted");
+			expect(within(row).getByText("Not rated")).toHaveClass("badge-muted");
 		});
 	});
 
@@ -278,9 +287,7 @@ describe("CustomersPage", () => {
 			mockClient.updateCustomer.mockRejectedValue(new Error("status boom"));
 			await renderWithCustomers([makeCustomer()]);
 
-			fireEvent.change(screen.getByLabelText(/status for REF-001/i), {
-				target: { value: "ACTIVE" },
-			});
+			editField(/status for REF-001/i, "ACTIVE");
 
 			expect(await screen.findByText(/status boom/i)).toBeInTheDocument();
 		});
@@ -291,9 +298,7 @@ describe("CustomersPage", () => {
 			);
 			await renderWithCustomers([makeCustomer()]);
 
-			fireEvent.change(screen.getByLabelText(/risk for REF-001/i), {
-				target: { value: "HIGH" },
-			});
+			editField(/risk for REF-001/i, "HIGH");
 
 			await waitFor(() =>
 				expect(mockClient.updateCustomer).toHaveBeenCalledWith("cust-1", {
@@ -306,9 +311,7 @@ describe("CustomersPage", () => {
 			mockClient.updateCustomer.mockRejectedValue(new Error("risk boom"));
 			await renderWithCustomers([makeCustomer()]);
 
-			fireEvent.change(screen.getByLabelText(/risk for REF-001/i), {
-				target: { value: "MEDIUM" },
-			});
+			editField(/risk for REF-001/i, "MEDIUM");
 
 			expect(await screen.findByText(/risk boom/i)).toBeInTheDocument();
 		});

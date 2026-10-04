@@ -62,20 +62,32 @@
 		"empty": "No customers onboarded yet. Onboard one to get started.",
 		"columns": {
 			"reference": "Reference",
-			"status": "Status",
+			"screening": "Screening",
+			"status": "Onboarding",
 			"risk": "Risk",
 			"onboardedBy": "Onboarded By",
 			"created": "Created",
 			"actions": "Actions"
 		},
-		"unrated": "UNRATED",
+		"screening": {
+			"clear": "No matches",
+			"toReview_one": "{{count}} to review",
+			"toReview_other": "{{count}} to review",
+			"confirmed": "Confirmed match",
+			"cleared": "Cleared after review",
+			"unknown": "Not checked"
+		},
 		"controls": {
+			"actionsAria": "Actions for {{reference}}",
+			"editorAria": "Editing {{reference}}",
+			"name": "Name",
+			"country": "Country code",
 			"statusAria": "Status for {{reference}}",
 			"riskAria": "Risk for {{reference}}",
-			"riskPlaceholder": "Risk…",
 			"editNameAria": "Edit name for {{reference}}",
 			"editCountryAria": "Edit country for {{reference}}",
-			"editAria": "Edit {{reference}}"
+			"editAria": "Edit {{reference}}",
+			"deleteAria": "Delete {{reference}}"
 		}
 	},
 	"actions": {
@@ -88,8 +100,6 @@
 	"errors": {
 		"load": "Failed to load customers",
 		"onboard": "Failed to onboard customer",
-		"updateStatus": "Failed to update status",
-		"updateRisk": "Failed to update risk rating",
 		"delete": "Failed to delete customer",
 		"checkUpdates": "Failed to check for updates",
 		"save": "Failed to save customer",

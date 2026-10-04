@@ -16,7 +16,9 @@ import { ScreenPage } from "./pages/ScreenPage";
 // are lazy-loaded per-route chunks fetched only on entry and gated by the
 // WorkstationGate, which opens the in-tab SQLite/OPFS store (no auth — there
 // is nothing to log into).
-const CustomersPage = lazy(() => import("./pages/CustomersPage"));
+const CustomersPage = lazy(() =>
+	import("./pages/CustomersPage").then((m) => ({ default: m.CustomersPage })),
+);
 const ReviewBoardPage = lazy(() =>
 	import("./pages/ReviewBoardPage").then((m) => ({
 		default: m.ReviewBoardPage,

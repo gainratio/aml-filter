@@ -1221,3 +1221,47 @@ textarea:focus-visible {
 		flex: 1 1 30%;
 	}
 }
+
+/* ==========================================================================
+   Customers table: one compact action group per row + an editor row
+   ========================================================================== */
+
+.customer-row-actions,
+.customer-editor {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+
+.customer-row-actions {
+	display: inline-flex;
+	gap: var(--spacing-sm);
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+}
+
+.table tbody tr.customer-editor-row,
+.table tbody tr.customer-editor-row:hover {
+	background-color: var(--color-bg-light);
+}
+
+.customer-editor {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+	gap: var(--spacing-md);
+	align-items: end;
+}
+
+.customer-editor__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 0;
+}
+
+.customer-editor__actions {
+	display: flex;
+	gap: var(--spacing-sm);
+	flex-wrap: wrap;
+}

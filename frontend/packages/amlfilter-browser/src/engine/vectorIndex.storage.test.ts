@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type AmlVectorIndexFactory,
 	VectorIndex,
+	vectorIndexFallbackLists,
 	vectorIndexStorage,
 } from "./vectorIndex";
 
@@ -139,6 +140,26 @@ describe("VectorIndex storage: persistent OPFS index, visible memory fallback", 
 			expect.stringContaining("in-memory"),
 			expect.anything(),
 		);
+	});
+
+	it("keeps naming every list that fell back, even after a later list opens on OPFS", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		// Module state is per tab: start from a persistent default index.
+		await new VectorIndex(matrix, ids, 2).ready();
+		vi.mocked(createSqliteVectorIndex).mockRejectedValueOnce(
+			new Error("OPFS unavailable"),
+		);
+		const named = (name: string) =>
+			new VectorIndex(matrix, ids, 2, undefined, undefined, name);
+		await named("aml-watchlist-OFAC_SDN").ready();
+		await named("aml-watchlist-EU_CONSOLIDATED").ready();
+		// The later persistent open must not hide the earlier list's fallback.
+		expect(vectorIndexFallbackLists()).toEqual(["OFAC_SDN"]);
+		expect(vectorIndexStorage()).toBe("memory-fallback");
+		// Re-opening that list on OPFS clears it, and only then is the mode persistent.
+		await named("aml-watchlist-OFAC_SDN").ready();
+		expect(vectorIndexFallbackLists()).toEqual([]);
+		expect(vectorIndexStorage()).toBe("opfs");
 	});
 
 	it("fails closed when even the in-memory fallback cannot open", async () => {
