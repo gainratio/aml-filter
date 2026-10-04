@@ -439,10 +439,17 @@ function buildLoadedFromMatrix(
 		entities.set(wire.entity_id, toEntity(wire));
 	}
 	return {
-		index: new VectorIndex(matrix, ids, dim, vectorIndexFactory, (id) => {
-			const entity = entities.get(id);
-			return entity === undefined ? [] : lexicalKeysForEntity(entity);
-		}),
+		index: new VectorIndex(
+			matrix,
+			ids,
+			dim,
+			vectorIndexFactory,
+			(id) => {
+				const entity = entities.get(id);
+				return entity === undefined ? [] : lexicalKeysForEntity(entity);
+			},
+			`aml-watchlist-${listId}`,
+		),
 		entities,
 		version,
 		listId,

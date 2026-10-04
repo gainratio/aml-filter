@@ -1,8 +1,13 @@
 // AML's watchlist-facing adapter over the shared SQLite + sqlite-vector
-// browser runtime. Each signed list is already durably cached in OPFS, so this
-// derived query index deliberately uses an isolated in-memory SQLite database:
-// one durable copy of the bundle, no stale per-version database files, and all
-// semantic scoring still runs through sqlite-vector in a Worker.
+// browser runtime. The derived query index lives in a persistent SQLite file on
+// OPFS with SQLite's own page cache sized to the device (memoryProfile "auto":
+// iOS gets the smallest cache), so the 48 MB index is NOT held in WebAssembly
+// heap next to the embedding model. Each list owns one database file (named by
+// list id) that is cleared and rebuilt on open, so no stale rows or per-version
+// files survive. In-memory SQLite is a last resort used only when OPFS cannot
+// open (private browsing, another tab owns the file); it is logged and exposed
+// through vectorIndexStorage() so the UI can say so. All semantic scoring still
+// runs through sqlite-vector in a Worker.
 
 import type { VectorIndex as SharedVectorIndex } from "@edgeproc/browser/vector";
 import {
@@ -11,6 +16,7 @@ import {
 	type SqliteLookupKey,
 	type SqliteVectorWorkerOptions,
 } from "@edgeproc/browser/vector/sqlite";
+import { ENGINE_VERSION } from "./version";
 
 /** A scored retrieval hit: an entity id and its cosine similarity to the query. */
 export interface VectorHit {
@@ -18,6 +24,32 @@ export interface VectorHit {
 	readonly score: number;
 }
 
+/** Where the query index lives: pending, persistent OPFS, or the visible last-resort memory fallback. */
+export type VectorIndexStorage = "pending" | "opfs" | "memory-fallback";
+
+let storage: VectorIndexStorage = "pending";
+const storageListeners = new Set<() => void>();
+
+/** Current storage mode of the most recently opened index. */
+export function vectorIndexStorage(): VectorIndexStorage {
+	return storage;
+}
+
+/** useSyncExternalStore-compatible subscription to storage-mode changes. */
+export function subscribeVectorIndexStorage(listener: () => void): () => void {
+	storageListeners.add(listener);
+	return () => storageListeners.delete(listener);
+}
+
+function setStorage(next: VectorIndexStorage): void {
+	storage = next;
+	if (typeof document !== "undefined") {
+		document.documentElement.dataset.amlIndexStorage = next;
+	}
+	for (const listener of storageListeners) listener();
+}
+
+const DEFAULT_INDEX_NAME = "aml-watchlist";
 const INSERT_BATCH_SIZE = 512;
 const EMPTY_LOOKUP_KEYS: readonly SqliteLookupKey[] = [];
 
@@ -34,6 +66,76 @@ export type AmlVectorIndexFactory = (
 	options: SqliteVectorWorkerOptions,
 ) => Promise<AmlSqliteVectorIndex>;
 
+const MARKER_KEY = "content";
+
+/** SHA-256 over the verified vectors, ids and engine version: the identity of this index's content. */
+async function contentMarker(
+	matrix: Float32Array,
+	ids: ReadonlyArray<string>,
+	dim: number,
+): Promise<string> {
+	const head = new TextEncoder().encode(
+		JSON.stringify([ENGINE_VERSION, dim, ids]),
+	);
+	const bytes = new Uint8Array(head.length + matrix.byteLength);
+	bytes.set(head);
+	bytes.set(
+		new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.byteLength),
+		head.length,
+	);
+	const digest = await crypto.subtle.digest("SHA-256", bytes);
+	return Array.from(new Uint8Array(digest), (b) =>
+		b.toString(16).padStart(2, "0"),
+	).join("");
+}
+
+/** True only if every row, and nothing else, was written for this marker. Any doubt (including a corrupt file) is false. */
+async function holdsExactly(
+	index: AmlSqliteVectorIndex,
+	marker: string,
+	rows: number,
+): Promise<boolean> {
+	try {
+		const total = (await index.stats()).vectorCount;
+		const marked = (await index.stats({ [MARKER_KEY]: marker })).vectorCount;
+		return rows > 0 && total === rows && marked === rows;
+	} catch {
+		return false;
+	}
+}
+
+/** Persistent OPFS first; in-memory SQLite only if that cannot open, loudly. */
+async function openWithMemoryFallback(
+	factory: AmlVectorIndexFactory,
+	name: string,
+	dimension: number,
+): Promise<AmlSqliteVectorIndex> {
+	try {
+		const index = await factory({
+			name,
+			dimension,
+			persistence: "opfs",
+			memoryProfile: "auto",
+		});
+		setStorage("opfs");
+		return index;
+	} catch (cause) {
+		console.warn(
+			"AML vector index: OPFS unavailable, using the in-memory fallback (higher memory use)",
+			cause,
+		);
+		// The whole index lives in the heap here, so a capped profile would fail with SQLITE_NOMEM.
+		const index = await factory({
+			name,
+			dimension,
+			persistence: "memory",
+			memoryProfile: "full",
+		});
+		setStorage("memory-fallback");
+		return index;
+	}
+}
+
 /** Loaded, query-ready vector index over the decoded watchlist vectors. */
 export class VectorIndex {
 	readonly #dim: number;
@@ -49,6 +151,7 @@ export class VectorIndex {
 		factory: AmlVectorIndexFactory = createSqliteVectorIndex,
 		lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey> = () =>
 			EMPTY_LOOKUP_KEYS,
+		name: string = DEFAULT_INDEX_NAME,
 	) {
 		if (matrix.length !== ids.length * dim) {
 			throw new Error(
@@ -58,7 +161,7 @@ export class VectorIndex {
 		this.#ids = [...ids];
 		this.#dim = dim;
 		this.#factory = factory;
-		this.#ready = this.#initialize(matrix, ids, lookupKeysForId);
+		this.#ready = this.#initialize(matrix, ids, lookupKeysForId, name);
 	}
 
 	public get ntotal(): number {
@@ -133,13 +236,14 @@ export class VectorIndex {
 		matrix: Float32Array,
 		ids: ReadonlyArray<string>,
 		lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey>,
+		name: string,
 	): Promise<AmlSqliteVectorIndex> {
-		const index = await this.#factory({
-			name: "aml-watchlist",
-			dimension: this.#dim,
-			persistence: "memory",
-		});
+		const index = await openWithMemoryFallback(this.#factory, name, this.#dim);
 		try {
+			const marker = await contentMarker(matrix, ids, this.#dim);
+			if (await holdsExactly(index, marker, ids.length)) return index;
+			// Missing, mismatched or partial rows: rebuild, never serve stale ones.
+			await index.clear();
 			for (let start = 0; start < ids.length; start += INSERT_BATCH_SIZE) {
 				const end = Math.min(start + INSERT_BATCH_SIZE, ids.length);
 				await index.insertKeyed(
@@ -148,7 +252,7 @@ export class VectorIndex {
 						return {
 							id,
 							vector: matrix.subarray(row * this.#dim, (row + 1) * this.#dim),
-							metadata: { entityId: id },
+							metadata: { entityId: id, [MARKER_KEY]: marker },
 							lookupKeys: lookupKeysForId(id),
 						};
 					}),

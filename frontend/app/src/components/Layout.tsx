@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+import {
+	subscribeVectorIndexStorage,
+	vectorIndexStorage,
+} from "@amlfilter/browser";
+import { type ReactNode, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 import "../styles/common.css";
@@ -10,6 +14,10 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
 	const { t } = useTranslation("common");
 	const { pathname } = useLocation();
+	const indexStorage = useSyncExternalStore(
+		subscribeVectorIndexStorage,
+		vectorIndexStorage,
+	);
 	const navItems = [
 		{ path: "/screen", label: t("nav.screen") },
 		{ path: "/customers", label: t("nav.customers") },
@@ -51,6 +59,15 @@ export default function Layout({ children }: LayoutProps) {
 					</div>
 				</nav>
 			</header>
+			{indexStorage === "memory-fallback" ? (
+				<p
+					className="page-notice text-muted"
+					role="status"
+					data-testid="index-fallback-notice"
+				>
+					{t("indexFallback.notice")}
+				</p>
+			) : null}
 			<main className="page-main">{children}</main>
 			<footer className="page-footer">
 				<small>{t("layoutFooter")}</small>{" "}

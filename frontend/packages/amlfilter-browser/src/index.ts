@@ -153,7 +153,14 @@ export {
 	type MatchTier,
 	STRONG_TIER_FLOOR,
 } from "./engine/tiering";
-export type { AmlVectorIndexFactory } from "./engine/vectorIndex";
+export type {
+	AmlVectorIndexFactory,
+	VectorIndexStorage,
+} from "./engine/vectorIndex";
+export {
+	subscribeVectorIndexStorage,
+	vectorIndexStorage,
+} from "./engine/vectorIndex";
 // --- the engine version stamped into receipts + the composite list stamp ---
 export { ENGINE_VERSION } from "./engine/version";
 // --- the bundle-files builder + the shared watchlist/catalog shapes ---

@@ -8,7 +8,7 @@ describe("VectorIndex shared SQLite-vector adapter", () => {
 		vi.clearAllMocks();
 	});
 
-	it("builds an in-memory SQLite-vector index and preserves AML hits", async () => {
+	it("builds a persistent OPFS SQLite-vector index and preserves AML hits", async () => {
 		const matrix = new Float32Array([1, 0, 0, 1]);
 		const ids = ["entity-1", "entity-2"];
 		const index = new VectorIndex(matrix, ids, 2);
@@ -20,7 +20,8 @@ describe("VectorIndex shared SQLite-vector adapter", () => {
 		expect(createSqliteVectorIndex).toHaveBeenCalledWith({
 			name: "aml-watchlist",
 			dimension: 2,
-			persistence: "memory",
+			persistence: "opfs",
+			memoryProfile: "auto",
 		});
 		await expect(index.searchByIds(query, ["entity-1"])).resolves.toEqual([
 			{ id: "entity-1", score: 0 },
@@ -73,7 +74,8 @@ describe("VectorIndex shared SQLite-vector adapter", () => {
 		expect(factory).toHaveBeenCalledWith({
 			name: "aml-watchlist",
 			dimension: 2,
-			persistence: "memory",
+			persistence: "opfs",
+			memoryProfile: "auto",
 		});
 	});
 

@@ -11,7 +11,7 @@
 	"scripts": {
 		"check:node": "node scripts/check-node-version.mjs",
 		"test:node-guard": "node --test scripts/check-node-version.test.mjs",
-		"gate": "pnpm run check:node && pnpm run test:node-guard && pnpm -r run lint && pnpm -r run typecheck && pnpm -r run test:coverage && pnpm -r run build && pnpm --filter @amlfilter/publisher run gate:recall && pnpm run gate:eval && pnpm --filter aml-filter-app run test:contract && pnpm --filter aml-filter-app run verify:i18n && pnpm --filter aml-filter-app run test:e2e:receipt && pnpm --filter aml-filter-app run test:e2e:c1 && pnpm --filter aml-filter-app run test:e2e:kyc && pnpm --filter aml-filter-app run test:e2e:bundle && pnpm --filter aml-filter-app run test:e2e:mobile:ci",
+		"gate": "pnpm run check:node && pnpm run test:node-guard && pnpm -r run lint && pnpm -r run typecheck && pnpm -r run test:coverage && pnpm -r run build && pnpm --filter @amlfilter/publisher run gate:recall && pnpm run gate:eval && pnpm --filter aml-filter-app run test:contract && pnpm --filter aml-filter-app run verify:i18n && pnpm --filter aml-filter-app run test:e2e:receipt && pnpm --filter aml-filter-app run test:e2e:c1 && pnpm --filter aml-filter-app run test:e2e:kyc && pnpm --filter aml-filter-app run test:e2e:bundle && pnpm --filter aml-filter-app run test:e2e:mobile:ci && pnpm --filter aml-filter-app run test:e2e:memory",
 		"gate:eval": "uv run --project ../eval poe -C ../eval gate && pnpm --filter @amlfilter/publisher run gate:decision",
 		"smoke:local": "pnpm --filter aml-filter-app run smoke:local",
 		"publish-list": "pnpm --filter @amlfilter/publisher run publish"

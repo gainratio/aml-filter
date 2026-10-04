@@ -8,6 +8,9 @@
 		"settings": "Settings"
 	},
 	"layoutFooter": "Local-first sanctions screening — all data stays in this browser",
+	"indexFallback": {
+		"notice": "Low-memory mode: this browser cannot use persistent storage for the search index, so it is held in memory. Screening still works; close other tabs if the page slows down."
+	},
 	"layoutFooterSource": "Source code on GitHub (MIT)",
 	"route": {
 		"loading": "Loading…"
