@@ -30,6 +30,7 @@
 		"test:e2e:bundle": "playwright test -c playwright.bundle.config.ts",
 		"test:e2e:live": "playwright test -c playwright.live.config.ts",
 		"smoke:local": "bash scripts/smoke-local.sh",
+		"test:e2e:memory": "playwright test -c playwright.memory.config.ts",
 		"test:e2e:mobile": "playwright test -c playwright.mobile.config.ts",
 		"test:e2e:mobile:ci": "playwright test -c playwright.mobile.config.ts --project=ios-webkit --project=android-chromium --project=desktop-control",
 		"test:e2e:ui": "playwright test --ui",

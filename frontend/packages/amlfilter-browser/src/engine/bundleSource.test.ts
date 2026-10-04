@@ -350,8 +350,10 @@ describe("EngineRuntime — bundle path boot + screen", () => {
 		const engine = await runtime.bootstrap(BUNDLE_CONFIG, (s) =>
 			stages.push(s.kind),
 		);
-		// Stages: downloading -> verified -> loading-model -> ready.
-		expect(stages[0]).toBe("downloading");
+		// Stages: loading-model -> downloading -> verified -> ready (model first,
+		// so its WebAssembly allocation precedes the list/index state).
+		expect(stages[0]).toBe("loading-model");
+		expect(stages).toContain("downloading");
 		expect(stages).toContain("verified");
 		expect(stages.at(-1)).toBe("ready");
 		// The composite version stamp carries the demo bundle's per-list versions.

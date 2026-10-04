@@ -458,8 +458,10 @@ describe("EngineRuntime.reload", () => {
 		await expect(runtime.bootstrap(CONFIG)).rejects.toThrow(/verification/);
 		// No partial engine was published.
 		expect(runtime.engine()).toBeNull();
-		// A bad list must NOT have reached the (~23 MB) model warmup.
-		expect(makeEmbedder).not.toHaveBeenCalled();
+		// CONTRACT REVERSED (iOS memory fix): the model is now warmed BEFORE the lists
+		// load, so a bad list no longer saves the ~23 MB download. Fail-closed is
+		// unchanged: the boot still rejects and no engine is published.
+		expect(makeEmbedder).toHaveBeenCalledTimes(1);
 	});
 
 	it("reload re-loads every list, reuses the warm embedder, and advances the composite", async () => {
@@ -948,36 +950,58 @@ describe("throttleModelProgress", () => {
 });
 
 describe("EngineRuntime boot stages", () => {
-	it("emits downloading then verified(version) before loading the model", async () => {
+	it("warms the embedder BEFORE any watchlist bytes are loaded (iOS peak-memory order)", async () => {
+		// The ONNX/WASM runtime needs its largest single WebAssembly allocation at
+		// model start. Loading the signed list + SQLite index first put that
+		// allocation on top of ~600 MB of resident list state, which is what ran
+		// iPhone Safari out of memory ("[wasm] RangeError: Out of memory"). The model
+		// must therefore be built while the tab is still empty.
+		const order: string[] = [];
+		const inner = bundleSourceOf([["OFAC_SDN", "test"]]);
 		const deps: RuntimeDeps = {
-			makeEmbedder: () => neverEmbedder(),
+			makeEmbedder: () => ({
+				embed: () => {
+					order.push("embed");
+					return Promise.resolve(new Float32Array(384));
+				},
+			}),
+			clearCache: () => Promise.resolve(),
+			openBundleSource: (...args) => {
+				order.push("open-bundle");
+				return inner(...args);
+			},
+		};
+		await new EngineRuntime(deps).bootstrap(CONFIG, () => undefined);
+		expect(order.indexOf("embed")).toBeGreaterThanOrEqual(0);
+		expect(order.indexOf("embed")).toBeLessThan(order.indexOf("open-bundle"));
+	});
+
+	const instantModel = (): Embedder => ({
+		embed: () => Promise.resolve(new Float32Array(384)),
+	});
+
+	it("emits loading-model first, then downloading and verified(version)", async () => {
+		const deps: RuntimeDeps = {
+			makeEmbedder: instantModel,
 			clearCache: () => Promise.resolve(),
 			openBundleSource: bundleSourceOf([["OFAC_SDN", "test"]]),
 		};
-		const runtime = new EngineRuntime(deps);
 		const stages: BootStage[] = [];
-		vi.useFakeTimers();
-		const pending = runtime.bootstrap(CONFIG, (s) => stages.push(s));
-		const assertion = expect(pending).rejects.toThrow();
-		// Let the (real-timer) fetch + load microtasks flush before the deadline.
-		await vi.advanceTimersByTimeAsync(MODEL_LOAD_IDLE_TIMEOUT_MS);
-		await assertion;
-		expect(stages[0]).toEqual({ kind: "downloading" });
+		await new EngineRuntime(deps).bootstrap(CONFIG, (s) => stages.push(s));
+		expect(stages[0]).toEqual({ kind: "loading-model" });
 		// The verified stage carries the COMPOSITE stamp, not a bare version.
 		expect(stages).toContainEqual({
 			kind: "verified",
 			version: "OFAC_SDN@test",
 		});
+		expect(stages.at(-1)).toEqual({ kind: "ready" });
 	});
 
 	it("threads cold-sync download progress into a downloading stage", async () => {
 		// The bundle-open dep receives an onSyncProgress sink (4th arg); this fake
-		// fires one tick during the sync, then the warmup rejects to halt #build —
-		// proving the download progress reached onStage as a downloading stage.
+		// fires one tick during the sync, proving the progress reached onStage.
 		const deps: RuntimeDeps = {
-			makeEmbedder: () => ({
-				embed: () => Promise.reject(new Error("warmup halted after progress")),
-			}),
+			makeEmbedder: instantModel,
 			clearCache: () => Promise.resolve(),
 			openBundleSource: (_baseUrl, _pubkeyUrl, _bundleDeps, onProgress) => {
 				onProgress?.({ fetched: 3, total: 10, bytes: 300 });
@@ -988,14 +1012,10 @@ describe("EngineRuntime boot stages", () => {
 				);
 			},
 		};
-		const runtime = new EngineRuntime(deps);
 		const stages: BootStage[] = [];
-		await expect(
-			runtime.bootstrap(CONFIG, (s) => stages.push(s)),
-		).rejects.toThrow("warmup halted after progress");
-
-		// The plain downloading stage fires first (no progress yet)...
-		expect(stages[0]).toEqual({ kind: "downloading" });
+		await new EngineRuntime(deps).bootstrap(CONFIG, (s) => stages.push(s));
+		// The plain downloading stage fires (no progress yet), after the model...
+		expect(stages).toContainEqual({ kind: "downloading" });
 		// ...then the per-chunk progress rides a later downloading stage.
 		expect(stages).toContainEqual({
 			kind: "downloading",
@@ -1051,25 +1071,32 @@ describe("EngineRuntime.clearListCache + cache-aware deps", () => {
 		expect(clearCache).toHaveBeenCalledTimes(1);
 	});
 
-	it("evicts the bundle source when model bootstrap fails", async () => {
+	it("never opens the bundle source when the model fails first (nothing to evict)", async () => {
+		// CONTRACT REVERSED (iOS memory fix): this used to assert the source opened
+		// before the model was evicted. The model is now built first, so a model
+		// failure must leave no bundle source open at all.
 		const sourceDispose = vi.fn();
+		const open = vi.fn();
 		const runtime = new EngineRuntime({
 			makeEmbedder: () => ({
 				embed: () => Promise.reject(new Error("warmup failed")),
 			}),
 			clearCache: () => Promise.resolve(),
-			openBundleSource: () =>
-				Promise.resolve(
+			openBundleSource: () => {
+				open();
+				return Promise.resolve(
 					fakeBundleSource(
 						catalogOf([["OFAC_SDN", "v1"]]),
 						() => fakeLoaded(),
 						sourceDispose,
 					),
-				),
+				);
+			},
 		});
 
 		await expect(runtime.bootstrap(CONFIG)).rejects.toThrow(/warmup failed/);
-		await vi.waitFor(() => expect(sourceDispose).toHaveBeenCalledTimes(1));
+		expect(open).not.toHaveBeenCalled();
+		expect(sourceDispose).not.toHaveBeenCalled();
 	});
 
 	it("disposes the active engine and resets the boot memo after clearing", async () => {

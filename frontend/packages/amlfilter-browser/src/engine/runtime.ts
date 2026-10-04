@@ -993,7 +993,6 @@ export class EngineRuntime {
 				throw new Error("screening engine boot superseded");
 			}
 		};
-		onStage({ kind: "downloading" });
 		// Capture the config up front so the catalog/list loaders (JSON or bundle)
 		// and the post-bootstrap methods (catalogLists/fetchPublishedVersion/reload)
 		// see it. A failed build clears the bootstrap memo, so a retry re-runs this.
@@ -1008,35 +1007,13 @@ export class EngineRuntime {
 		// CacheStorage; signed bundle bytes use the Worker-owned durable store.
 		await requestPersistentStorage();
 		assertCurrent();
-		// Feed cold-sync per-chunk progress to the downloading banner for THIS boot
-		// only. The bundle open is memoized + called once (in #loadEnabledLists →
-		// #bundleSourceFor), so this sink is live exactly across that sync; cleared
-		// after so reload/poll opens carry no banner sink.
-		this.#onSyncProgress = (progress) =>
-			onStage({ kind: "downloading", progress });
-		let loaded: LoadedWatchlist[] | undefined;
-		let streamingSources: ReadonlyArray<StreamingListSource> | undefined;
-		try {
-			if (this.#selection.residency === "streaming") {
-				streamingSources = await this.#loadStreamingSources(config);
-			} else {
-				loaded = await this.#loadEnabledLists(config);
-				// A route may claim readiness only after the immutable SQLite indexes
-				// are fully initialized. This keeps Worker/WASM asset loading in boot,
-				// never in the first user query.
-				await Promise.all(loaded.map(({ index }) => index.ready()));
-			}
-		} finally {
-			this.#onSyncProgress = undefined;
-		}
-		assertCurrent();
-		const versions: Record<string, string> = {};
-		for (const l of loaded ?? streamingSources ?? []) {
-			versions[l.listId] = l.version;
-		}
-		this.#version = compositeVersion(versions);
-		onStage({ kind: "verified", version: this.#version });
-
+		// MODEL FIRST. The ONNX/WASM runtime makes the largest single WebAssembly
+		// allocation of the boot, and on iPhone Safari that allocation failed with
+		// "[wasm] RangeError: Out of memory" when it landed on top of the verified
+		// list bytes and the in-memory SQLite index. Building the embedder while the
+		// tab is still empty puts that allocation where it is most likely to succeed;
+		// the list/index state then grows in smaller steps afterwards. Total residency
+		// is unchanged and so are all scores: only the order moved.
 		onStage({ kind: "loading-model" });
 		// Re-fire the stage with each download tick so the banner shows a percent
 		// instead of freezing for the whole ~23 MB model download — but throttled
@@ -1075,6 +1052,35 @@ export class EngineRuntime {
 		modelProgressTick = warmup.tick;
 		await warmup.promise;
 		assertCurrent();
+		onStage({ kind: "downloading" });
+		// Feed cold-sync per-chunk progress to the downloading banner for THIS boot
+		// only. The bundle open is memoized + called once (in #loadEnabledLists →
+		// #bundleSourceFor), so this sink is live exactly across that sync; cleared
+		// after so reload/poll opens carry no banner sink.
+		this.#onSyncProgress = (progress) =>
+			onStage({ kind: "downloading", progress });
+		let loaded: LoadedWatchlist[] | undefined;
+		let streamingSources: ReadonlyArray<StreamingListSource> | undefined;
+		try {
+			if (this.#selection.residency === "streaming") {
+				streamingSources = await this.#loadStreamingSources(config);
+			} else {
+				loaded = await this.#loadEnabledLists(config);
+				// A route may claim readiness only after the immutable SQLite indexes
+				// are fully initialized. This keeps Worker/WASM asset loading in boot,
+				// never in the first user query.
+				await Promise.all(loaded.map(({ index }) => index.ready()));
+			}
+		} finally {
+			this.#onSyncProgress = undefined;
+		}
+		assertCurrent();
+		const versions: Record<string, string> = {};
+		for (const l of loaded ?? streamingSources ?? []) {
+			versions[l.listId] = l.version;
+		}
+		this.#version = compositeVersion(versions);
+		onStage({ kind: "verified", version: this.#version });
 
 		const engine =
 			streamingSources !== undefined

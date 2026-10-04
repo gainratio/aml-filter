@@ -68,11 +68,12 @@ test("boots over the signed bundle and screens the committed demo entity", async
 		}
 	});
 
-	// --- cold boot: the banner walks downloading → verified → loading-model ---
+	// --- cold boot: the banner walks loading-model → downloading → verified ---
 	await page.goto("/screen", { waitUntil: "domcontentloaded" });
-	// The first banner is the "downloading" stage.
+	// The model is built FIRST (iOS memory order). The demo bundle is tiny, so its
+	// "downloading" banner is too brief to assert; the requests below prove the sync.
 	await expect(page.locator(".screen-banner")).toContainText(
-		/Downloading the signed sanctions list/i,
+		/Loading the name-matching model/i,
 		{ timeout: RESULT_TIMEOUT_MS },
 	);
 	await bootToReady(page);

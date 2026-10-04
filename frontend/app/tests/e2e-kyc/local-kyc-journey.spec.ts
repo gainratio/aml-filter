@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Route, test } from "@playwright/test";
@@ -96,7 +96,12 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 			return;
 		}
 		const tail = bundleTail(route.request().url());
-		if (tail === null) {
+		// A request for a demo-1-only file (e.g. the demo-1 manifest) can still be
+		// in flight when the flip happens, because the model now loads BEFORE the
+		// list sync (iOS memory order) and so the boot's sync finishes later. Such a
+		// file does not exist in the v2 fixture: let it through to the real demo-1
+		// bundle instead of crashing the route.
+		if (tail === null || !existsSync(join(V2_ORIGIN, tail))) {
 			await route.continue();
 			return;
 		}
@@ -231,7 +236,12 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	servePublishV2 = true;
 	await page.getByRole("button", { name: "Check for updates" }).click();
 	// A real re-screen ran against the newly-published list (≥1 customer scanned).
-	await expect(page.getByText(/Re-screened \d+ customer\(s\)/)).toBeVisible({
+	// Either the click's "Re-screened N customer(s)" or the background poll's
+	// "Watchlist updated: re-screened N customer(s)" proves it: the poll can win the
+	// race against the click, after which the click correctly says "already current"
+	// (seen in the trace of a failed run). The OFAC_SDN@demo-2 stamp below is the
+	// assertion that the new publish genuinely loaded.
+	await expect(page.getByText(/re-screened \d+ customer\(s\)/i)).toBeVisible({
 		timeout: 120_000,
 	});
 	// The UI now reports the advanced composite stamp as the last-synced version:
