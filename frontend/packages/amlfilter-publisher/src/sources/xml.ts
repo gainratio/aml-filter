@@ -21,7 +21,7 @@ const ENTITIES: Record<string, string> = {
 };
 
 /** Decode the five predefined XML entities. */
-export function decodeXml(text: string): string {
+function decodeXml(text: string): string {
 	return text.replace(/&(amp|lt|gt|quot|apos);/g, (m) => ENTITIES[m] ?? m);
 }
 

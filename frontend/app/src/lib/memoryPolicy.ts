@@ -20,10 +20,10 @@ export interface BrowserMemorySignals {
 }
 
 /** A device-memory value at or below this budget uses one-list-at-a-time loads. */
-export const STREAMING_DEVICE_MEMORY_GB = 8;
+const STREAMING_DEVICE_MEMORY_GB = 8;
 
 /** Read only the browser signals needed by the deterministic policy. */
-export function browserMemorySignals(): BrowserMemorySignals {
+function browserMemorySignals(): BrowserMemorySignals {
 	if (typeof navigator === "undefined") {
 		return { userAgent: "" };
 	}

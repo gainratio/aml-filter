@@ -106,7 +106,7 @@ interface HistoryEntry {
 
 type HistoryState = Record<string, HistoryEntry>;
 
-export default function ReviewBoardPage() {
+export function ReviewBoardPage() {
 	const { t } = useTranslation(REVIEW_NAMESPACES);
 	const [matches, setMatches] = useState<ReviewMatch[]>([]);
 	const [loading, setLoading] = useState(true);

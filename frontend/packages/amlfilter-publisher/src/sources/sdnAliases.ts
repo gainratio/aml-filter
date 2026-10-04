@@ -77,7 +77,7 @@ export interface StreamLimits {
 }
 
 /** ~4x the July 2026 feed (125.7 MB): a runaway guard, not a tight fit. */
-export const MAX_ALIAS_FEED_BYTES = 512 * 1024 * 1024;
+const MAX_ALIAS_FEED_BYTES = 512 * 1024 * 1024;
 /** The largest real <DistinctParty> measured is 69 KB; 8 MB is ~120x slack. */
 const MAX_WINDOW_CHARS = 8 * 1024 * 1024;
 

@@ -23,7 +23,7 @@ import enScreen from "./locales/en/screen.json";
 import enSettings from "./locales/en/settings.json";
 
 /** The registered namespaces. Kept in one place so config + parity test agree. */
-export const I18N_NAMESPACES = [
+const I18N_NAMESPACES = [
 	"common",
 	"landing",
 	"screen",
@@ -61,4 +61,4 @@ void i18n.use(initReactI18next).init({
 	react: { useSuspense: false },
 });
 
-export default i18n;
+export { i18n };

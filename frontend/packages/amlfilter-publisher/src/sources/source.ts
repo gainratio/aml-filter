@@ -22,7 +22,7 @@
 export type RawListBytes = Record<string, string>;
 
 /** Immutable HTTP provenance captured with a source's canonical bytes. */
-export interface SourceTransportMetadata {
+interface SourceTransportMetadata {
 	readonly finalUrl: string;
 	readonly etag: string | null;
 	readonly lastModified: string | null;

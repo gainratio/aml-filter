@@ -1,9 +1,9 @@
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Route, Routes } from "react-router";
-import ErrorBoundary from "./components/ErrorBoundary";
-import Layout from "./components/Layout";
-import WorkstationGate from "./components/WorkstationGate";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { Layout } from "./components/Layout";
+import { WorkstationGate } from "./components/WorkstationGate";
 import { LandingPage } from "./pages/LandingPage";
 import { ScreenPage } from "./pages/ScreenPage";
 
@@ -17,8 +17,14 @@ import { ScreenPage } from "./pages/ScreenPage";
 // WorkstationGate, which opens the in-tab SQLite/OPFS store (no auth — there
 // is nothing to log into).
 const CustomersPage = lazy(() => import("./pages/CustomersPage"));
-const ReviewBoardPage = lazy(() => import("./pages/ReviewBoardPage"));
-const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const ReviewBoardPage = lazy(() =>
+	import("./pages/ReviewBoardPage").then((m) => ({
+		default: m.ReviewBoardPage,
+	})),
+);
+const SettingsPage = lazy(() =>
+	import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
 
 function RouteFallback() {
 	const { t } = useTranslation("common");
@@ -29,7 +35,7 @@ function RouteFallback() {
 	);
 }
 
-function App() {
+export function App() {
 	return (
 		<ErrorBoundary>
 			<BrowserRouter>
@@ -71,5 +77,3 @@ function App() {
 		</ErrorBoundary>
 	);
 }
-
-export default App;

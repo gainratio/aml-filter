@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import Layout from "./Layout";
+import { Layout } from "./Layout";
 
 const storage = vi.hoisted(() => ({ mode: "opfs" }));
 vi.mock("@amlfilter/browser", () => ({

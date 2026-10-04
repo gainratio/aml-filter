@@ -21,7 +21,7 @@ import { type RecallReport, recallAt, segmentOf } from "./report.ts";
 const AUDIT_SEGMENT = "audit";
 
 /** The minimum a segment must clear. Written from a measured run, never guessed. */
-export interface SegmentFloor {
+interface SegmentFloor {
 	readonly kind: QueryKind;
 	readonly minRecallAt1: number;
 	readonly minRecallAt10: number;

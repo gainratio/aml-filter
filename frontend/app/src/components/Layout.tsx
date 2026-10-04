@@ -11,7 +11,7 @@ interface LayoutProps {
 	children: ReactNode;
 }
 
-export default function Layout({ children }: LayoutProps) {
+export function Layout({ children }: LayoutProps) {
 	const { t } = useTranslation("common");
 	const { pathname } = useLocation();
 	const indexStorage = useSyncExternalStore(

@@ -27,7 +27,7 @@ const ENCODER = new TextEncoder();
  * path (`decompressAndVerify`, through @gainratio/browser) accepts and decodes it
  * exactly as it does a compressed chunk — which is the path under test.
  */
-export function zstdRawFrame(plaintext: Uint8Array): Uint8Array {
+function zstdRawFrame(plaintext: Uint8Array): Uint8Array {
 	const frame = new Uint8Array(12 + plaintext.byteLength);
 	const view = new DataView(frame.buffer);
 	view.setUint32(0, 0xfd2f_b528, true); // Magic_Number

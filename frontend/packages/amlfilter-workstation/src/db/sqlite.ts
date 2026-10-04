@@ -39,7 +39,7 @@ interface SqliteModule {
 }
 
 /** The sahpool utility — exposes the persistent OPFS-backed DB constructor. */
-export interface SahPoolUtil {
+interface SahPoolUtil {
 	readonly OpfsSAHPoolDb: new (filename: string) => Oo1Db;
 }
 

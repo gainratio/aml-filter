@@ -26,8 +26,7 @@ import { elements, textOf } from "./xml.ts";
 /** The logical raw-file key for the single UN XML document. */
 export const UN_RAW_FILE = "un_consolidated.xml";
 
-export const UN_URL =
-	"https://scsanctions.un.org/resources/xml/en/consolidated.xml";
+const UN_URL = "https://scsanctions.un.org/resources/xml/en/consolidated.xml";
 
 const UN_BODY_LIMITS = {
 	maxBytes: 32 * 1024 * 1024,

@@ -34,12 +34,12 @@ import type { WorkstationServices } from "./localApi";
 import { type EngineResidency, residencyForBrowser } from "./memoryPolicy";
 
 /** The engine surface the boot path needs (ScreeningEngine satisfies it). */
-export interface EngineHandle {
+interface EngineHandle {
 	screen(query: ScreenQuery, options?: ScreenOptions): Promise<ScreenResponse>;
 }
 
 /** The runtime surface the boot path needs (EngineRuntime satisfies it). */
-export interface RuntimePort {
+interface RuntimePort {
 	bootstrap(
 		config: RuntimeConfig,
 		onStage?: OnStage,

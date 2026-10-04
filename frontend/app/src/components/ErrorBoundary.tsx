@@ -1,7 +1,7 @@
 /** Error Boundary component for catching and displaying JavaScript errors gracefully. */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 
 interface Props {
 	children: ReactNode;
@@ -14,7 +14,7 @@ interface State {
 	errorInfo: ErrorInfo | null;
 }
 
-export default class ErrorBoundary extends Component<Props, State> {
+export class ErrorBoundary extends Component<Props, State> {
 	constructor(props: Props) {
 		super(props);
 		this.state = {
