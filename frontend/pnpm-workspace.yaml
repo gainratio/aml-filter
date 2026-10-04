@@ -83,4 +83,4 @@ overrides:
 # to a build that includes the check-in; pnpm fails the install on an unused patch,
 # and tests/e2e-kyc/sahpool-crash-rollback.spec.ts goes red on an unfixed build.
 patchedDependencies:
-  '@sqlite.org/sqlite-wasm@3.53.0-build1': patches/@sqlite.org__sqlite-wasm@3.53.0-build1.patch
+  '@sqlite.org/sqlite-wasm@3.53.4-build2': patches/@sqlite.org__sqlite-wasm@3.53.4-build2.patch

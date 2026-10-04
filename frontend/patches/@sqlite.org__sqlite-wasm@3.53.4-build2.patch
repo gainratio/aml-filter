@@ -1,8 +1,8 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c86c20d387 100644
+index 5e6e43b..f55a336 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -14589,7 +14589,11 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -15872,7 +15872,11 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  					const pool = getPoolForPFile(pFile);
  					pool.log("xCheckReservedLock");
  					pool.storeErr();
@@ -15,7 +15,7 @@ index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c8
  					return 0;
  				},
  				xClose: function(pFile) {
-@@ -14598,6 +14602,7 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -15881,6 +15885,7 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  					const file = pool.getOFileForS3File(pFile);
  					if (file) try {
  						pool.log(`xClose ${file.path}`);
@@ -23,7 +23,7 @@ index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c8
  						pool.mapS3FileToOFile(pFile, false);
  						file.sah.flush();
  						if (file.flags & capi.SQLITE_OPEN_DELETEONCLOSE) pool.deletePath(file.path);
-@@ -14624,8 +14629,7 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -15907,8 +15912,7 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  					pool.log(`xLock ${lockType}`);
  					pool.storeErr();
  					const file = pool.getOFileForS3File(pFile);
@@ -33,7 +33,7 @@ index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c8
  				},
  				xRead: function(pFile, pDest, n, offset64) {
  					const pool = getPoolForPFile(pFile);
-@@ -14674,7 +14678,7 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -15957,7 +15961,7 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  					const pool = getPoolForPFile(pFile);
  					pool.log("xUnlock");
  					const file = pool.getOFileForS3File(pFile);
@@ -42,7 +42,7 @@ index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c8
  					return 0;
  				},
  				xWrite: function(pFile, pSrc, n, offset64) {
-@@ -14834,6 +14838,9 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -16119,6 +16123,9 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  				#mapFilenameToSAH = /* @__PURE__ */ new Map();
  				#availableSAH = /* @__PURE__ */ new Set();
  				#mapS3FileToOFile_ = /* @__PURE__ */ new Map();
@@ -52,7 +52,7 @@ index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c8
  				/** Buffer used by [sg]etAssociatedPath(). */
  				#apBody = new Uint8Array(HEADER_CORPUS_SIZE);
  				#dvBody;
-@@ -14919,6 +14926,7 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -16204,6 +16211,7 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  					this.#mapSAHToName.clear();
  					this.#mapFilenameToSAH.clear();
  					this.#availableSAH.clear();
@@ -60,7 +60,7 @@ index 6475875f8a7d5c1eee34d322ea3e3e91a97c7b1e..6b41bfd940791857f83e413764cdd4c8
  				}
  				/**
  				Opens all files under this.vfsDir/this.#dhOpaque and acquires a
-@@ -15121,6 +15129,41 @@ async function sqlite3InitModule(moduleArg = {}) {
+@@ -16406,6 +16414,41 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  				Maps or unmaps (if file is falsy) the given (sqlite3_file*)
  				to an xOpen file object and to this pool object.
  				*/

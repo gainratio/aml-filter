@@ -13,6 +13,9 @@ overrides:
   nanoid: '>=3.3.17 <4'
   undici@>=7.28.0 <7.29.1: 7.29.1
 
+patchedDependencies:
+  '@sqlite.org/sqlite-wasm@3.53.4-build2': 6e5767ba3cdf7b5ea4a8f7466b083651d5037e45fa445c2789c88229e3a63aee
+
 importers:
 
   .:
@@ -124,6 +127,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.14
         version: 2.5.14
+      '@sqlite.org/sqlite-wasm':
+        specifier: 3.53.4-build2
+        version: 3.53.4-build2(patch_hash=6e5767ba3cdf7b5ea4a8f7466b083651d5037e45fa445c2789c88229e3a63aee)
       '@types/node':
         specifier: ^26.6.3
         version: 26.6.3
@@ -190,7 +196,7 @@ importers:
         version: link:../amlfilter-browser
       '@sqlite.org/sqlite-wasm':
         specifier: 3.53.4-build2
-        version: 3.53.4-build2
+        version: 3.53.4-build2(patch_hash=6e5767ba3cdf7b5ea4a8f7466b083651d5037e45fa445c2789c88229e3a63aee)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.14
@@ -2338,7 +2344,7 @@ snapshots:
 
   '@speed-highlight/core@1.2.24': {}
 
-  '@sqlite.org/sqlite-wasm@3.53.4-build2': {}
+  '@sqlite.org/sqlite-wasm@3.53.4-build2(patch_hash=6e5767ba3cdf7b5ea4a8f7466b083651d5037e45fa445c2789c88229e3a63aee)': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:
