@@ -16,6 +16,7 @@ import {
 	type SqliteLookupKey,
 	type SqliteVectorWorkerOptions,
 } from "@edgeproc/browser/vector/sqlite";
+import { ENGINE_VERSION } from "./version";
 
 /** A scored retrieval hit: an entity id and its cosine similarity to the query. */
 export interface VectorHit {
@@ -64,6 +65,44 @@ interface AmlSqliteVectorIndex extends SharedVectorIndex {
 export type AmlVectorIndexFactory = (
 	options: SqliteVectorWorkerOptions,
 ) => Promise<AmlSqliteVectorIndex>;
+
+const MARKER_KEY = "content";
+
+/** SHA-256 over the verified vectors, ids and engine version: the identity of this index's content. */
+async function contentMarker(
+	matrix: Float32Array,
+	ids: ReadonlyArray<string>,
+	dim: number,
+): Promise<string> {
+	const head = new TextEncoder().encode(
+		JSON.stringify([ENGINE_VERSION, dim, ids]),
+	);
+	const bytes = new Uint8Array(head.length + matrix.byteLength);
+	bytes.set(head);
+	bytes.set(
+		new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.byteLength),
+		head.length,
+	);
+	const digest = await crypto.subtle.digest("SHA-256", bytes);
+	return Array.from(new Uint8Array(digest), (b) =>
+		b.toString(16).padStart(2, "0"),
+	).join("");
+}
+
+/** True only if every row, and nothing else, was written for this marker. Any doubt (including a corrupt file) is false. */
+async function holdsExactly(
+	index: AmlSqliteVectorIndex,
+	marker: string,
+	rows: number,
+): Promise<boolean> {
+	try {
+		const total = (await index.stats()).vectorCount;
+		const marked = (await index.stats({ [MARKER_KEY]: marker })).vectorCount;
+		return rows > 0 && total === rows && marked === rows;
+	} catch {
+		return false;
+	}
+}
 
 /** Persistent OPFS first; in-memory SQLite only if that cannot open, loudly. */
 async function openWithMemoryFallback(
@@ -201,7 +240,9 @@ export class VectorIndex {
 	): Promise<AmlSqliteVectorIndex> {
 		const index = await openWithMemoryFallback(this.#factory, name, this.#dim);
 		try {
-			// A persistent file may hold rows from a previous session or version.
+			const marker = await contentMarker(matrix, ids, this.#dim);
+			if (await holdsExactly(index, marker, ids.length)) return index;
+			// Missing, mismatched or partial rows: rebuild, never serve stale ones.
 			await index.clear();
 			for (let start = 0; start < ids.length; start += INSERT_BATCH_SIZE) {
 				const end = Math.min(start + INSERT_BATCH_SIZE, ids.length);
@@ -211,7 +252,7 @@ export class VectorIndex {
 						return {
 							id,
 							vector: matrix.subarray(row * this.#dim, (row + 1) * this.#dim),
-							metadata: { entityId: id },
+							metadata: { entityId: id, [MARKER_KEY]: marker },
 							lookupKeys: lookupKeysForId(id),
 						};
 					}),

@@ -95,4 +95,60 @@ describe("VectorIndex storage: persistent OPFS index, visible memory fallback", 
 		const index = new VectorIndex(matrix, ids, 2);
 		await expect(index.ready()).rejects.toThrow("no wasm");
 	});
+
+	describe("warm reuse of the persistent index", () => {
+		function shared() {
+			const db = new KeyedFlat({ name: "x", dimension: 2 });
+			const insertKeyed = vi.spyOn(db, "insertKeyed");
+			const factory: AmlVectorIndexFactory = async () => db;
+			return { db, insertKeyed, factory };
+		}
+
+		it("reuses rows written for the same verified content", async () => {
+			const { insertKeyed, factory } = shared();
+			await new VectorIndex(matrix, ids, 2, factory).ready();
+			expect(insertKeyed).toHaveBeenCalledTimes(1);
+			const warm = new VectorIndex(matrix, ids, 2, factory);
+			await expect(warm.search(toward1, 1)).resolves.toEqual([
+				{ id: "entity-1", score: 1 },
+			]);
+			expect(insertKeyed).toHaveBeenCalledTimes(1);
+		});
+
+		it("rebuilds when the stored marker belongs to different content", async () => {
+			const { insertKeyed, factory } = shared();
+			await new VectorIndex(matrix, ids, 2, factory).ready();
+			const changed = new Float32Array([0, 1, 1, 0]);
+			const next = new VectorIndex(changed, ids, 2, factory);
+			await expect(next.search(toward1, 1)).resolves.toEqual([
+				{ id: "entity-2", score: 1 },
+			]);
+			expect(insertKeyed).toHaveBeenCalledTimes(2);
+		});
+
+		it("rebuilds when the file holds extra rows beside the marked ones", async () => {
+			const { db, insertKeyed, factory } = shared();
+			await new VectorIndex(matrix, ids, 2, factory).ready();
+			await db.insert([
+				{ id: "ghost", vector: new Float32Array([1, 0]), metadata: {} },
+			]);
+			const hits = await new VectorIndex(matrix, ids, 2, factory).search(
+				toward1,
+				5,
+			);
+			expect(hits.map((h) => h.id)).not.toContain("ghost");
+			expect(insertKeyed).toHaveBeenCalledTimes(2);
+		});
+
+		it("rebuilds instead of failing when the stored database is corrupt", async () => {
+			const { db, insertKeyed, factory } = shared();
+			await new VectorIndex(matrix, ids, 2, factory).ready();
+			vi.spyOn(db, "stats").mockRejectedValueOnce(new Error("malformed"));
+			const warm = new VectorIndex(matrix, ids, 2, factory);
+			await expect(warm.search(toward1, 1)).resolves.toEqual([
+				{ id: "entity-1", score: 1 },
+			]);
+			expect(insertKeyed).toHaveBeenCalledTimes(2);
+		});
+	});
 });
