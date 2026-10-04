@@ -25,12 +25,18 @@
 
 import { generateSeedHex, publicKeyHex } from "@gainratio/avow";
 import { sha256Hex } from "@gainratio/browser";
-import { openInstallKeyExport, sealInstallKeyExport } from "./installKeyExport";
+import {
+	isRecord,
+	openInstallKeyExport,
+	parseJsonOrUndefined,
+	sealInstallKeyExport,
+} from "./installKeyExport";
 import {
 	type InstallKeyDb,
 	type InstallKeyPersistence,
 	type InstallKeySqlOpener,
 	openInstallKeyDb,
+	type QuarantineRecord,
 	type StoredInstallKey,
 	sqlInstallKeyOpener,
 } from "./installKeyStore";
@@ -148,22 +154,20 @@ async function migrateLegacyQuarantine(
 	}
 }
 
-function parseQuarantine(raw: string) {
-	try {
-		const parsed = JSON.parse(raw) as Record<string, unknown>;
-		if (
-			typeof parsed.sha256 === "string" &&
-			typeof parsed.valueLength === "number" &&
-			typeof parsed.quarantined_at === "string"
-		) {
-			return {
-				sha256: parsed.sha256,
-				valueLength: parsed.valueLength,
-				quarantinedAt: parsed.quarantined_at,
-			};
-		}
-	} catch {
-		// Unreadable metadata: keep the digest of the raw text instead.
+/** The old metadata's fields, or {} to keep the digest of the raw text. */
+function parseQuarantine(raw: string): Partial<QuarantineRecord> {
+	const parsed = parseJsonOrUndefined(raw);
+	if (
+		isRecord(parsed) &&
+		typeof parsed.sha256 === "string" &&
+		typeof parsed.valueLength === "number" &&
+		typeof parsed.quarantined_at === "string"
+	) {
+		return {
+			sha256: parsed.sha256,
+			valueLength: parsed.valueLength,
+			quarantinedAt: parsed.quarantined_at,
+		};
 	}
 	return {};
 }

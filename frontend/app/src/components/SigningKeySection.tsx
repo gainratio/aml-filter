@@ -15,7 +15,7 @@ import {
 	MIN_PASSPHRASE_LENGTH,
 } from "@amlfilter/browser";
 import type { TFunction } from "i18next";
-import { useEffect, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type KeyAdmin, useKeyAdmin } from "../lib/installKeysContext";
 
@@ -78,7 +78,11 @@ function saveFile(text: string, publicKeyHex: string): void {
 	URL.revokeObjectURL(url);
 }
 
-function NoticeLine({ notice }: { readonly notice: Notice }) {
+interface NoticeLineProps {
+	readonly notice: Notice;
+}
+
+function NoticeLine({ notice }: NoticeLineProps): ReactElement | null {
 	if (notice === null) {
 		return null;
 	}
@@ -98,6 +102,51 @@ interface FormProps {
 	readonly t: TFunction;
 }
 
+interface PassphraseInputProps {
+	readonly id: string;
+	readonly label: string;
+	readonly autoComplete: "new-password" | "current-password";
+	readonly value: string;
+	readonly onChange: (value: string) => void;
+}
+
+function PassphraseInput(props: PassphraseInputProps): ReactElement {
+	return (
+		<>
+			<label className="form-label" htmlFor={props.id}>
+				{props.label}
+			</label>
+			<input
+				id={props.id}
+				type="password"
+				autoComplete={props.autoComplete}
+				className="form-input"
+				value={props.value}
+				onChange={(e) => props.onChange(e.target.value)}
+			/>
+		</>
+	);
+}
+
+interface ActionButtonProps {
+	readonly label: string;
+	readonly onAction: () => Promise<void>;
+}
+
+function ActionButton({ label, onAction }: ActionButtonProps): ReactElement {
+	return (
+		<button
+			type="button"
+			className="btn btn-secondary"
+			onClick={() => {
+				void onAction();
+			}}
+		>
+			{label}
+		</button>
+	);
+}
+
 function exportProblem(
 	passphrase: string,
 	confirm: string,
@@ -109,7 +158,7 @@ function exportProblem(
 	return passphrase === confirm ? null : t("signingKey.export.mismatch");
 }
 
-function ExportForm({ keys, t }: FormProps) {
+function ExportForm({ keys, t }: FormProps): ReactElement {
 	const [passphrase, setPassphrase] = useState("");
 	const [confirm, setConfirm] = useState("");
 	const [notice, setNotice] = useState<Notice>(null);
@@ -140,43 +189,30 @@ function ExportForm({ keys, t }: FormProps) {
 			<p className="text-muted">
 				{t("signingKey.export.description", { min: MIN_PASSPHRASE_LENGTH })}
 			</p>
-			<label className="form-label" htmlFor="export-passphrase">
-				{t("signingKey.export.passphrase")}
-			</label>
-			<input
+			<PassphraseInput
 				id="export-passphrase"
-				type="password"
+				label={t("signingKey.export.passphrase")}
 				autoComplete="new-password"
-				className="form-input"
 				value={passphrase}
-				onChange={(e) => setPassphrase(e.target.value)}
+				onChange={setPassphrase}
 			/>
-			<label className="form-label" htmlFor="export-confirm">
-				{t("signingKey.export.confirm")}
-			</label>
-			<input
+			<PassphraseInput
 				id="export-confirm"
-				type="password"
+				label={t("signingKey.export.confirm")}
 				autoComplete="new-password"
-				className="form-input"
 				value={confirm}
-				onChange={(e) => setConfirm(e.target.value)}
+				onChange={setConfirm}
 			/>
-			<button
-				type="button"
-				className="btn btn-secondary"
-				onClick={() => {
-					void handleExport();
-				}}
-			>
-				{t("signingKey.export.button")}
-			</button>
+			<ActionButton
+				label={t("signingKey.export.button")}
+				onAction={handleExport}
+			/>
 			<NoticeLine notice={notice} />
 		</div>
 	);
 }
 
-function ImportForm({ keys, t }: FormProps) {
+function ImportForm({ keys, t }: FormProps): ReactElement {
 	const [file, setFile] = useState<File | null>(null);
 	const [passphrase, setPassphrase] = useState("");
 	const [notice, setNotice] = useState<Notice>(null);
@@ -212,32 +248,23 @@ function ImportForm({ keys, t }: FormProps) {
 				className="form-input"
 				onChange={(e) => setFile(e.target.files?.[0] ?? null)}
 			/>
-			<label className="form-label" htmlFor="import-passphrase">
-				{t("signingKey.import.passphrase")}
-			</label>
-			<input
+			<PassphraseInput
 				id="import-passphrase"
-				type="password"
+				label={t("signingKey.import.passphrase")}
 				autoComplete="current-password"
-				className="form-input"
 				value={passphrase}
-				onChange={(e) => setPassphrase(e.target.value)}
+				onChange={setPassphrase}
 			/>
-			<button
-				type="button"
-				className="btn btn-secondary"
-				onClick={() => {
-					void handleImport();
-				}}
-			>
-				{t("signingKey.import.button")}
-			</button>
+			<ActionButton
+				label={t("signingKey.import.button")}
+				onAction={handleImport}
+			/>
 			<NoticeLine notice={notice} />
 		</div>
 	);
 }
 
-function ResetControl({ keys, t }: FormProps) {
+function ResetControl({ keys, t }: FormProps): ReactElement {
 	const [confirming, setConfirming] = useState(false);
 	const [notice, setNotice] = useState<Notice>(null);
 
@@ -295,13 +322,12 @@ function ResetControl({ keys, t }: FormProps) {
 	);
 }
 
-function KeyStatus({
-	state,
-	t,
-}: {
+interface KeyStatusProps {
 	readonly state: KeyState;
 	readonly t: TFunction;
-}) {
+}
+
+function KeyStatus({ state, t }: KeyStatusProps): ReactElement {
 	if (state.status === "loading") {
 		return (
 			<p className="text-muted" role="status">
@@ -332,7 +358,7 @@ function KeyStatus({
 }
 
 /** The Settings card for the receipt signing key. */
-export function SigningKeySection() {
+export function SigningKeySection(): ReactElement {
 	const { t } = useTranslation("settings");
 	const keys = useKeyAdmin();
 	const state = useKeyState(keys);

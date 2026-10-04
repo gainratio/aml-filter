@@ -6,11 +6,11 @@
  * receipt badge already says so).
  */
 
-import { useEffect, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useKeyService } from "../lib/installKeysContext";
 
-export function SigningKeyNotice() {
+export function SigningKeyNotice(): ReactElement | null {
 	const { t } = useTranslation("common");
 	const keys = useKeyService();
 	const [temporary, setTemporary] = useState(false);

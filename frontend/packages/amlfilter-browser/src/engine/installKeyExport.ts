@@ -171,18 +171,23 @@ function malformed(detail: string): InstallKeyImportError {
 	);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
-function parseJson(text: string): Record<string, unknown> {
+/** JSON.parse that returns undefined for text that is not JSON. */
+export function parseJsonOrUndefined(text: string): unknown {
 	try {
-		const value: unknown = JSON.parse(text);
-		if (isRecord(value)) {
-			return value;
-		}
+		return JSON.parse(text) as unknown;
 	} catch {
-		// fall through
+		return undefined;
+	}
+}
+
+function parseJson(text: string): Record<string, unknown> {
+	const value = parseJsonOrUndefined(text);
+	if (isRecord(value)) {
+		return value;
 	}
 	throw malformed("not JSON");
 }
