@@ -81,12 +81,22 @@ export {
 } from "./engine/fuzzyText";
 // --- the per-install signing key behind every score receipt ---
 export {
-	defaultKeyStorage,
 	INSTALL_SEED_KEY,
 	type InstallKey,
-	type KeyStorage,
-	loadInstallKey,
+	type InstallKeyChannel,
+	type InstallKeyPersistence,
+	type InstallKeySource,
+	InstallKeys,
+	type InstallKeysDeps,
+	installKeys,
+	type LegacyKeyStorage,
 } from "./engine/installKey";
+export {
+	InstallKeyImportError,
+	type InstallKeyImportRejection,
+	MIN_PASSPHRASE_LENGTH,
+} from "./engine/installKeyExport";
+export { InstallKeyUnavailable } from "./engine/installKeyStore";
 // --- the sealer that wraps each returned match in a signed score receipt ---
 export {
 	createMatchReceiptSealer,

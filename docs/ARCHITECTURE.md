@@ -353,8 +353,9 @@ engine computed.
 **The seal path.** When the screening engine scores a match, it seals it on the spot:
 the engine hands each scored match to a sealer built by `createMatchReceiptSealer`
 (`engine/matchReceipts.ts`), which signs with a **per-install Ed25519 key**
-(`engine/installKey.ts` — generated on first use, stored in this browser's
-`localStorage`). Receipts use the `@gainratio/avow` format — RFC-8785 canonical JSON
+(`engine/installKey.ts` — generated on first use, stored as one `install_key` row in
+a small SQLite database on OPFS, opened through the `@gainratio/browser/sql` seam in
+`engine/installKeyStore.ts`). Receipts use the `@gainratio/avow` format — RFC-8785 canonical JSON
 signed with Ed25519 (`engine/scoreReceipt.ts`).
 
 **The sealed subject.** The receipt seals `{ score, tier, engine version, watchlist
@@ -393,21 +394,57 @@ provenance**: screening never goes dark because provenance is unavailable. Match
 score, render, and can be reviewed; only the chip reports that the receipt could not be
 checked.
 
-**Corrupt-seed quarantine.** If the stored signing seed is ever found corrupted, the
+**Where the key lives, and the move out of `localStorage`.** SQLite is the only store
+for app data: the seed is never written to `localStorage` or IndexedDB, and
+`app/src/storagePolicy.test.ts` fails the build if shipped source writes to either.
+Releases before this one kept the seed in `localStorage`. The first boot after the
+upgrade migrates it in a fixed order: (1) copy the old seed into SQLite in one
+transaction (a row already there wins), (2) read the row back and check its public key
+equals the old seed's, (3) only then delete the `localStorage` entry. A crash anywhere
+leaves the old entry in place, so the next boot repeats the same steps; re-running
+after it finished changes nothing. If SQLite already holds a *different* key, the old
+entry is kept and a metadata-only `migration_conflict` warning is logged, because it may
+be the only copy of a key that signed past receipts. The public key never changes during
+the migration, so every receipt signed before it still verifies.
+
+**When OPFS is refused.** The seam opens SQLite in memory instead and reports it. The
+key then lives only for the tab: `/screen` and `/settings` say so in plain words, and the
+old `localStorage` entry (if any) is not deleted, since it is still the only durable
+copy. There is no IndexedDB fallback. If another tab is holding the key database, the
+key is reported unavailable rather than a second key being invented.
+
+**Export, import and reset (`/settings` → Receipt signing key).**
+
+- **Export** writes the key to a JSON file encrypted under a passphrase you choose
+  (12+ characters): PBKDF2-SHA-256 with 600,000 iterations derives an AES-256-GCM key;
+  the 32-byte seed is the ciphertext; the header (format, version, public key, KDF and
+  cipher parameters) is bound as AES-GCM additional data. The public key is readable in
+  the file so a reviewer can pin it. Format: `engine/installKeyExport.ts`.
+- **Import** decrypts such a file and replaces this browser's key. A wrong passphrase,
+  an edited header, an unknown version or a key that doesn't match its public key is
+  rejected and nothing changes.
+- **Reset** deletes the key (and any leftover `localStorage` copy) behind a warning:
+  receipts signed before the reset can then only be verified with the public key you
+  exported or wrote down. Every tab is told (BroadcastChannel); receipts already on
+  screen re-check and read "Not verified — untrusted signer", and the next screen signs
+  with the new key.
+
+**Corrupt-seed quarantine.** If an old `localStorage` seed is found corrupted, the
 engine does not silently destroy the evidence: only a SHA-256 digest, length, and
-timestamp are written under a separate quarantine storage key (the arbitrary value is
-never duplicated into storage), a fresh key is generated, and the returned key flags
-the reset (`resetFromCorruptSeed`). Recovery runs under the origin-scoped Web Lock on
-supported browsers, so concurrent tabs cannot mint divergent replacement anchors.
-Receipts sealed before the reset now verify against a key this install no longer holds,
-so they read "Not verified — untrusted signer" — which is the honest answer.
+timestamp go into the `install_key_quarantine` table (the arbitrary value is never
+copied), a fresh key is generated, and the returned key flags the reset
+(`resetFromCorruptSeed`). All key work runs under one origin-scoped Web Lock, so
+concurrent tabs cannot mint divergent keys. Receipts sealed before the reset now verify
+against a key this install no longer holds, so they read "Not verified — untrusted
+signer" — which is the honest answer.
 
 **Availability when provenance cannot load.** Receipt sealing is additive: a blocked,
 quota-failing, or temporarily unavailable storage/crypto provider returns the original
 matches without receipts and emits a metadata-only warning. Engine invariants such as
 an out-of-range score still throw; availability fallback never hides a bad score.
 
-**The custody caveat.** The signing key lives in ordinary browser storage. A receipt is
+**The custody caveat.** The signing key lives in ordinary browser storage (the origin's
+SQLite file on OPFS); same-origin script can read it. A receipt is
 therefore **tamper-evident provenance** — "this exact score was produced and not altered
 afterwards" — **not** proof the machine was uncompromised at signing time, and **not** a
 hardware-backed key. Treat it as an integrity seal on the score's journey from engine to

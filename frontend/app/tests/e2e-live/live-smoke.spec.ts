@@ -14,10 +14,12 @@ import {
 	enableEveryList,
 	expectListMatch,
 	expectReviewRowsPerList,
+	legacySeedPublicKey,
 	liveBuildSha,
 	onboardEveryProbe,
 	opfsEntryCount,
 	SCREEN_PROBE,
+	settingsPublicKey,
 	watchConsole,
 } from "./liveSmoke";
 
@@ -118,6 +120,33 @@ async function screenAndWorkstation(page: Page, pass: string): Promise<string> {
 	return [`/screen ${screened}`, ...rows].join(" | ");
 }
 
+/**
+ * A returning visitor keeps their receipt signing key: the old localStorage
+ * seed is gone (moved into SQLite), and /settings shows the SAME public key
+ * that signed the previous release's receipts — so those receipts still verify.
+ */
+async function expectSigningKeyCarriedOver(
+	page: Page,
+	markerPath: string,
+): Promise<string> {
+	expect(
+		await legacySeedPublicKey(page),
+		"the old localStorage seed must be retired after the SQLite migration",
+	).toBeNull();
+	const current = await settingsPublicKey(page);
+	expect(current, "/settings shows the signing key").toMatch(/^[0-9a-f]{64}$/);
+	const primed: { installKey?: string | null } = existsSync(markerPath)
+		? JSON.parse(readFileSync(markerPath, "utf8"))
+		: {};
+	if (typeof primed.installKey === "string") {
+		expect(current, "signing key carried over from the previous release").toBe(
+			primed.installKey,
+		);
+		return `signing key carried over (${current?.slice(0, 12)}…)`;
+	}
+	return "signing key present (previous release recorded none)";
+}
+
 test.describe.configure({ timeout: BOOT_TIMEOUT_MS * 2 + 120_000 });
 
 test("@fresh a first-time visitor screens every list on the live site", async ({
@@ -143,9 +172,14 @@ test("@prime cache the currently-live release into the returning profile", async
 	try {
 		await enableEveryList(page);
 		await screenAndWorkstation(page, "prime");
+		// The key that signed this release's receipts: an old release keeps its
+		// seed in localStorage, a newer one shows it in /settings.
+		const installKey =
+			(await legacySeedPublicKey(page)) ?? (await settingsPublicKey(page));
 		const marker = {
 			sha: await liveBuildSha(page),
 			opfs: await opfsEntryCount(page),
+			installKey,
 		};
 		writeFileSync(join(PROFILE, PRIME_MARKER), JSON.stringify(marker));
 		console.log(
@@ -193,10 +227,11 @@ test("@returning a visitor cached on the previous release reloads and screens", 
 		await page.reload({ waitUntil: "domcontentloaded" });
 		const evidence = await screenAndWorkstation(page, "returning");
 		const reload = await indexOpens(page);
+		const signing = await expectSigningKeyCarriedOver(page, markerPath);
 		await expectDeployedSha(page);
 		await expectCleanConsole(watch);
 		console.log(
-			`[live-smoke returning] cached opfs entries=${cached}; index first load rebuilt=${firstLoad.rebuilt} reused=${firstLoad.reused}; after reload rebuilt=${reload.rebuilt} reused=${reload.reused}; ${evidence}`,
+			`[live-smoke returning] cached opfs entries=${cached}; index first load rebuilt=${firstLoad.rebuilt} reused=${firstLoad.reused}; after reload rebuilt=${reload.rebuilt} reused=${reload.reused}; ${signing}; ${evidence}`,
 		);
 	} finally {
 		await context.close();

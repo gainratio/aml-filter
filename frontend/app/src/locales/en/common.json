@@ -92,5 +92,8 @@
 		"clearing": "Clearing cached lists…",
 		"failed": "Could not clear the cached lists: {{detail}}",
 		"settingsLink": "Open Settings"
+	},
+	"signingKey": {
+		"temporary": "This browser refused persistent storage, so the signing key is temporary: it is lost when you close this tab, and score proofs made now can't be checked here later."
 	}
 }

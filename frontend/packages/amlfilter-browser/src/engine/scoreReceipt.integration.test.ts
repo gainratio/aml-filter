@@ -7,6 +7,10 @@
 // EngineRuntime.bootstrap() itself — with nothing but a pre-seeded install key,
 // then assert a verifiable receipt fell out the other side.
 //
+// The seed starts where the previous release kept it (localStorage), so every
+// boot here also runs the real migration into the SQLite install_key row. jsdom
+// has no Worker, so the SQL seam is backed by real in-memory SQLite.
+//
 // If the wiring is ever removed, these fail on a missing receipt.
 
 import { publicKeyHex } from "@gainratio/avow";
@@ -29,9 +33,17 @@ import {
 	type WatchlistCatalog,
 } from "./watchlist";
 
+vi.mock("@gainratio/browser/sql", async () => {
+	const { memoryInstallKeySql } = await import(
+		"../testing/memoryInstallKeySql"
+	);
+	const sql = await memoryInstallKeySql();
+	return { openSqlDatabase: sql.open };
+});
+
 const DIM = 384;
 // A fixed install seed so the pinned verify key is deterministic. The engine
-// reads this out of localStorage exactly as it does in a real tab.
+// migrates it out of localStorage exactly as it does for a returning visitor.
 const SEED = "ab".repeat(32);
 
 /** A single-entity list whose sole entity sits on axis 0 (an exact vector hit). */

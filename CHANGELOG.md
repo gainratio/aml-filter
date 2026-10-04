@@ -8,6 +8,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The receipt signing key now lives in SQLite, and can be exported, imported and
+  reset.** The Ed25519 seed that signs every score receipt was kept in `localStorage`:
+  no reset cleared it, no export carried it, and clearing browser data silently broke
+  verification of past receipts. It is now one `install_key` row in a small SQLite
+  database on OPFS (through the `@gainratio/browser/sql` seam). The first boot after the
+  upgrade copies the old seed into SQLite, checks the public key matches, and only then
+  deletes the `localStorage` entry; a crash just repeats the steps next boot, and the
+  public key never changes, so old receipts keep verifying. `/settings` gains a
+  **Receipt signing key** card: export (passphrase-encrypted, PBKDF2-SHA-256 600k +
+  AES-256-GCM), import, and reset behind a warning. When the browser refuses OPFS, the
+  key lives in in-memory SQLite and `/screen` says it is temporary; there is no
+  IndexedDB fallback. A new guard test fails the build if shipped source writes app data
+  to `localStorage`, `sessionStorage` or IndexedDB. Reversed test contracts: the sealer
+  no longer pins its key for its lifetime (it asks the key service on every screen, so a
+  reset takes effect), and the C1 receipt e2e breaks the trust property through the real
+  reset UI in a second tab instead of writing a seed into `localStorage`.
+
 - **iPhone Safari no longer starts the screening engine on top of the whole list.**
   `/screen` failed on an iPhone with "Browser memory limit reached"
   (`[wasm] RangeError: Out of memory`). The engine loaded the signed list and built
