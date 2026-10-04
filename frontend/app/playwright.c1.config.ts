@@ -49,9 +49,10 @@ export default defineConfig({
 		{
 			// Build the minified SPA (which bundles the committed signed catalog
 			// + per-list dirs + pinned pubkey as static public/ assets), then preview it.
-			command: `pnpm build && pnpm exec vite preview --port ${SPA_PORT} --strictPort`,
+			// serve-preview holds the port through the build (see the script header).
+			command: `node scripts/serve-preview.mjs --port ${SPA_PORT}`,
 			url: `http://localhost:${SPA_PORT}/screen`,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer: false,
 			timeout: 240_000,
 			// VITE_MODEL_LOAD_IDLE_TIMEOUT_MS bounds the in-tab model warmup by SILENCE
 			// (no progress tick), not by elapsed time. Set to the

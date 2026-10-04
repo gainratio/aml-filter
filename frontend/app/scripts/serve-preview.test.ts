@@ -170,3 +170,34 @@ describe("the mobile lane's webServer", () => {
 		expect(server?.reuseExistingServer).toBe(false);
 	});
 });
+
+describe("every production-preview lane's webServer", () => {
+	it("serves through serve-preview and never reuses a foreign server", async () => {
+		for (const name of [
+			"E2E_KYC_SPA_PORT",
+			"E2E_C1_SPA_PORT",
+			"E2E_BUNDLE_SPA_PORT",
+			"E2E_MATRIX_SPA_PORT",
+		]) {
+			vi.stubEnv(name, undefined);
+		}
+		const lanes = await Promise.all([
+			import("../playwright.kyc.config.ts"),
+			import("../playwright.c1.config.ts"),
+			import("../playwright.bundle.config.ts"),
+			import("../playwright.matrix.config.ts"),
+		]);
+		// Pinned literals: the four lanes' documented default ports.
+		const expectedPorts = ["4178", "4175", "4176", "4184"];
+		lanes.forEach(({ default: config }, index) => {
+			const servers = Array.isArray(config.webServer)
+				? config.webServer
+				: [config.webServer];
+			const server = servers[0];
+			expect(server?.command).toBe(
+				`node scripts/serve-preview.mjs --port ${expectedPorts[index]}`,
+			);
+			expect(server?.reuseExistingServer).toBe(false);
+		});
+	});
+});

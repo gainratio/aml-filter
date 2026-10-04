@@ -71,9 +71,10 @@ export default defineConfig({
 	],
 	webServer: [
 		{
-			command: `pnpm build && pnpm exec vite preview --port ${SPA_PORT} --strictPort`,
+			// serve-preview holds the port through the build (see the script header).
+			command: `node scripts/serve-preview.mjs --port ${SPA_PORT}`,
 			url: `http://localhost:${SPA_PORT}/screen`,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer: false,
 			timeout: 240_000,
 			// Same silence bound as C1 so the throttled lane is not cut off by the
 			// model-load idle timer.

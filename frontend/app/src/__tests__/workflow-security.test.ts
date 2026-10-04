@@ -125,7 +125,7 @@ describe("mobile WebKit release gate", () => {
 			"--project=ios-webkit",
 		);
 		expect(mobileConfig).toMatch(
-			/pnpm build && pnpm exec vite preview --port \$\{SPA_PORT\}/,
+			/node scripts\/serve-preview\.mjs --port \$\{SPA_PORT\}/,
 		);
 	});
 });
