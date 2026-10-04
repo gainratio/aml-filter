@@ -350,11 +350,11 @@ export function ScreenPage() {
 	// The screen in flight, so a new query waits for it and a superseded one is
 	// skipped rather than queued (a streaming search takes seconds).
 	const inflight = useRef<Promise<void>>(Promise.resolve());
-	// Bumped by Retry: it resets the boot guard and re-fires the boot effect so a
+	// Bumped by Retry: a new nonce re-fires the boot effect so a
 	// boot that timed out (stalled CDN) can be re-attempted from the error banner.
 	const [bootNonce, setBootNonce] = useState(0);
 	const seq = useRef(0);
-	const started = useRef(false);
+	const bootedNonce = useRef<number | null>(null);
 	const alive = useRef(true);
 
 	// Re-arm `alive` on mount and disarm on unmount. The mount re-arm matters
@@ -381,7 +381,7 @@ export function ScreenPage() {
 	// Disposal is deferred one macrotask and canceled on re-entry: StrictMode's
 	// dev mount→unmount→remount replays this effect body before the zero-delay
 	// timer fires, so the throwaway first pass never tears down the runtime the
-	// surviving mount keeps using (the `started` boot guard would never re-boot
+	// surviving mount keeps using (the `bootedNonce` boot guard would never re-boot
 	// it). On a real unmount no replay follows, the timer fires, and dispose —
 	// serialized on the runtime's lifecycle queue — waits out any in-flight boot
 	// before terminating its workers; the durable list cache is untouched.
@@ -395,20 +395,20 @@ export function ScreenPage() {
 		};
 	}, [runtime]);
 
-	// bootNonce is not read in the body — it is the intentional re-fire trigger:
-	// Retry resets the `started` guard and bumps the nonce so this effect re-runs
-	// the boot. Listed as a dep so that re-fire actually happens.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: bootNonce is an intentional re-fire trigger, not read in the body
+	// Each boot attempt has a nonce; this effect boots a nonce at most once (so
+	// StrictMode's replay never double-boots), and Retry bumps the nonce to run
+	// the boot again.
 	useEffect(() => {
 		// An unsupported device never boots: the preflight already routed to the
 		// unsupported screen, and spawning the engine Worker would only throw/hang.
 		if (!support.supported) {
 			return;
 		}
-		if (started.current) {
+
+		if (bootedNonce.current === bootNonce) {
 			return;
 		}
-		started.current = true;
+		bootedNonce.current = bootNonce;
 		const config = configFromEnv(import.meta.env);
 		runtime
 			// Eagerly materialize the scope's lists so "Ready" means the SQLite
@@ -455,10 +455,9 @@ export function ScreenPage() {
 	}, [runtime, bootNonce, support.supported]);
 
 	const retryBoot = useCallback(() => {
-		// Reset the once-only boot guard and re-arm the booting banner; bumping the
-		// nonce re-runs the boot effect, which calls bootstrap again (the runtime
+		// Re-arm the booting banner; bumping the nonce re-runs the boot effect for
+		// a nonce it has not booted, which calls bootstrap again (the runtime
 		// cleared its memo when the prior attempt rejected).
-		started.current = false;
 		setPhase({ kind: "booting", stage: { kind: "downloading" } });
 		// Forget the previous attempt's age: re-reading it is part of re-booting.
 		setCatalog(undefined);

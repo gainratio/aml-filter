@@ -36,6 +36,8 @@ import {
 } from "./CustomerTableRow";
 
 interface IdDocumentRow {
+	/** Stable React key for this form row (never submitted). */
+	key: string;
 	doc_type: string;
 	number: string;
 	issuing_country: string;
@@ -328,12 +330,18 @@ export function CustomersPage() {
 	const addIdDocRow = () =>
 		setIdDocs((rows) => [
 			...rows,
-			{ doc_type: "", number: "", issuing_country: "", expiry: "" },
+			{
+				key: crypto.randomUUID(),
+				doc_type: "",
+				number: "",
+				issuing_country: "",
+				expiry: "",
+			},
 		]);
 
 	const updateIdDocRow = (
 		index: number,
-		field: keyof IdDocumentRow,
+		field: Exclude<keyof IdDocumentRow, "key">,
 		value: string,
 	) =>
 		setIdDocs((rows) =>
@@ -559,8 +567,7 @@ export function CustomersPage() {
 					) : (
 						idDocs.map((row, index) => (
 							<div
-								// biome-ignore lint/suspicious/noArrayIndexKey: rows are positional with no stable id
-								key={index}
+								key={row.key}
 								className="form-grid mb-sm"
 								data-testid="id-doc-row"
 							>
