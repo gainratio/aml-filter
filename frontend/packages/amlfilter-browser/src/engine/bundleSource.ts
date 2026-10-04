@@ -2,7 +2,7 @@
 // SAME (catalog + per-list LoadedWatchlist) shape the JSON path produces, so the
 // EngineRuntime can screen from it unchanged.
 //
-// It drives `@edgeproc/browser`'s signed delta-sync tier THROUGH A WORKER (EngineClient
+// It drives `@gainratio/browser`'s signed delta-sync tier THROUGH A WORKER (EngineClient
 // → the consumer-owned edgeproc.worker.ts entry): the Worker owns the durable CacheStore (OPFS sync access handles are
 // Worker-only — opening the store or reading a chunk on the MAIN thread hangs), so
 // the main thread only sends typed requests and awaits bytes. One `sync` against
@@ -25,7 +25,7 @@ import {
 	type EngineSyncOptions,
 	type IndexedDbLayout,
 	type SyncResult,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 import type { OnSyncProgress } from "./bundleProgress";
 import EdgeprocWorker from "./edgeproc.worker?worker";
 import {

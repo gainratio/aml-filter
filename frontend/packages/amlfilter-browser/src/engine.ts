@@ -13,7 +13,7 @@ export {
 	SignatureError,
 	sha256Hex,
 	verifyEd25519,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 export {
 	canonicalBytes,
 	decompressAndVerify,

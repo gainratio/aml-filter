@@ -16,7 +16,7 @@ import {
 	type Embedder,
 	type ScreeningEngine,
 } from "@amlfilter/browser";
-import { createNodeSqliteVectorIndex } from "@edgeproc/browser/vector/sqlite/node";
+import { createNodeSqliteVectorIndex } from "@gainratio/browser/vector/sqlite/node";
 import { toWatchlistEntity } from "../sourceEntity.ts";
 import type { SourceLine } from "../sources/source.ts";
 import { packVectors, vectorsToBytes } from "../vectors.ts";

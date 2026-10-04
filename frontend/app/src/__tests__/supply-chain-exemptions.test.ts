@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -36,6 +36,43 @@ const ASSAY_VERSION = "0.5.0-dev.6";
 const ASSAY_SRI =
 	"sha512-VOH1brU6gHHOZ1jRO4DXRPseSCnOLAlKewlfuzYumG3Kswb9KvrngoN5mPv7rdw61O3EuqGQO+WFPON8AV3NzQ==";
 
+type Manifest = Record<string, unknown>;
+const DEPENDENCY_FIELDS = [
+	"dependencies",
+	"devDependencies",
+	"optionalDependencies",
+	"peerDependencies",
+] as const;
+const GIT_SPEC = /^(github:|git\+|git:|hseshadr\/)|github\.com[/:]hseshadr\//;
+
+function workspaceManifestFiles(): string[] {
+	const frontendDir = resolve(appDir, "..");
+	const packagesDir = resolve(frontendDir, "packages");
+	const packageDirs = readdirSync(packagesDir, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => resolve(packagesDir, entry.name, "package.json"));
+	return [resolve(frontendDir, "package.json"), appPackageFile, ...packageDirs];
+}
+
+/** Every dependency that pulls one of our own libs by a legacy name or from Git. */
+function ownLibDependencyViolations(manifests: Manifest[]): string[] {
+	return manifests.flatMap((manifest) =>
+		DEPENDENCY_FIELDS.flatMap((field) =>
+			Object.entries((manifest[field] ?? {}) as Record<string, string>)
+				.filter(
+					([name, spec]) =>
+						name.startsWith("@edgeproc/") ||
+						spec.includes("@edgeproc/") ||
+						GIT_SPEC.test(spec),
+				)
+				.map(
+					([name, spec]) =>
+						`${String(manifest.name)} ${field} ${name}: ${spec}`,
+				),
+		),
+	);
+}
+
 function releaseAgeMinutes(yaml: string): number | undefined {
 	const match = yaml.match(/^\s*minimumReleaseAge\s*:\s*(\d+)\s*$/m);
 	return match ? Number(match[1]) : undefined;
@@ -64,24 +101,43 @@ describe("pnpm dependency policy", () => {
 	});
 
 	// The owner's npm libraries moved from @edgeproc/* to @gainratio/*; the old
-	// names are deprecated and get no new releases. Only the Git-pinned browser
-	// runtime keeps its @edgeproc/browser dependency key (the same alias almamesh
-	// uses); its package name is already @gainratio/browser.
+	// names are deprecated and get no new releases. Every workspace manifest takes
+	// them from the npm registry under their @gainratio names: no @edgeproc/
+	// dependency key or alias, and no Git (github:/git+) source for our own libs.
+	it("flags legacy @edgeproc names and Git sources for our own libs", () => {
+		const violations = ownLibDependencyViolations([
+			{
+				name: "fixture",
+				dependencies: {
+					"@edgeproc/browser": "^0.2.0",
+					"@gainratio/browser": "github:hseshadr/edgeproc-browser#abc",
+					alias: "npm:@edgeproc/core@1.0.0",
+					"@gainratio/avow": "^0.5.2",
+				},
+				devDependencies: { tool: "git+https://github.com/hseshadr/x.git" },
+			},
+		]);
+		expect(violations).toEqual([
+			"fixture dependencies @edgeproc/browser: ^0.2.0",
+			"fixture dependencies @gainratio/browser: github:hseshadr/edgeproc-browser#abc",
+			"fixture dependencies alias: npm:@edgeproc/core@1.0.0",
+			"fixture devDependencies tool: git+https://github.com/hseshadr/x.git",
+		]);
+	});
+
 	it("takes the owner's npm libraries under their @gainratio names only", () => {
-		const manifests = [
+		const manifests = workspaceManifestFiles().map((file) =>
+			JSON.parse(readFileSync(file, "utf8")),
+		);
+		expect(ownLibDependencyViolations(manifests)).toEqual([]);
+		const [app, browser, workstation, publisher] = [
 			appPackageFile,
 			browserPackageFile,
 			workstationPackageFile,
 			publisherPackageFile,
 		].map((file) => JSON.parse(readFileSync(file, "utf8")));
-		const edgeprocKeys = manifests
-			.flatMap((manifest) => [
-				...Object.keys(manifest.dependencies ?? {}),
-				...Object.keys(manifest.devDependencies ?? {}),
-			])
-			.filter((name) => name.startsWith("@edgeproc/"));
-		expect(new Set(edgeprocKeys)).toEqual(new Set(["@edgeproc/browser"]));
-		const [app, browser, workstation] = manifests;
+		expect(browser.dependencies?.["@gainratio/browser"]).toBe("^0.2.0");
+		expect(publisher.dependencies?.["@gainratio/browser"]).toBe("^0.2.0");
 		expect(app.dependencies?.["@gainratio/errors"]).toBe("^0.2.1");
 		expect(app.dependencies?.["@gainratio/receipt-ui"]).toBe("^0.3.0");
 		expect(browser.dependencies?.["@gainratio/avow"]).toBe("^0.5.2");

@@ -1,7 +1,7 @@
 import {
 	DEFAULT_REQUEST_TIMEOUT_MS,
 	FETCH_STALL_TIMEOUT_MS,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BundleSource } from "./bundleSource";
 import type { Embedder, EmbedProgress } from "./embedder";

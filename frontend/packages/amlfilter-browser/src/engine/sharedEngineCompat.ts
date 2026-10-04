@@ -4,7 +4,7 @@ import {
 	type JsonValue,
 	canonicalBytes as sharedCanonicalBytes,
 	decompressAndVerify as sharedDecompressAndVerify,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 
 export type { JsonValue };
 
@@ -25,7 +25,7 @@ export function canonicalBytes(
 }
 
 /** Preserve the historical two-argument publisher seam. Runtime bundle reads
- * pass the signed manifest size directly inside `@edgeproc/browser`; this
+ * pass the signed manifest size directly inside `@gainratio/browser`; this
  * compatibility call derives only the zstd frame's binding declaration. */
 export function decompressAndVerify(
 	chunkHash: string,

@@ -2,8 +2,8 @@
 // Stability is the whole point — a reviewer pins ONE public key and must be able
 // to verify every receipt this install produced, across reloads.
 
-import { sha256Hex } from "@edgeproc/browser";
 import { publicKeyHex } from "@gainratio/avow";
+import { sha256Hex } from "@gainratio/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	defaultKeyStorage,

@@ -189,7 +189,7 @@ export default defineConfig({
 		// Vite optimizes it mid-page and force-reloads ("optimized dependencies
 		// changed. reloading"), which destroyed the receipt lane's page.evaluate
 		// context on a cold dep cache (CI). Pre-bundle it at server start instead.
-		include: ["@amlfilter/browser > @edgeproc/browser/worker"],
+		include: ["@amlfilter/browser > @gainratio/browser/worker"],
 	},
 	worker: {
 		// The DB worker imports the sqlite-wasm ES module; classic-script

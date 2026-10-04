@@ -13,7 +13,7 @@
 // manifest content-address, demo structure/version). The FULL chunk decompression +
 // content-address + reassembly + demo-content (Ivan Fakovich) verification over the
 // SAME committed bundle is done in the browser package's
-// engine/sharedBundleParity.test.ts (through @edgeproc/browser, portable across Node
+// engine/sharedBundleParity.test.ts (through @gainratio/browser, portable across Node
 // versions — Node's built-in node:zlib zstd is only present on Node >= 22.15).
 //
 // Verification primitives are reused from the same fail-closed crypto tier the

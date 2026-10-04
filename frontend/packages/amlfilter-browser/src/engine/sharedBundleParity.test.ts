@@ -30,7 +30,7 @@ import {
 	type Verify,
 	type VersionPointer,
 	verifyEd25519,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 import { describe, expect, it } from "vitest";
 
 // engine -> src -> amlfilter-browser -> packages -> frontend.

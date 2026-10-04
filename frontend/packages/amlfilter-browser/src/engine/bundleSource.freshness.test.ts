@@ -12,7 +12,7 @@
 // this drives a hand-built catalog through a fake BundleEngineClient so each
 // field can be mutated or dropped one at a time.
 
-import type { SyncResult } from "@edgeproc/browser";
+import type { SyncResult } from "@gainratio/browser";
 import { describe, expect, it } from "vitest";
 import {
 	type BundleEngineClient,

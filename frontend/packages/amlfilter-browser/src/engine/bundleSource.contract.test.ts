@@ -2,7 +2,7 @@ import type {
 	EngineStorageOptions,
 	EngineSyncOptions,
 	SyncResult,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 import { describe, expect, it, vi } from "vitest";
 import { type BundleEngineClient, openBundleSource } from "./bundleSource";
 import { FRESH } from "./freshnessFixtures";

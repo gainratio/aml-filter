@@ -9,13 +9,13 @@
 // through vectorIndexStorage() so the UI can say so. All semantic scoring still
 // runs through sqlite-vector in a Worker.
 
-import type { VectorIndex as SharedVectorIndex } from "@edgeproc/browser/vector";
+import type { VectorIndex as SharedVectorIndex } from "@gainratio/browser/vector";
 import {
 	createSqliteVectorIndex,
 	type SqliteKeyedVectorRecord,
 	type SqliteLookupKey,
 	type SqliteVectorWorkerOptions,
-} from "@edgeproc/browser/vector/sqlite";
+} from "@gainratio/browser/vector/sqlite";
 import { ENGINE_VERSION } from "./version";
 
 /** A scored retrieval hit: an entity id and its cosine similarity to the query. */

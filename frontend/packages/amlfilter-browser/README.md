@@ -2,7 +2,7 @@
 
 **The in-browser screening engine of AML-Filter — multi-list sanctions screening that runs entirely in the tab, with no backend.**
 
-Through an exact public-commit pin of `@edgeproc/browser` it delta-syncs a
+Through `@gainratio/browser` (from npm, latest release) it delta-syncs a
 same-origin OFAC/EU/UN/UK bundle, verifies the signed pointer,
 manifest, compressed chunks, and materialized files **fail-closed** against a pinned
 Ed25519 public key and SHA-256 content addresses, embeds the query in-tab with MiniLM,
@@ -56,11 +56,11 @@ the optional model worker before the next verified boot.
 ### `./engine` — shared fail-closed primitives
 
 This compatibility subpath re-exports the Ed25519/SHA-256 primitives and keeps
-two tiny call-shape adapters over `@edgeproc/browser`; AML does not carry a
+two tiny call-shape adapters over `@gainratio/browser`; AML does not carry a
 second sync engine.
 Production bundle sync runs the shared Worker through the one-line
 `edgeproc.worker.ts` Vite entry. AML's index adapter uses
-`@edgeproc/browser/vector/sqlite`; it creates one in-memory SQLite database per immutable
+`@gainratio/browser/vector/sqlite`; it creates one in-memory SQLite database per immutable
 signed list, inserts vectors and namespaced token/phonetic lookup keys together, delegates
 semantic search to sqlite-vector, and resolves bounded lexical candidates from SQLite
 postings. The engine unions both result sets, then applies the existing explainable score
@@ -77,9 +77,10 @@ await verifyEd25519(pubkeyRaw32, bytes, sigBase64);
 
 ## Shared substrate
 
-`@edgeproc/browser` is a normal Git dependency pinned to one reviewed public
-commit, not vendored source or a local sibling link. That makes clean-clone CI
-and downstream installs reproduce the same built package, including SQLite 3.53.4 and
+`@gainratio/browser` is a normal npm dependency (`^0.2.0`, no upper cap), not
+vendored source, a Git pin, or a local sibling link. The app tracks its latest
+release; the committed lockfile makes clean-clone CI and deploys install the
+exact version CI tested, including SQLite 3.53.4 and
 the Apache-2.0 sqlite-vector 1.1.2 runtime.
 
 The AML schema intentionally does not add an FTS5 trigram index or link spellfix1.

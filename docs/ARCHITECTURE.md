@@ -8,7 +8,7 @@ self-contained file and registers them in a signed **catalog**; the **browser en
 verifies the catalog and every list and screens across all enabled lists in-tab; the
 **workstation** app stores KYC customers, matches, settings, and audit events in a
 local SQLite-WASM database and wraps them in an auditable review workflow. Public
-retrieval uses the shared `@edgeproc/browser` Worker with SQLite 3.53.4 (the latest
+retrieval uses the shared `@gainratio/browser` Worker with SQLite 3.53.4 (the latest
 stable release when this contract was updated) and sqlite-vector 1.1.2. One derived
 in-memory database per immutable signed list owns both vector rows and bounded exact
 canonical-token/Double-Metaphone postings. TypeScript generates the keys and preserves
@@ -69,7 +69,7 @@ normalize → embed → SQLite vector + lexical retrieve → explainable weighte
    customer name. Same model, same space, both runtimes — which is what makes the
    precomputed vectors comparable to the live query vector.
 3. **Retrieve.** `vectorIndex.ts` delegates cosine search and namespaced posting lookup
-   to `@edgeproc/browser/vector/sqlite`: SQLite 3.53.4 plus sqlite-vector 1.1.2 in a
+   to `@gainratio/browser/vector/sqlite`: SQLite 3.53.4 plus sqlite-vector 1.1.2 in a
    Worker. TypeScript derives exact canonical-token and Double-Metaphone keys from every
    primary name and alias. SQLite stores those postings beside the vectors, filters
    high-document-frequency keys, and returns a bounded deterministic id set. The engine
@@ -171,7 +171,7 @@ The boot + screen flow:
 
 1. **Sync + verify the signed bundle.** It fetches the signed `latest` pointer
    (`cache: "no-store"`) from the bundle base URL (default `/bundle/origin`), verifies its
-   detached Ed25519 signature fail-closed (`@edgeproc/browser`, against the pinned
+   detached Ed25519 signature fail-closed (`@gainratio/browser`, against the pinned
    public key), then fetches the content-addressed `manifest/<hash>` and verifies it
    hashes to the signed `manifest_hash`. The signed pointer is the trust anchor:
    verify-before-parse, top to bottom.
@@ -185,7 +185,7 @@ The boot + screen flow:
    `buildLoadedFromBundleFiles` (`engine/watchlist.ts`) reconstructs the Float32 vector
    rows (failing closed on any dim ≠ 384). AML's `VectorIndex` inserts each immutable
    list into a separate in-memory SQLite database through
-   `@edgeproc/browser/vector/sqlite`; vectors and namespaced exact token/phonetic
+   `@gainratio/browser/vector/sqlite`; vectors and namespaced exact token/phonetic
    postings share that database, while SQLite and sqlite-vector execute in a Worker.
    On the public `/screen` route, boot awaits that one selected OFAC database before
    reporting Ready. Static Worker/WASM assets and vector rows are therefore local
@@ -210,7 +210,7 @@ re-reads the same capped keys split by namespace; SQLite's document-frequency ca
 per key, so the split partitions exactly the lexical union) — context for the reviewer,
 never a score input.
 
-**Durable, fail-closed bundle cache.** `@edgeproc/browser` owns the Worker, signed
+**Durable, fail-closed bundle cache.** `@gainratio/browser` owns the Worker, signed
 sync state machine, cross-tab lock, and content-addressed store contract (separate
 from the customer DB). The Worker prefers
 **OPFS**; if WebKit exposes OPFS but cannot open it, the same contract uses bounded
@@ -244,7 +244,7 @@ Entry point: `EngineRuntime.bootstrap()` drives the boot stages and yields a
 scored, explained matches.
 
 The package's **`./engine` subpath** preserves its public verification imports by
-re-exporting them from the exact `@edgeproc/browser` dependency. AML owns only the
+re-exporting them from the `@gainratio/browser` npm dependency. AML owns only the
 domain orchestration: two-phase catalog→selected-list scoping, bundle-file decoding,
 screening, and user-facing error mapping. The standalone dependency owns the generic
 Worker/sync/storage/crypto implementation, preventing a second copy from drifting.

@@ -11,8 +11,8 @@
 // proves a receipt was not altered after signing; it does not prove the host
 // was uncompromised at signing time.
 
-import { sha256Hex } from "@edgeproc/browser";
 import { generateSeedHex, publicKeyHex } from "@gainratio/avow";
+import { sha256Hex } from "@gainratio/browser";
 
 /** The slice of Web Storage this module needs — injectable so tests can fix a seed. */
 export interface KeyStorage {
