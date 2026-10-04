@@ -127,6 +127,18 @@ export class DbClient implements WorkstationStore {
 		});
 	}
 
+	public markScreened(
+		customerId: string,
+		listVersion: string,
+	): Promise<CustomerRow> {
+		return this.#call({
+			kind: "markScreened",
+			id: this.#allocId(),
+			customerId,
+			listVersion,
+		});
+	}
+
 	public listReviewMatches(
 		filters: ReviewFilters,
 	): Promise<ReadonlyArray<ReviewRow>> {

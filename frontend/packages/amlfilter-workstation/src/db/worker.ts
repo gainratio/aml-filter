@@ -13,6 +13,7 @@ import {
 	getSetting,
 	listCustomers,
 	listReviewMatches,
+	markScreened,
 	recordMatches,
 	replaceMatches,
 	resolveMatch,
@@ -129,6 +130,17 @@ async function execute(request: DbRequest): Promise<DbResponse> {
 					requireDb(),
 					request.customerId,
 					request.matches,
+				),
+			};
+		case "markScreened":
+			return {
+				ok: true,
+				id: request.id,
+				kind: "markScreened",
+				result: markScreened(
+					requireDb(),
+					request.customerId,
+					request.listVersion,
 				),
 			};
 		case "listReviewMatches":

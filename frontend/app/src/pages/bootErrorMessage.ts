@@ -6,7 +6,7 @@ import {
 	starterPack,
 	type TFunction,
 } from "@gainratio/errors";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 
 /**
  * How a raw failure's searchable message is derived — the thrown `Error`'s

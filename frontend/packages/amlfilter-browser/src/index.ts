@@ -169,6 +169,7 @@ export type {
 } from "./engine/vectorIndex";
 export {
 	subscribeVectorIndexStorage,
+	vectorIndexFallbackLists,
 	vectorIndexStorage,
 } from "./engine/vectorIndex";
 // --- the engine version stamped into receipts + the composite list stamp ---

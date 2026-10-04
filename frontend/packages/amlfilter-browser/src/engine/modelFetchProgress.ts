@@ -18,13 +18,10 @@
 import type { EmbedProgress, OnEmbedProgress } from "./embedder";
 
 /** What `fetch` may be called with — the three forms transformers.js uses. */
-export type FetchInput = string | URL | Request;
+type FetchInput = string | URL | Request;
 
 /** The shape of a `fetch` implementation, narrowed to what is wrapped here. */
-export type FetchLike = (
-	input: FetchInput,
-	init?: RequestInit,
-) => Promise<Response>;
+type FetchLike = (input: FetchInput, init?: RequestInit) => Promise<Response>;
 
 /** Anything carrying a swappable `fetch` — in production the transformers.js
  * `env`, in tests a plain object. Structural so no global is monkey-patched. */

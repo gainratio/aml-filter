@@ -32,7 +32,7 @@ export interface SegmentReport {
 }
 
 /** What the corpus under measurement was. */
-export interface CorpusProvenance {
+interface CorpusProvenance {
 	readonly listId: string;
 	readonly entities: number;
 	/** The frozen fixture file the corpus was rebuilt from. */
@@ -42,7 +42,7 @@ export interface CorpusProvenance {
 }
 
 /** How the measured queries were chosen. */
-export interface SampleProvenance {
+interface SampleProvenance {
 	readonly seed: number;
 	/** Queries screened per segment; `null` means "every labelled query". */
 	readonly perSegment: number | null;

@@ -3,36 +3,63 @@
  * Playwright so a Vitest contract can pin it
  * (src/__tests__/liveSmokeRequestFailures.contract.test.ts).
  *
- * Chromium reports `net::ERR_ABORTED` for a request the page cancelled AFTER the
- * whole response had arrived (the consumer closes a finished stream before the
- * network service records completion). The app did not abort anything, and the
- * smoke's own journey shows it: the sync that issued `/bundle/origin/latest`
- * carried on to fetch the manifest that pointer names. Failing a deploy on that
- * report rolled production back on 2026-10-04.
+ * A failed live smoke rolls production back, so it must fail on ANY broken
+ * asset. There is exactly one known false alarm: Chromium reports
+ * `net::ERR_ABORTED` for the signed `/bundle/origin/latest` pointer AFTER the
+ * whole 200 response arrived (the consumer closes a finished stream before the
+ * network service records completion). That rolled production back on
+ * 2026-10-04.
  *
- * The excuse is narrow on purpose. It needs ALL of: the abort error, a 2xx status,
- * and a recorded end of the response body. A request with no response, an
- * unfinished body, a non-2xx status, or any other error text still fails the smoke.
+ * The excuse covers that one request and needs proof the body arrived whole:
+ * Playwright fired `requestfinished` for it, or the received body is exactly as
+ * long as its Content-Length. `timing().responseEnd` is NOT that proof, and no
+ * other URL (manifest, chunk, script, model) is ever excused.
  */
 
 /** What Playwright knows about a failed request, reduced to plain values. */
 export interface FailedRequestFacts {
+	readonly url: string;
 	readonly errorText: string;
 	/** HTTP status of the response, or `null` when none arrived. */
 	readonly status: number | null;
-	/** Playwright's `timing().responseEnd`: -1 (or 0) until the body finished. */
-	readonly responseEnd: number;
+	/** True when Playwright fired `requestfinished` for this request. */
+	readonly finished: boolean;
+	/** `request.sizes().responseBodySize` (encoded bytes), or `null` if unknown. */
+	readonly receivedBodyBytes: number | null;
+	/** The response's Content-Length (see parseContentLength), or `null`. */
+	readonly contentLength: number | null;
 }
 
+const POINTER_PATH = "/bundle/origin/latest";
 const ABORT_AFTER_COMPLETE = "net::ERR_ABORTED";
 
-/** True when the browser cancelled a request whose response had already completed. */
-export function isCompletedThenCancelled(facts: FailedRequestFacts): boolean {
+/** A Content-Length header as a byte count; anything but plain digits is `null`. */
+export function parseContentLength(header: string | undefined): number | null {
+	return header !== undefined && /^\d+$/.test(header) ? Number(header) : null;
+}
+
+function isPointer(url: string): boolean {
+	return new URL(url).pathname === POINTER_PATH;
+}
+
+function bodyArrivedWhole(facts: FailedRequestFacts): boolean {
 	return (
+		facts.finished ||
+		(facts.contentLength !== null &&
+			facts.receivedBodyBytes === facts.contentLength)
+	);
+}
+
+function isSuccess(status: number | null): boolean {
+	return status !== null && status >= 200 && status < 300;
+}
+
+/** True only for the pointer request cancelled after a provably whole 2xx body. */
+export function isExcusedFailedRequest(facts: FailedRequestFacts): boolean {
+	return (
+		isPointer(facts.url) &&
 		facts.errorText === ABORT_AFTER_COMPLETE &&
-		facts.status !== null &&
-		facts.status >= 200 &&
-		facts.status < 300 &&
-		facts.responseEnd > 0
+		isSuccess(facts.status) &&
+		bodyArrivedWhole(facts)
 	);
 }

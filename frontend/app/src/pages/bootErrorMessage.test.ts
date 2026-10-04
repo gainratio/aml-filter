@@ -6,7 +6,7 @@ import {
 import { IntegrityError } from "@amlfilter/browser/engine";
 import { starterPack } from "@gainratio/errors";
 import { describe, expect, it } from "vitest";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 import {
 	type BundleErrorKind,
 	bootErrorMessage,

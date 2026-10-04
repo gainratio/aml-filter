@@ -15,11 +15,18 @@
 #   3. @returning  that same profile, after the port switches to THIS tree's build
 #   4. @fresh      a brand-new profile against THIS tree's build
 #
+# Passes 1-4 run once per browser engine, each with its own profiles (a Chromium
+# profile cannot be opened by Firefox or WebKit). After a failed pass the rest of
+# that browser's passes are skipped (they depend on it) and the next browser runs.
+#
 # Usage (from frontend/):  pnpm smoke:local
+#   SMOKE_BROWSERS=<list>    comma-separated engines: chromium,firefox,webkit
+#                            (default chromium, the engine the post-deploy smoke uses)
 #   PREVIOUS_REF=<git ref>   the "old release" (default: the SHA aml-filter.com serves)
 #   SMOKE_PORT=<port>        local origin port (default 4273)
 #   SKIP_PRODUCTION_PRIME=1  skip pass 1 (e.g. offline)
-# Exit status is the verdict: non-zero if any pass fails.
+# Exit status is the verdict: non-zero if any pass in any browser fails. A summary
+# table (browser, pass, PASS/FAIL/SKIP, seconds) is printed either way.
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,8 +38,11 @@ ORIGIN="http://127.0.0.1:${PORT}"
 # skips its CLI when the two spell the path differently.
 WORK="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/aml-smoke-local.XXXXXX")" && pwd -P)"
 PREVIEW_PID=""
+SUMMARY=()
+FAILED=0
 
 cleanup() {
+	summary
 	if [[ -n "$PREVIEW_PID" ]]; then kill "$PREVIEW_PID" 2>/dev/null || true; fi
 	git -C "$REPO_DIR" worktree remove --force "$WORK/previous" 2>/dev/null || true
 	rm -rf "$WORK"
@@ -85,22 +95,77 @@ serve() {
 	return 1
 }
 
+# One pass in one browser: smoke <browser> <@tag> [ENV=value...]
 smoke() {
-	local grep="$1"
-	shift
-	(cd "$APP_DIR" && env "$@" node node_modules/@playwright/test/cli.js test \
+	local browser="$1" grep="$2"
+	shift 2
+	(cd "$APP_DIR" && env LIVE_SMOKE_BROWSERS="$browser" "$@" \
+		node node_modules/@playwright/test/cli.js test \
 		-c playwright.live.config.ts --grep "$grep" --retries 0)
+}
+
+# Run a step, record PASS/FAIL and its duration. Returns the step's status.
+# record <browser> <label> <command...>
+record() {
+	local browser="$1" label="$2" started status=0
+	shift 2
+	started=$SECONDS
+	"$@" || status=$?
+	if [[ $status -eq 0 ]]; then
+		SUMMARY+=("$browser	$label	PASS	$((SECONDS - started))s")
+	else
+		SUMMARY+=("$browser	$label	FAIL(exit $status)	$((SECONDS - started))s")
+		FAILED=1
+	fi
+	return $status
+}
+
+# Printed on every exit (the EXIT trap), so an aborted build still shows what ran.
+summary() {
+	if [[ ${#SUMMARY[@]} -eq 0 ]]; then return 0; fi
+	printf '\n[smoke:local] summary\nbrowser\tpass\tresult\tduration\n'
+	printf '%s\n' "${SUMMARY[@]}"
+}
+
+# Every pass for one browser, in order; stop that browser at its first failure.
+run_browser() {
+	local browser="$1" profile="$WORK/$1/returning-profile"
+	if [[ "${SKIP_PRODUCTION_PRIME:-0}" != "1" ]]; then
+		log "[$browser] 1/4 @prime against production (read-only)"
+		record "$browser" "1 @prime production" \
+			smoke "$browser" @prime LIVE_SMOKE_PROFILE="$WORK/$browser/production-profile" ||
+			return 0
+	fi
+	log "[$browser] 2/4 @prime against the previous release on $ORIGIN"
+	serve "$WORK/previous/frontend/app/dist" "$PREVIOUS_SHA"
+	record "$browser" "2 @prime previous" \
+		smoke "$browser" @prime LIVE_SMOKE_URL="$ORIGIN" LIVE_SMOKE_PROFILE="$profile" ||
+		return 0
+	log "[$browser] 3/4 @returning: same origin and profile, now serving this tree"
+	serve "$APP_DIR/dist" "$CURRENT_SHA"
+	record "$browser" "3 @returning current" \
+		smoke "$browser" @returning LIVE_SMOKE_URL="$ORIGIN" LIVE_SMOKE_PROFILE="$profile" \
+		LIVE_SMOKE_EXPECT_SHA="$CURRENT_SHA" || return 0
+	log "[$browser] 4/4 @fresh against this tree"
+	record "$browser" "4 @fresh current" \
+		smoke "$browser" @fresh LIVE_SMOKE_URL="$ORIGIN" LIVE_SMOKE_EXPECT_SHA="$CURRENT_SHA" ||
+		return 0
 }
 
 CURRENT_SHA="$(git -C "$REPO_DIR" rev-parse HEAD)"
 PREVIOUS_REF="${PREVIOUS_REF:-$(curl -fsS https://aml-filter.com/build.json |
 	node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).git_sha))')}"
-PROFILE="$WORK/returning-profile"
-
-if [[ "${SKIP_PRODUCTION_PRIME:-0}" != "1" ]]; then
-	log "1/4 @prime against production (read-only)"
-	smoke @prime LIVE_SMOKE_PROFILE="$WORK/production-profile"
-fi
+IFS=',' read -r -a BROWSERS <<<"${SMOKE_BROWSERS:-chromium}"
+if [[ ${#BROWSERS[@]} -eq 0 ]]; then BROWSERS=(""); fi
+for browser in "${BROWSERS[@]}"; do
+	case "$browser" in
+	chromium | firefox | webkit) ;;
+	*)
+		echo "[smoke:local] SMOKE_BROWSERS: unknown browser '$browser' (use chromium,firefox,webkit)" >&2
+		exit 2
+		;;
+	esac
+done
 
 log "building the previous release ($PREVIOUS_REF)"
 git -C "$REPO_DIR" worktree add --detach "$WORK/previous" "$PREVIOUS_REF"
@@ -111,16 +176,12 @@ build_release "$WORK/previous/frontend/app" "$PREVIOUS_SHA" 1
 log "building this tree ($CURRENT_SHA)"
 build_release "$APP_DIR" "$CURRENT_SHA" 2
 
-log "2/4 @prime against the previous release on $ORIGIN"
-serve "$WORK/previous/frontend/app/dist" "$PREVIOUS_SHA"
-smoke @prime LIVE_SMOKE_URL="$ORIGIN" LIVE_SMOKE_PROFILE="$PROFILE"
+for browser in "${BROWSERS[@]}"; do
+	run_browser "$browser"
+done
 
-log "3/4 @returning: same origin and profile, now serving this tree"
-serve "$APP_DIR/dist" "$CURRENT_SHA"
-smoke @returning LIVE_SMOKE_URL="$ORIGIN" LIVE_SMOKE_PROFILE="$PROFILE" \
-	LIVE_SMOKE_EXPECT_SHA="$CURRENT_SHA"
-
-log "4/4 @fresh against this tree"
-smoke @fresh LIVE_SMOKE_URL="$ORIGIN" LIVE_SMOKE_EXPECT_SHA="$CURRENT_SHA"
-
-log "ALL PASSES GREEN: production prime, previous->current returning, fresh ($CURRENT_SHA)"
+if [[ $FAILED -ne 0 ]]; then
+	log "SMOKE FAILED in at least one browser ($CURRENT_SHA)"
+	exit 1
+fi
+log "ALL PASSES GREEN in ${BROWSERS[*]}: production prime, previous->current returning, fresh ($CURRENT_SHA)"

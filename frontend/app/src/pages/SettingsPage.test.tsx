@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../lib/api";
-import SettingsPage from "./SettingsPage";
+import { SettingsPage } from "./SettingsPage";
 
 // The page talks to the persisted screening config through the apiClient
 // singleton, and to the analyst-name settings row through the workstation

@@ -51,28 +51,49 @@ env.localModelPath = MODEL_ASSET_PREFIX;
 // the scoring model must be the exact self-hosted export. Off ⇒ a missing weight
 // throws instead. The cold-blocked e2e proves boot succeeds with all CDNs aborted.
 env.allowRemoteModels = false;
+// With an explicit {mjs, wasm} pair, transformers.js would by default pre-fetch
+// both and re-import the loader from a `blob:` URL; `script-src 'self'` (the
+// production CSP in app/public/_headers) rejects that import. Off ⇒
+// onnxruntime-web imports /ort/*.mjs directly, same-origin.
+env.useWasmCache = false;
+
+/** The explicit loader + binary pair onnxruntime-web fetches from /ort/. */
+export interface OrtWasmPaths {
+	readonly mjs: string;
+	readonly wasm: string;
+}
 
 /** The onnxruntime-web wasm env knob the self-hosting config owns
  * (transformers.js exposes it as `env.backends.onnx.wasm`). Structural, so the
  * unit test can drive the decision with a fake alongside the real env. */
 export interface OrtWasmEnvLike {
-	wasmPaths?: string;
+	wasmPaths?: string | OrtWasmPaths;
 }
 
 /**
- * `wasmPaths = "/ort/"` — self-host the ORT wasm LOADER, not just the model
- * (house standard §8.1b). onnxruntime-web dynamically imports its wasm loader
- * module (`ort-wasm-simd-threaded.asyncify.mjs`, which then fetches its sibling
- * `.wasm` relative to its own URL) at runtime, and the library's default base
- * for that import is the jsDelivr CDN. The cold-blocked e2e caught exactly that
- * on this repo: with jsDelivr aborted, boot died fetching
+ * Self-host the ORT wasm LOADER, not just the model (house standard §8.1b).
+ * onnxruntime-web dynamically imports its wasm loader module (which then
+ * fetches its `.wasm`) at runtime, and the library's default base for that
+ * import is the jsDelivr CDN. The cold-blocked e2e caught exactly that on this
+ * repo: with jsDelivr aborted, boot died fetching
  * `cdn.jsdelivr.net/npm/onnxruntime-web/…/ort-wasm-simd-threaded.asyncify.mjs`.
  * The staged same-origin copy under /ort/ is materialized by the app's
  * `prebuild` hook (app/scripts/stage-ort-wasm.mjs) from the lockfile-pinned
  * node_modules bytes.
+ *
+ * The pair is named EXPLICITLY and is the plain (non-asyncify) CPU build.
+ * transformers.js loads the `onnxruntime-web/webgpu` bundle, whose default is
+ * the asyncify build — that build exists for the WebGPU EP, which this app never
+ * uses (device is `wasm`), and since onnxruntime-web 1.31 its .wasm is 26.9 MB,
+ * over Cloudflare Pages' 25 MiB per-file limit. The plain build is ~14 MB and
+ * runs the same CPU kernels (transformers.js itself falls back to it on Safari
+ * below 26).
  */
 export function configureOrtWasmPaths(ortWasm: OrtWasmEnvLike): void {
-	ortWasm.wasmPaths = "/ort/";
+	ortWasm.wasmPaths = {
+		mjs: "/ort/ort-wasm-simd-threaded.mjs",
+		wasm: "/ort/ort-wasm-simd-threaded.wasm",
+	};
 }
 
 /** The live onnxruntime-web wasm env, reached through transformers.js's loosely

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 import { plainExplanation } from "./plainExplanation";
 
 const t = i18n.getFixedT("en", "screen");

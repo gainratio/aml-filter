@@ -20,10 +20,13 @@ import {
 const PAGES_ASSET_LIMIT_BYTES = 25 * 1024 * 1024;
 
 describe("stage-ort-wasm", () => {
-	it("stages exactly the asyncify loader + wasm pair", () => {
+	it("stages exactly the plain (non-asyncify) loader + wasm pair", () => {
+		// The asyncify build only serves the WebGPU EP, which this app never uses,
+		// and since onnxruntime-web 1.31 its .wasm (26.9 MB) is over the Pages
+		// limit. The plain build is the CPU wasm EP, at ~14 MB.
 		expect(ORT_RUNTIME_FILES).toEqual([
-			"ort-wasm-simd-threaded.asyncify.mjs",
-			"ort-wasm-simd-threaded.asyncify.wasm",
+			"ort-wasm-simd-threaded.mjs",
+			"ort-wasm-simd-threaded.wasm",
 		]);
 	});
 

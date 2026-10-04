@@ -46,9 +46,10 @@ export default defineConfig({
 			// Build the minified SPA with the bundle path ENABLED (the committed
 			// signed bundle origin is bundled into dist/ as static public/ assets and
 			// served same-origin at /bundle/origin), then preview it.
-			command: `pnpm build && pnpm exec vite preview --port ${SPA_PORT} --strictPort`,
+			// serve-preview holds the port through the build (see the script header).
+			command: `node scripts/serve-preview.mjs --port ${SPA_PORT}`,
 			url: `http://localhost:${SPA_PORT}/screen`,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer: false,
 			timeout: 240_000,
 			env: {
 				// THE switch: take the signed-bundle delta-sync path, not JSON.

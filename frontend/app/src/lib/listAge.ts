@@ -13,7 +13,7 @@
  */
 
 /** The coarsest unit that still reads honestly at a given age. */
-export type AgeUnit = "second" | "minute" | "hour" | "day";
+type AgeUnit = "second" | "minute" | "hour" | "day";
 
 /** A list's age, both as a phrase and as a bare duration. */
 export interface ListAge {

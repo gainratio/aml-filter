@@ -1,4 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+	type LiveSmokeBrowser,
+	liveSmokeBrowsers,
+} from "./tests/e2e-live/browsers";
 
 /**
  * LIVE smoke: drives the DEPLOYED site (default https://aml-filter.com) in a
@@ -11,9 +15,19 @@ import { defineConfig, devices } from "@playwright/test";
  * in-tab signature verification needs WebCrypto and the bundle cache needs OPFS.
  *
  * Passes are selected with --grep @fresh | @prime | @returning (see the spec).
- * Run from frontend/app:
+ * Engines are selected with LIVE_SMOKE_BROWSERS (default chromium only, which
+ * is all the Dagger post-deploy smoke installs). Run from frontend/app:
  *   pnpm test:e2e:live --grep @fresh
+ *   LIVE_SMOKE_BROWSERS=chromium,firefox,webkit pnpm test:e2e:live --grep @fresh
+ * A persistent-profile pass (@prime/@returning) needs one LIVE_SMOKE_PROFILE per
+ * engine, so run those one engine at a time (scripts/smoke-local.sh does).
  */
+
+const DEVICE: Record<LiveSmokeBrowser, string> = {
+	chromium: "Desktop Chrome",
+	firefox: "Desktop Firefox",
+	webkit: "Desktop Safari",
+};
 export default defineConfig({
 	testDir: "tests/e2e-live",
 	fullyParallel: false,
@@ -31,5 +45,8 @@ export default defineConfig({
 		navigationTimeout: 60_000,
 		trace: "retain-on-failure",
 	},
-	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+	projects: liveSmokeBrowsers(process.env.LIVE_SMOKE_BROWSERS).map((name) => ({
+		name,
+		use: { ...devices[DEVICE[name]] },
+	})),
 });

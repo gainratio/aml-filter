@@ -1,7 +1,7 @@
 import type { CustomerResponse, IdDocument } from "./api";
 
-export const CUSTOMER_IMPORT_MAX_BYTES = 10 * 1024 * 1024;
-export const CUSTOMER_IMPORT_MAX_ROWS = 5_000;
+const CUSTOMER_IMPORT_MAX_BYTES = 10 * 1024 * 1024;
+const CUSTOMER_IMPORT_MAX_ROWS = 5_000;
 const MAX_CELL_CHARS = 4_000;
 const MAX_DOCUMENTS = 20;
 const MAX_DOCUMENT_JSON_CHARS = 20_000;

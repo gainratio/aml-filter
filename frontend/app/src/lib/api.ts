@@ -21,10 +21,6 @@ import type {
 import { LocalApiClient } from "./localApi";
 import { workstationProvider } from "./workstation";
 
-export interface ApiError {
-	detail: string;
-}
-
 /**
  * The shared client surface. `LocalApiClient` implements
  * `Pick<ApiClient, keyof ApiClient>`, so every method here must keep its name
@@ -118,6 +114,11 @@ export interface CustomerResponse {
 	id_documents: IdDocument[];
 	onboarded_by: string;
 	screening_entity_id: string | null;
+	/** When the customer was last screened; null = never, or its identity changed. */
+	screened_at: string | null;
+	/** Stamp of the lists that screen ran against; must equal the loaded lists
+	 * before the customer may read "No matches". */
+	screened_list_version: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -159,10 +160,10 @@ export type ReviewDisposition = Exclude<ReviewResolutionStatus, "PENDING">;
  * disposition (if any) is still valid; CHANGED = the watchlist entity moved
  * materially since it was last dispositioned and needs a fresh look.
  */
-export type ReviewState = "CURRENT" | "CHANGED";
+type ReviewState = "CURRENT" | "CHANGED";
 
 /** The lifecycle event types recorded on a match's append-only audit trail. */
-export type MatchEventType =
+type MatchEventType =
 	| "DETECTED"
 	| "DISPOSITIONED"
 	| "REOPENED"

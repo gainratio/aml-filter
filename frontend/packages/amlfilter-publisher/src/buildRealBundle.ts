@@ -91,7 +91,7 @@ export type CarryForward = (
 ) => Promise<StagedList>;
 
 /** One list this run could not refresh, and the age it is being served with. */
-export interface CarriedListReport {
+interface CarriedListReport {
 	readonly listId: string;
 	readonly fetchedAt: string;
 	readonly reason: string;
@@ -113,7 +113,7 @@ export async function removeProducerResidue(originDir: string): Promise<void> {
 /** Which alias coverage the produced bundle actually has. `records-only` means
  * a source's enrichment was unreachable and only the record feed's own (Latin)
  * names are present — it must never be reported as full coverage. */
-export interface AliasEnrichmentReport {
+interface AliasEnrichmentReport {
 	readonly mode: "enriched" | "records-only";
 	readonly aliasesAdded: number;
 	readonly entitiesEnriched: number;

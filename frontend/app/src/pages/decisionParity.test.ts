@@ -130,7 +130,9 @@ describe("decision harness parity — the rule itself", () => {
 		"agrees with the app on every boundary case at %s",
 		(_name, level) => {
 			const harnessLevel = DECISION_LEVELS.find((d) => d.level === level.level);
-			expect(harnessLevel).toBeDefined();
+			if (harnessLevel === undefined) {
+				throw new Error(`the decision harness has no level "${level.level}"`);
+			}
 			let cases = 0;
 			for (const score of SCORES) {
 				for (const lexical of LEXICALS) {
@@ -143,8 +145,8 @@ describe("decision harness parity — the rule itself", () => {
 						};
 						const app = appVerdict(m, level);
 						expect({
-							kept: isKept(facts, harnessLevel!),
-							primary: isPrimary(facts, harnessLevel!),
+							kept: isKept(facts, harnessLevel),
+							primary: isPrimary(facts, harnessLevel),
 						}).toEqual(app);
 						cases += 1;
 					}

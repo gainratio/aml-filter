@@ -83,10 +83,10 @@ const ISO_INSTANT =
 /** Which instant a list's age was measured from. `generatedAt` means the list
  * predates per-list freshness and was aged from the bundle's own stamp. Aliased
  * to the shared type rather than restated — see `resolveListAge`. */
-export type AgeSource = ListAgeSource;
+type AgeSource = ListAgeSource;
 
 /** One list's proven age, and every way it breaches the freshness claim. */
-export interface ListAge {
+interface ListAge {
 	readonly id: string;
 	readonly title: string;
 	readonly slug: string;
@@ -156,7 +156,7 @@ function text(value: unknown): string | null {
  * An ISO-8601 instant as epoch ms, or null when it is absent or not provably an
  * instant. Never a guess — a list whose age cannot be proven is not fresh.
  */
-export function instantMs(value: unknown): number | null {
+function instantMs(value: unknown): number | null {
 	if (typeof value !== "string" || !ISO_INSTANT.test(value)) {
 		return null;
 	}

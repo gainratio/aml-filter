@@ -1221,3 +1221,100 @@ textarea:focus-visible {
 		flex: 1 1 30%;
 	}
 }
+
+/* ==========================================================================
+   Customers table: one compact action group per row + an editor row
+   ========================================================================== */
+
+.customer-row-actions,
+.customer-editor {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+
+.customer-row-actions {
+	display: inline-flex;
+	gap: var(--spacing-sm);
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+}
+
+.table tbody tr.customer-editor-row,
+.table tbody tr.customer-editor-row:hover {
+	background-color: var(--color-bg-light);
+}
+
+.customer-editor {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+	gap: var(--spacing-md);
+	align-items: end;
+}
+
+.customer-editor__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 0;
+}
+
+.customer-editor__actions {
+	display: flex;
+	gap: var(--spacing-sm);
+	flex-wrap: wrap;
+}
+
+/* Phone width: each customer becomes a labelled card, so the actions stay on
+   screen instead of behind a sideways table scroll. */
+@media (max-width: 640px) {
+	.customers-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+	}
+
+	/* Overrides the generic phone rule that widens every .table to 760px. */
+	.customers-table {
+		min-width: 0;
+	}
+
+	.customers-table,
+	.customers-table tbody,
+	.customers-table tr,
+	.customers-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.customers-table tbody tr {
+		padding: var(--spacing-sm) 0;
+	}
+
+	.customers-table td {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--spacing-md);
+		padding: 0.35rem var(--spacing-md);
+		text-align: left;
+	}
+
+	.customers-table td[data-label]::before {
+		content: attr(data-label);
+		font-weight: 700;
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
+
+	.customers-table td.customer-row-actions-cell {
+		justify-content: flex-end;
+	}
+
+	.customers-table .customer-editor-row td {
+		display: block;
+	}
+}

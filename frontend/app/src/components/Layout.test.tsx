@@ -1,17 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import Layout from "./Layout";
+import { Layout } from "./Layout";
 
-const storage = vi.hoisted(() => ({ mode: "opfs" }));
+const storage = vi.hoisted(() => ({
+	fallbackLists: [] as ReadonlyArray<string>,
+}));
 vi.mock("@amlfilter/browser", () => ({
-	vectorIndexStorage: () => storage.mode,
+	vectorIndexFallbackLists: () => storage.fallbackLists,
 	subscribeVectorIndexStorage: () => () => undefined,
 }));
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string) =>
+		t: (key: string, options?: { lists?: string }) =>
 			(
 				({
 					"nav.brandAlt": "AML-Filter",
@@ -20,7 +22,9 @@ vi.mock("react-i18next", () => ({
 					"nav.customers": "Customers",
 					"nav.review": "Review",
 					"nav.settings": "Settings",
-					"indexFallback.notice": "Low-memory mode: search index is in memory",
+					"indexFallback.notice": `Low-memory mode for ${options?.lists}: search index is in memory`,
+					"common:labels.lists.OFAC_SDN": "US OFAC",
+					"common:labels.lists.EU_CONSOLIDATED": "EU",
 					layoutFooter: "Local-first screening",
 					layoutFooterSource: "Source code on GitHub (MIT)",
 				}) as Record<string, string>
@@ -62,8 +66,8 @@ describe("Layout", () => {
 		);
 	});
 
-	it("says so when the search index fell back to in-memory storage", () => {
-		storage.mode = "memory-fallback";
+	it("names the list whose search index fell back to in-memory storage", () => {
+		storage.fallbackLists = ["OFAC_SDN"];
 		render(
 			<MemoryRouter initialEntries={["/screen"]}>
 				<Layout>
@@ -72,9 +76,24 @@ describe("Layout", () => {
 			</MemoryRouter>,
 		);
 		expect(screen.getByRole("status")).toHaveTextContent(
-			"Low-memory mode: search index is in memory",
+			"Low-memory mode for US OFAC: search index is in memory",
 		);
-		storage.mode = "opfs";
+		storage.fallbackLists = [];
+	});
+
+	it("names every list that fell back, not just the latest one", () => {
+		storage.fallbackLists = ["EU_CONSOLIDATED", "OFAC_SDN"];
+		render(
+			<MemoryRouter initialEntries={["/screen"]}>
+				<Layout>
+					<div>page</div>
+				</Layout>
+			</MemoryRouter>,
+		);
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Low-memory mode for EU, US OFAC: search index is in memory",
+		);
+		storage.fallbackLists = [];
 	});
 
 	it("shows no storage notice when the index is persistent", () => {

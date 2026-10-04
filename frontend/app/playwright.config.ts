@@ -30,7 +30,12 @@ export default defineConfig({
 	// The C1 suite (tests/e2e-c1) and the DB-backed KYC suite (tests/e2e-kyc) each
 	// have their own config + production webServers; they must not run here against
 	// the unminified `vite dev` server (the KYC suite also needs a live backend).
-	testIgnore: ["**/e2e-c1/**", "**/e2e-kyc/**"],
+	testIgnore: [
+		"**/e2e-c1/**",
+		"**/e2e-kyc/**",
+		"**/e2e-matrix/**",
+		"**/e2e-memory/**",
+	],
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,

@@ -55,6 +55,12 @@ export type DbRequest =
 			readonly matches: ReadonlyArray<TieredMatch>;
 	  }
 	| {
+			readonly kind: "markScreened";
+			readonly id: number;
+			readonly customerId: string;
+			readonly listVersion: string;
+	  }
+	| {
 			readonly kind: "listReviewMatches";
 			readonly id: number;
 			readonly filters: ReviewFilters;
@@ -104,6 +110,7 @@ export type DbResponse =
 	| DbOk<"deleteCustomer", null>
 	| DbOk<"recordMatches", ReadonlyArray<ReviewRow>>
 	| DbOk<"replaceMatches", ReadonlyArray<ReviewRow>>
+	| DbOk<"markScreened", CustomerRow>
 	| DbOk<"listReviewMatches", ReadonlyArray<ReviewRow>>
 	| DbOk<"resolveMatch", ReviewRow>
 	| DbOk<"getMatchEvents", ReadonlyArray<MatchEvent>>

@@ -76,7 +76,7 @@ export interface EmittedQuery {
 }
 
 /** What was measured, and with what. */
-export interface EmittedHeader {
+interface EmittedHeader {
 	readonly kind: "header";
 	readonly schemaVersion: 1;
 	readonly measuredAt: string;

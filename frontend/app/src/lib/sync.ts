@@ -21,7 +21,7 @@ import {
 	LAST_SYNCED_VERSION_KEY,
 	type SyncResult,
 } from "@amlfilter/workstation";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 import type { WorkstationHandle } from "./workstation";
 
 /**

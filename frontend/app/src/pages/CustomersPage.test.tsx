@@ -6,9 +6,13 @@ import {
 	within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CustomerOnboardResponse, CustomerResponse } from "../lib/api";
+import type {
+	CustomerOnboardResponse,
+	CustomerResponse,
+	ReviewMatch,
+} from "../lib/api";
 import { apiClient } from "../lib/api";
-import CustomersPage from "./CustomersPage";
+import { CustomersPage } from "./CustomersPage";
 
 // The page talks to the backend exclusively through the apiClient singleton.
 // Mock that seam so the tests drive deterministic responses with no network.
@@ -19,6 +23,7 @@ vi.mock("../lib/api", () => ({
 		importCustomers: vi.fn(),
 		updateCustomer: vi.fn(),
 		deleteCustomer: vi.fn(),
+		listReviewMatches: vi.fn(),
 	},
 }));
 
@@ -61,10 +66,41 @@ function makeCustomer(
 		id_documents: [],
 		onboarded_by: "alice",
 		screening_entity_id: "ent-1",
+		// Screened against the lists the mocked engine reports as loaded.
+		screened_at: "2026-06-06T10:00:01Z",
+		screened_list_version: "wl-v1",
 		created_at: "2026-06-06T10:00:00Z",
 		updated_at: "2026-06-06T10:00:00Z",
 		...overrides,
 	};
+}
+
+function makeMatch(overrides: Partial<ReviewMatch> = {}): ReviewMatch {
+	return {
+		match_id: "m-1",
+		tier: "STRONG",
+		match_score: 0.9,
+		match_type: "WHITELIST_VS_BLACKLIST",
+		resolution_status: "PENDING",
+		reviewer_id: null,
+		review_notes: null,
+		detected_at: "2026-06-06T10:00:00Z",
+		customer_id: "cust-1",
+		customer_reference: "REF-001",
+		customer_name: "Jon Q. Fakename",
+		sanctioned_name: "Listed Person",
+		source_list: "OFAC_SDN",
+		review_state: "CURRENT",
+		...overrides,
+	};
+}
+
+async function renderedRow(reference: string): Promise<HTMLElement> {
+	render(<CustomersPage />);
+	const cell = await screen.findByText(reference);
+	const row = cell.closest("tr");
+	if (!row) throw new Error("row not found");
+	return row;
 }
 
 function makeOnboardResponse(
@@ -81,6 +117,7 @@ describe("CustomersPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockClient.listCustomers.mockResolvedValue([]);
+		mockClient.listReviewMatches.mockResolvedValue([]);
 		mockWatchlistVersion.mockReturnValue("wl-v1");
 		mockFetchPublishedVersion.mockResolvedValue("wl-v1");
 		mockReloadWatchlist.mockResolvedValue(undefined);
@@ -107,12 +144,11 @@ describe("CustomersPage", () => {
 		);
 		const row = screen.getByText("REF-AAA").closest("tr");
 		if (!row) throw new Error("row not found");
-		// "ACTIVE"/"MEDIUM" also appear as <option>s — scope to the badge span.
 		expect(
-			within(row).getByText("ACTIVE", { selector: "span.badge" }),
+			within(row).getByText("Approved", { selector: "span.badge" }),
 		).toBeInTheDocument();
 		expect(
-			within(row).getByText("MEDIUM", { selector: "span.badge" }),
+			within(row).getByText("Medium", { selector: "span.badge" }),
 		).toBeInTheDocument();
 		expect(within(row).getByText("bob")).toBeInTheDocument();
 		expect(mockClient.listCustomers).toHaveBeenCalled();
@@ -301,10 +337,11 @@ describe("CustomersPage", () => {
 			expect(screen.getByText("REF-001")).toBeInTheDocument(),
 		);
 
-		const row = screen.getByText("REF-001").closest("tr");
-		if (!row) throw new Error("row not found");
-		const statusSelect = within(row).getByLabelText(/status for/i);
-		fireEvent.change(statusSelect, { target: { value: "ACTIVE" } });
+		fireEvent.click(screen.getByRole("button", { name: "Edit REF-001" }));
+		fireEvent.change(screen.getByLabelText(/status for REF-001/i), {
+			target: { value: "ACTIVE" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(mockClient.updateCustomer).toHaveBeenCalledWith("cust-row", {
@@ -381,16 +418,14 @@ describe("CustomersPage", () => {
 			expect(screen.getByText("REF-001")).toBeInTheDocument(),
 		);
 
-		const row = screen.getByText("REF-001").closest("tr");
-		if (!row) throw new Error("row not found");
-		fireEvent.click(within(row).getByLabelText(/edit REF-001/i));
-		fireEvent.change(within(row).getByLabelText(/edit name for/i), {
+		fireEvent.click(screen.getByRole("button", { name: "Edit REF-001" }));
+		fireEvent.change(screen.getByLabelText(/edit name for/i), {
 			target: { value: "Renamed Person" },
 		});
-		fireEvent.change(within(row).getByLabelText(/edit country for/i), {
+		fireEvent.change(screen.getByLabelText(/edit country for/i), {
 			target: { value: "DE" },
 		});
-		fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(mockClient.updateCustomer).toHaveBeenCalledWith("cust-edit", {
@@ -422,5 +457,221 @@ describe("CustomersPage", () => {
 		await waitFor(() =>
 			expect(mockClient.deleteCustomer).toHaveBeenCalledWith("cust-del"),
 		);
+	});
+});
+
+describe("CustomersPage — the customer row reads as plain, truthful words", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockClient.listReviewMatches.mockResolvedValue([]);
+	});
+
+	it("a clean customer reads as No matches, never as pending review", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ onboarding_status: "PENDING_REVIEW" }),
+		]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("No matches")).toBeInTheDocument();
+		expect(row.textContent).not.toMatch(/pending.?review/i);
+	});
+
+	it("a customer with undecided matches says how many need review", async () => {
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		mockClient.listReviewMatches.mockResolvedValue([
+			makeMatch({ match_id: "a" }),
+			makeMatch({ match_id: "b" }),
+		]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("2 to review")).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("never calls a customer clear when the matches could not be read", async () => {
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		mockClient.listReviewMatches.mockRejectedValue(new Error("db busy"));
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("Not checked")).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("shows no raw status or risk codes", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ onboarding_status: "ACTIVE", kyc_risk_rating: null }),
+		]);
+		const row = await renderedRow("REF-001");
+		expect(within(row).getByText("Approved")).toBeInTheDocument();
+		expect(within(row).getByText("Not rated")).toBeInTheDocument();
+		expect(row.textContent).not.toMatch(
+			/ACTIVE|PENDING_REVIEW|UNRATED|LOW|MEDIUM|HIGH/,
+		);
+	});
+
+	it("shows a human label instead of the internal 'local' actor id", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ onboarded_by: "local" }),
+		]);
+		const row = await renderedRow("REF-001");
+		expect(within(row).getByText("No name given")).toBeInTheDocument();
+		expect(row.textContent).not.toMatch(/\blocal\b/);
+	});
+
+	it("keeps each row to one compact action group: Edit and Delete, no dropdowns", async () => {
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		const row = await renderedRow("REF-001");
+		expect(within(row).queryAllByRole("combobox")).toHaveLength(0);
+		const group = within(row).getByRole("group", {
+			name: "Actions for REF-001",
+		});
+		expect(
+			within(group)
+				.getAllByRole("button")
+				.map((button) => button.getAttribute("aria-label")),
+		).toEqual(["Edit REF-001", "Delete REF-001"]);
+	});
+
+	it("Edit opens one labelled editor with status and risk, and Save sends only what changed", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ customer_id: "cust-ed", kyc_risk_rating: null }),
+		]);
+		mockClient.updateCustomer.mockResolvedValue(makeCustomer());
+		await renderedRow("REF-001");
+
+		fireEvent.click(screen.getByRole("button", { name: "Edit REF-001" }));
+		const editor = screen.getByRole("group", { name: "Editing REF-001" });
+		fireEvent.change(within(editor).getByLabelText(/risk for REF-001/i), {
+			target: { value: "HIGH" },
+		});
+		// Options read as words too.
+		expect(
+			within(editor).getByRole("option", { name: "Awaiting approval" }),
+		).toBeInTheDocument();
+		fireEvent.click(within(editor).getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(mockClient.updateCustomer).toHaveBeenCalledWith("cust-ed", {
+				kyc_risk_rating: "HIGH",
+			}),
+		);
+		// Identity unchanged → no re-screen.
+		expect(mockScreenCustomer).not.toHaveBeenCalled();
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("group", { name: "Editing REF-001" }),
+			).toBeNull(),
+		);
+	});
+});
+
+describe("CustomersPage — 'No matches' needs proof the customer was screened", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockClient.listReviewMatches.mockResolvedValue([]);
+		mockWatchlistVersion.mockReturnValue("wl-v1");
+		mockEngineBoot.mockResolvedValue(undefined);
+	});
+
+	it("an import whose screening threw never reads No matches (regression)", async () => {
+		// The import committed the rows, then the rescan threw: screening: null.
+		const unscreened = makeCustomer({
+			customer_reference: "CSV-1",
+			screened_at: null,
+			screened_list_version: null,
+		});
+		mockClient.listCustomers.mockResolvedValueOnce([]);
+		mockClient.importCustomers.mockResolvedValue({
+			customers: [unscreened],
+			screening: null,
+		});
+		mockClient.listCustomers.mockResolvedValue([unscreened]);
+		render(<CustomersPage />);
+		await waitFor(() => expect(mockClient.listCustomers).toHaveBeenCalled());
+
+		fireEvent.change(screen.getByLabelText("Customer spreadsheet"), {
+			target: {
+				files: [
+					new File(
+						["customer_reference,name\nCSV-1,Imported Person"],
+						"c.csv",
+						{
+							type: "text/csv",
+						},
+					),
+				],
+			},
+		});
+		fireEvent.click(
+			await screen.findByRole("button", { name: /import 1 customer/i }),
+		);
+
+		const cell = await screen.findByText("CSV-1");
+		const row = cell.closest("tr");
+		if (!row) throw new Error("row not found");
+		expect(
+			await within(row).findByText("Not screened yet"),
+		).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("a customer screened against older lists is not clear for the current ones", async () => {
+		mockWatchlistVersion.mockReturnValue("wl-v2");
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ screened_list_version: "wl-v1" }),
+		]);
+		const row = await renderedRow("REF-001");
+		expect(
+			await within(row).findByText("Not screened yet"),
+		).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("before the lists load, no customer reads clear", async () => {
+		mockWatchlistVersion.mockReturnValue(null);
+		mockEngineBoot.mockReturnValue(new Promise(() => undefined));
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("Lists loading")).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("once the lists load, a proven customer reads No matches", async () => {
+		mockWatchlistVersion.mockReturnValueOnce(null).mockReturnValue("wl-v1");
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("No matches")).toBeInTheDocument();
+	});
+
+	it("open matches still show even without proof", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ screened_list_version: null }),
+		]);
+		mockClient.listReviewMatches.mockResolvedValue([makeMatch()]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("1 to review")).toBeInTheDocument();
+	});
+
+	it("offers to screen the unproven customers, and screens exactly them", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ customer_id: "proven", customer_reference: "P-1" }),
+			makeCustomer({
+				customer_id: "unproven",
+				customer_reference: "U-1",
+				screened_list_version: null,
+			}),
+		]);
+		mockScreenCustomer.mockResolvedValue([]);
+		render(<CustomersPage />);
+		const action = await screen.findByRole("button", {
+			name: "Screen 1 customer now",
+		});
+		expect(
+			screen.getByText(
+				/1 customer has not been screened against the current lists/i,
+			),
+		).toBeInTheDocument();
+		fireEvent.click(action);
+		await waitFor(() =>
+			expect(mockScreenCustomer).toHaveBeenCalledWith("unproven"),
+		);
+		expect(mockScreenCustomer).toHaveBeenCalledTimes(1);
 	});
 });
