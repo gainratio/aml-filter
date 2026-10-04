@@ -3,6 +3,7 @@ import type { ReviewMatch } from "./api";
 import {
 	listAllReviewMatches,
 	REVIEW_PAGE_SIZE,
+	screeningStateFor,
 	screeningSummaries,
 	screeningSummaryFor,
 } from "./customerScreening";
@@ -106,5 +107,51 @@ describe("listAllReviewMatches — every match, not just the first page", () => 
 		expect(screeningSummaryFor(screeningSummaries(all), "c-late").state).toBe(
 			"toReview",
 		);
+	});
+});
+
+describe("screeningStateFor — clear needs proof against the current lists", () => {
+	const clean = screeningSummaries([]);
+	const proven = { customer_id: "c-1", screened_list_version: "L@1" };
+
+	it("proven against the loaded lists and no matches: clear", () => {
+		expect(screeningStateFor(clean, proven, "L@1").state).toBe("clear");
+	});
+
+	it("never screened: not screened yet", () => {
+		expect(
+			screeningStateFor(
+				clean,
+				{ ...proven, screened_list_version: null },
+				"L@1",
+			).state,
+		).toBe("notScreened");
+	});
+
+	it("screened against other lists: not screened yet", () => {
+		expect(screeningStateFor(clean, proven, "L@2").state).toBe("notScreened");
+	});
+
+	it("lists not loaded yet: loading, never clear", () => {
+		expect(screeningStateFor(clean, proven, null).state).toBe("listsLoading");
+	});
+
+	it("matches could not be read: unknown", () => {
+		expect(screeningStateFor(null, proven, "L@1").state).toBe("unknown");
+	});
+
+	it("dismissed matches need proof too before reading cleared", () => {
+		const dismissed = screeningSummaries([
+			match({ resolution_status: "FALSE_POSITIVE" }),
+		]);
+		expect(screeningStateFor(dismissed, proven, "L@1").state).toBe("cleared");
+		expect(screeningStateFor(dismissed, proven, "L@2").state).toBe(
+			"notScreened",
+		);
+	});
+
+	it("open or confirmed matches show regardless of proof", () => {
+		const open = screeningSummaries([match()]);
+		expect(screeningStateFor(open, proven, null).state).toBe("toReview");
 	});
 });

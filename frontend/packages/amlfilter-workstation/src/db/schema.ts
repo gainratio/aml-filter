@@ -8,7 +8,7 @@
 
 import type { SqlDatabase } from "./sqlite";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const MIGRATION_V1: ReadonlyArray<string> = [
 	`CREATE TABLE customers (
@@ -110,12 +110,24 @@ const MIGRATION_V4: ReadonlyArray<string> = [
 	 END`,
 ];
 
+// v5 — additive only: positive proof that a customer was screened. A customer
+// must never read "No matches" unless it was screened, and screened against the
+// lists loaded now: an import whose screening failed, or a row screened under an
+// older list set, has no matches either. `screened_list_version` is the
+// composite stamp of the lists the screen ran against; `screened_at` is when.
+// Existing rows backfill NULL — unproven until the next screen marks them.
+const MIGRATION_V5: ReadonlyArray<string> = [
+	"ALTER TABLE customers ADD COLUMN screened_at TEXT",
+	"ALTER TABLE customers ADD COLUMN screened_list_version TEXT",
+];
+
 /** Ordered migration ledger: index i holds the step that takes vi → v(i+1). */
 const MIGRATIONS: ReadonlyArray<ReadonlyArray<string>> = [
 	MIGRATION_V1,
 	MIGRATION_V2,
 	MIGRATION_V3,
 	MIGRATION_V4,
+	MIGRATION_V5,
 ];
 
 function currentVersion(db: SqlDatabase): number {

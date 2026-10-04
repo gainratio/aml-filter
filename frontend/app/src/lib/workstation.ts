@@ -222,6 +222,9 @@ async function build(deps: WorkstationDeps): Promise<WorkstationHandle> {
 	const screener: NameScreener = {
 		screen: async (query: ScreenQuery): Promise<ScreenResponse> =>
 			(await bootEngine()).screen(query),
+		// The stamp of the lists that screen just ran against — what a customer's
+		// screening proof records and the Customers page compares to the loaded lists.
+		listVersion: (): string | null => deps.runtime.version(),
 	};
 	const rescan = new RescanService(store, screener);
 	return {

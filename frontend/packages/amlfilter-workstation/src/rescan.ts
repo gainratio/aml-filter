@@ -7,7 +7,7 @@
 // an onboard tier identically.
 
 import { NotFoundError } from "./errors";
-import type { NameScreener } from "./onboarding";
+import { markScreenedWith, type NameScreener } from "./onboarding";
 import { loadScreeningConfig, resolveThreshold } from "./screening_config";
 import { canonicalProfile, tierMatch } from "./tier_match";
 import type { CustomerRow, ReviewRow, WorkstationStore } from "./types";
@@ -131,11 +131,14 @@ export class RescanService {
 			dob: customer.dob,
 			threshold,
 		});
+		const listVersion = this.#screener.listVersion?.() ?? null;
 		const profile = canonicalProfile(customer.name, customer.country);
 		const tiered = response.matches.map((match) =>
 			tierMatch(match, profile, threshold),
 		);
-		return this.#store.replaceMatches(customer.customer_id, tiered);
+		const rows = await this.#store.replaceMatches(customer.customer_id, tiered);
+		await markScreenedWith(this.#store, customer.customer_id, listVersion);
+		return rows;
 	}
 
 	/** Snapshot every customer's prior match entity-id set in one board read. */

@@ -22,6 +22,8 @@ function makeCustomerRow(): CustomerRow {
 		kyc_risk_rating: null,
 		id_documents: [],
 		onboarded_by: "local",
+		screened_at: "2026-06-09T00:00:01.000Z",
+		screened_list_version: "OFAC_SDN@v1",
 		created_at: "2026-06-09T00:00:00.000Z",
 		updated_at: "2026-06-09T00:00:00.000Z",
 	};
@@ -320,6 +322,9 @@ describe("LocalApiClient CRUD pass-throughs", () => {
 			tenant_id: "local",
 			customer_reference: "R-1",
 			screening_entity_id: null,
+			// The screening proof reaches the page; without it no row may read clear.
+			screened_at: "2026-06-09T00:00:01.000Z",
+			screened_list_version: "OFAC_SDN@v1",
 		});
 	});
 

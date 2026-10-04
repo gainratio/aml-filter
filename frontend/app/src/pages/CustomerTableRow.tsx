@@ -13,7 +13,7 @@ import type {
 	KycRiskRating,
 	OnboardingStatus,
 } from "../lib/api";
-import type { ScreeningSummary } from "../lib/customerScreening";
+import type { ScreeningView } from "../lib/customerScreening";
 import { actorLabel, kycRiskLabel, onboardingLabel } from "../lib/plainLabels";
 
 export const ONBOARDING_STATUSES: ReadonlyArray<OnboardingStatus> = [
@@ -65,35 +65,56 @@ function riskBadgeClass(rating: string | null): string {
 	return "badge badge-muted";
 }
 
-const SCREENING_BADGE: Readonly<Record<ScreeningSummary["state"], string>> = {
+const SCREENING_BADGE: Readonly<Record<ScreeningView["state"], string>> = {
 	clear: "badge badge-success",
 	cleared: "badge badge-success",
 	toReview: "badge badge-warning",
 	confirmed: "badge badge-danger",
+	notScreened: "badge badge-warning",
+	listsLoading: "badge badge-muted",
+	unknown: "badge badge-muted",
 };
 
-function ScreeningBadge({
-	summary,
+function ScreeningBadge({ view }: { readonly view: ScreeningView }) {
+	const { t } = useTranslation("customers");
+	return (
+		<span className={SCREENING_BADGE[view.state]}>
+			{t(`list.screening.${view.state}`, { count: view.open })}
+		</span>
+	);
+}
+
+/** Customers with no proof of a screen against the current lists, and the fix. */
+export function UnscreenedNotice({
+	count,
+	busy,
+	onScreen,
 }: {
-	readonly summary: ScreeningSummary | null;
+	readonly count: number;
+	readonly busy: boolean;
+	readonly onScreen: () => void;
 }) {
 	const { t } = useTranslation("customers");
-	if (summary === null) {
-		// The matches could not be read: never claim a clean result we did not see.
-		return (
-			<span className="badge badge-muted">{t("list.screening.unknown")}</span>
-		);
-	}
 	return (
-		<span className={SCREENING_BADGE[summary.state]}>
-			{t(`list.screening.${summary.state}`, { count: summary.open })}
-		</span>
+		<div className="alert alert-warning flex-between" role="status">
+			<span>{t("list.unscreened.notice", { count })}</span>
+			<button
+				type="button"
+				onClick={onScreen}
+				disabled={busy}
+				className="btn btn-secondary btn-sm"
+			>
+				{busy
+					? t("list.unscreened.running")
+					: t("list.unscreened.action", { count })}
+			</button>
+		</div>
 	);
 }
 
 interface CustomerTableRowProps {
 	readonly customer: CustomerResponse;
-	readonly screening: ScreeningSummary | null;
+	readonly screening: ScreeningView;
 	readonly editing: boolean;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
@@ -112,7 +133,7 @@ export function CustomerTableRow({
 		<tr>
 			<td data-label={t("list.columns.reference")}>{reference}</td>
 			<td data-label={t("list.columns.screening")}>
-				<ScreeningBadge summary={screening} />
+				<ScreeningBadge view={screening} />
 			</td>
 			<td data-label={t("list.columns.status")}>
 				<span className={statusBadgeClass(customer.onboarding_status)}>

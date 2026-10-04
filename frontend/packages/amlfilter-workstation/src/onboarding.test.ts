@@ -20,6 +20,8 @@ function makeCustomerRow(): CustomerRow {
 		kyc_risk_rating: null,
 		id_documents: [],
 		onboarded_by: "local",
+		screened_at: null,
+		screened_list_version: null,
 		created_at: "2026-06-09T00:00:00.000Z",
 		updated_at: "2026-06-09T00:00:00.000Z",
 	};
@@ -63,6 +65,7 @@ function makeStore(): WorkstationStore {
 		updateCustomer: vi.fn().mockResolvedValue(makeCustomerRow()),
 		deleteCustomer: vi.fn().mockResolvedValue(undefined),
 		recordMatches: vi.fn().mockResolvedValue([] as ReviewRow[]),
+		markScreened: vi.fn().mockResolvedValue(makeCustomerRow()),
 		listReviewMatches: vi.fn().mockResolvedValue([] as ReviewRow[]),
 		resolveMatch: vi.fn(),
 		getSetting: vi.fn().mockResolvedValue(null),
@@ -190,6 +193,47 @@ describe("LocalOnboardingService", () => {
 		});
 		expect(store.recordMatches).not.toHaveBeenCalled();
 		expect(result.matches).toEqual([]);
+	});
+
+	it("marks a clean customer screened against the screener's lists", async () => {
+		const store = makeStore();
+		const screener = { ...makeScreener([]), listVersion: () => "OFAC_SDN@v9" };
+		await new LocalOnboardingService(store, screener).onboard({
+			customer_reference: "R-1",
+			name: "Ann",
+		});
+		expect(store.markScreened).toHaveBeenCalledWith("c-1", "OFAC_SDN@v9");
+	});
+
+	it("marks only after the matches are stored", async () => {
+		const store = makeStore();
+		vi.mocked(store.recordMatches).mockRejectedValue(new Error("disk full"));
+		const screener = {
+			...makeScreener([makeMatch()]),
+			listVersion: () => "OFAC_SDN@v9",
+		};
+		await expect(
+			new LocalOnboardingService(store, screener).onboard({
+				customer_reference: "R-1",
+				name: "Ann",
+			}),
+		).rejects.toThrow("disk full");
+		expect(store.markScreened).not.toHaveBeenCalled();
+	});
+
+	it("a screen failure leaves the new customer unproven", async () => {
+		const store = makeStore();
+		const screener = {
+			screen: vi.fn().mockRejectedValue(new Error("engine died")),
+			listVersion: () => "OFAC_SDN@v9",
+		};
+		await expect(
+			new LocalOnboardingService(store, screener).onboard({
+				customer_reference: "R-1",
+				name: "Ann",
+			}),
+		).rejects.toThrow("engine died");
+		expect(store.markScreened).not.toHaveBeenCalled();
 	});
 
 	it("propagates DuplicateReferenceError without screening (fail-closed order, service.py:59)", async () => {

@@ -46,6 +46,8 @@ function customer(overrides: Partial<CustomerResponse> = {}): CustomerResponse {
 		kyc_risk_rating: "LOW",
 		id_documents: [],
 		screening_entity_id: null,
+		screened_at: null,
+		screened_list_version: null,
 		created_at: "2026-07-19T10:00:00Z",
 		updated_at: "2026-07-19T10:00:00Z",
 		...overrides,

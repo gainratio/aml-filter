@@ -107,6 +107,20 @@ class FakeStore implements WorkstationStore {
 		return Promise.resolve([...next.values()]);
 	}
 
+	markScreened(customerId: string, listVersion: string): Promise<CustomerRow> {
+		const index = this.customers.findIndex((c) => c.customer_id === customerId);
+		const before = this.customers[index];
+		if (before === undefined)
+			throw new Error(`customer ${customerId} not found`);
+		const after = {
+			...before,
+			screened_at: "2026-06-19T00:00:01.000Z",
+			screened_list_version: listVersion,
+		};
+		this.customers[index] = after;
+		return Promise.resolve(after);
+	}
+
 	listReviewMatches(
 		_filters: ReviewFilters,
 	): Promise<ReadonlyArray<ReviewRow>> {
@@ -186,6 +200,8 @@ function customerRow(
 		kyc_risk_rating: null,
 		id_documents: [],
 		onboarded_by: "local",
+		screened_at: null,
+		screened_list_version: null,
 		created_at: "2026-06-19T00:00:00.000Z",
 		updated_at: "2026-06-19T00:00:00.000Z",
 	};
@@ -321,6 +337,50 @@ describe("RescanService.syncWatchlist", () => {
 		expect(result.clearedHits).toBe(1);
 		expect(result.newHits).toBe(0);
 		expect(await store.listReviewMatches({})).toHaveLength(0);
+	});
+});
+
+describe("RescanService — positive proof of screening", () => {
+	function versioned(screener: NameScreener, version: string | null) {
+		return { ...screener, listVersion: () => version };
+	}
+
+	it("marks the customer screened against the loaded lists, after the matches are stored", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		const service = new RescanService(
+			store,
+			versioned(screenerFor({}), "OFAC_SDN@v9"),
+		);
+
+		await service.screenCustomer("c-1");
+
+		const row = await store.getCustomer("c-1");
+		expect(row?.screened_list_version).toBe("OFAC_SDN@v9");
+	});
+
+	it("a screen that throws leaves the customer unproven", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		const screener = versioned(
+			{ screen: vi.fn().mockRejectedValue(new Error("engine died")) },
+			"OFAC_SDN@v9",
+		);
+		const service = new RescanService(store, screener);
+
+		await expect(service.rescanAll()).rejects.toThrow("engine died");
+
+		expect((await store.getCustomer("c-1"))?.screened_list_version).toBeNull();
+	});
+
+	it("without a known list version there is nothing to prove, so nothing is marked", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		const service = new RescanService(store, versioned(screenerFor({}), null));
+
+		await service.screenCustomer("c-1");
+
+		expect((await store.getCustomer("c-1"))?.screened_list_version).toBeNull();
 	});
 });
 

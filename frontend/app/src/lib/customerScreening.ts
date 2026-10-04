@@ -13,10 +13,23 @@ import type { ReviewMatch, ReviewMatchListParams } from "./api";
 /** Rows per review-match page; the store paginates (default 100). */
 export const REVIEW_PAGE_SIZE = 500;
 
-export type ScreeningState = "clear" | "toReview" | "confirmed" | "cleared";
+/** What the matches alone say about a customer. */
+export type MatchState = "clear" | "toReview" | "confirmed" | "cleared";
+
+/**
+ * What the row may claim. "clear" and "cleared" need positive proof: the
+ * customer was screened against exactly the lists loaded now. Without it the
+ * row says "notScreened" (or "listsLoading" before the lists are known, or
+ * "unknown" when the matches could not be read) — never "No matches".
+ */
+export type ScreeningState =
+	| MatchState
+	| "notScreened"
+	| "listsLoading"
+	| "unknown";
 
 export interface ScreeningSummary {
-	readonly state: ScreeningState;
+	readonly state: MatchState;
 	/** Matches still waiting for a decision (PENDING or materially CHANGED). */
 	readonly open: number;
 }
@@ -74,6 +87,38 @@ export function screeningSummaries(
 			summarize(group),
 		]),
 	);
+}
+
+export interface ScreeningView {
+	readonly state: ScreeningState;
+	readonly open: number;
+}
+
+/** The screening proof fields a customer row carries. */
+export interface ScreeningProof {
+	readonly customer_id: string;
+	readonly screened_list_version: string | null;
+}
+
+/**
+ * The row's screening state. Open or confirmed matches are real whatever the
+ * proof says, so they always show. A clean or all-dismissed result is only
+ * claimed when the customer's screen ran against `currentListVersion`.
+ */
+export function screeningStateFor(
+	summaries: ReadonlyMap<string, ScreeningSummary> | null,
+	customer: ScreeningProof,
+	currentListVersion: string | null,
+): ScreeningView {
+	if (summaries === null) return { state: "unknown", open: 0 };
+	const summary = screeningSummaryFor(summaries, customer.customer_id);
+	if (summary.state === "toReview" || summary.state === "confirmed") {
+		return summary;
+	}
+	if (currentListVersion === null) return { state: "listsLoading", open: 0 };
+	return customer.screened_list_version === currentListVersion
+		? summary
+		: { state: "notScreened", open: 0 };
 }
 
 /** A customer with no review matches at all is clear. */

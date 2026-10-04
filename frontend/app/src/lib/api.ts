@@ -114,6 +114,11 @@ export interface CustomerResponse {
 	id_documents: IdDocument[];
 	onboarded_by: string;
 	screening_entity_id: string | null;
+	/** When the customer was last screened; null = never, or its identity changed. */
+	screened_at: string | null;
+	/** Stamp of the lists that screen ran against; must equal the loaded lists
+	 * before the customer may read "No matches". */
+	screened_list_version: string | null;
 	created_at: string;
 	updated_at: string;
 }

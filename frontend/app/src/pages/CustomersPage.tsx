@@ -15,8 +15,9 @@ import {
 import {
 	listAllReviewMatches,
 	type ScreeningSummary,
+	type ScreeningView,
+	screeningStateFor,
 	screeningSummaries,
-	screeningSummaryFor,
 } from "../lib/customerScreening";
 import {
 	buildCustomerImportPreview,
@@ -27,12 +28,14 @@ import {
 	readCustomerImportFile,
 } from "../lib/customerTransfer";
 import { checkForWatchlistUpdates, syncSummaryText } from "../lib/sync";
+import { useLoadedListVersion } from "../lib/useLoadedListVersion";
 import { workstation } from "../lib/workstation";
 import {
 	type CustomerDraft,
 	CustomerEditorRow,
 	CustomerTableRow,
 	draftOf,
+	UnscreenedNotice,
 } from "./CustomerTableRow";
 
 interface IdDocumentRow {
@@ -142,6 +145,9 @@ export function CustomersPage() {
 	const [importing, setImporting] = useState(false);
 	const [transferMessage, setTransferMessage] = useState<string | null>(null);
 	const importInputRef = useRef<HTMLInputElement>(null);
+	const lists = useLoadedListVersion();
+	const refreshListVersion = lists.refresh;
+	const [screeningNow, setScreeningNow] = useState(false);
 
 	const loadCustomers = useCallback(async () => {
 		try {
@@ -150,12 +156,40 @@ export function CustomersPage() {
 			const data = await apiClient.listCustomers();
 			setCustomers(data);
 			setScreening(await loadScreening());
+			await refreshListVersion();
 		} catch (err) {
 			setError(errorMessage(err, t("errors.load")));
 		} finally {
 			setLoading(false);
 		}
-	}, [t]);
+	}, [t, refreshListVersion]);
+
+	const viewFor = (customer: CustomerResponse): ScreeningView => {
+		const view = screeningStateFor(screening, customer, lists.version);
+		// A failed engine boot can never prove a screen: say "Not checked".
+		return lists.failed && view.state === "listsLoading"
+			? { state: "unknown", open: 0 }
+			: view;
+	};
+	const unscreened = customers.filter(
+		(customer) => viewFor(customer).state === "notScreened",
+	);
+
+	const handleScreenUnscreened = async () => {
+		try {
+			setScreeningNow(true);
+			setError(null);
+			const handle = await workstation();
+			for (const customer of unscreened) {
+				await handle.rescan.screenCustomer(customer.customer_id);
+			}
+			await loadCustomers();
+		} catch (err) {
+			setError(errorMessage(err, t("errors.screen")));
+		} finally {
+			setScreeningNow(false);
+		}
+	};
 
 	useEffect(() => {
 		loadCustomers();
@@ -637,6 +671,13 @@ export function CustomersPage() {
 			</form>
 
 			<h2>{t("list.title", { total: customers.length })}</h2>
+			{!loading && unscreened.length > 0 ? (
+				<UnscreenedNotice
+					count={unscreened.length}
+					busy={screeningNow}
+					onScreen={handleScreenUnscreened}
+				/>
+			) : null}
 			{loading ? (
 				<p>{t("list.loading")}</p>
 			) : customers.length === 0 ? (
@@ -667,11 +708,7 @@ export function CustomersPage() {
 									<Fragment key={customer.customer_id}>
 										<CustomerTableRow
 											customer={customer}
-											screening={
-												screening === null
-													? null
-													: screeningSummaryFor(screening, customer.customer_id)
-											}
+											screening={viewFor(customer)}
 											editing={isEditing}
 											onEdit={() => setEditing(draftOf(customer))}
 											onDelete={() => handleDelete(customer.customer_id)}

@@ -75,7 +75,16 @@
 			"toReview_other": "{{count}} to review",
 			"confirmed": "Confirmed match",
 			"cleared": "Cleared after review",
-			"unknown": "Not checked"
+			"unknown": "Not checked",
+			"notScreened": "Not screened yet",
+			"listsLoading": "Lists loading"
+		},
+		"unscreened": {
+			"notice_one": "{{count}} customer has not been screened against the current lists, so it cannot be shown as clear.",
+			"notice_other": "{{count}} customers have not been screened against the current lists, so they cannot be shown as clear.",
+			"action_one": "Screen {{count}} customer now",
+			"action_other": "Screen {{count}} customers now",
+			"running": "Screening…"
 		},
 		"controls": {
 			"actionsAria": "Actions for {{reference}}",
@@ -103,6 +112,7 @@
 		"delete": "Failed to delete customer",
 		"checkUpdates": "Failed to check for updates",
 		"save": "Failed to save customer",
+		"screen": "Failed to screen customers",
 		"import": "Failed to read customer spreadsheet",
 		"export": "Failed to export customers"
 	}

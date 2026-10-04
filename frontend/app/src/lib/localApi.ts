@@ -64,6 +64,8 @@ function toCustomerResponse(row: CustomerRow): CustomerResponse {
 		// No WHITELIST Entity rows exist locally (the only entity store is the
 		// read-only signed bundle), so there is no screening_entity_id.
 		screening_entity_id: null,
+		screened_at: row.screened_at,
+		screened_list_version: row.screened_list_version,
 		created_at: row.created_at,
 		updated_at: row.updated_at,
 	};

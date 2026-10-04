@@ -91,6 +91,8 @@ function toCustomerRow(record: Record<string, SqlValue>): CustomerRow {
 		kyc_risk_rating: asNullableString(record.kyc_risk_rating),
 		id_documents: JSON.parse(asString(record.id_documents)) as IdDocument[],
 		onboarded_by: asString(record.onboarded_by),
+		screened_at: asNullableString(record.screened_at),
+		screened_list_version: asNullableString(record.screened_list_version),
 		created_at: asString(record.created_at),
 		updated_at: asString(record.updated_at),
 	};
@@ -223,6 +225,13 @@ export function updateCustomer(
 	}
 	// The COALESCE patch is intentionally additive — it cannot null-out a set
 	// column. Empty name/country strings are normalized to null ("no change").
+	// A changed name or country is a new identity that was never screened, so
+	// the screening proof is voided in the same statement.
+	const name = blankToNull(patch.name);
+	const country = blankToNull(patch.country);
+	const identityChanged =
+		(name !== null && name !== existing.name) ||
+		(country !== null && country !== existing.country);
 	db.exec(
 		`UPDATE customers SET
 		   onboarding_status  = COALESCE(?, onboarding_status),
@@ -230,17 +239,40 @@ export function updateCustomer(
 		   customer_reference = COALESCE(?, customer_reference),
 		   name               = COALESCE(?, name),
 		   country            = COALESCE(?, country),
+		   screened_at           = CASE WHEN ? THEN NULL ELSE screened_at END,
+		   screened_list_version = CASE WHEN ? THEN NULL ELSE screened_list_version END,
 		   updated_at         = ?
 		 WHERE customer_id = ?`,
 		[
 			patch.onboarding_status ?? null,
 			patch.kyc_risk_rating ?? null,
 			patch.customer_reference ?? null,
-			blankToNull(patch.name),
-			blankToNull(patch.country),
+			name,
+			country,
+			identityChanged ? 1 : 0,
+			identityChanged ? 1 : 0,
 			nowIso(),
 			customerId,
 		],
+	);
+	return requireCustomer(db, customerId);
+}
+
+/**
+ * Record that a customer was just screened against the lists stamped
+ * `listVersion`. Called only AFTER the screen's matches were persisted, so a
+ * failed screen or a crash in between leaves the customer unproven, never
+ * falsely clear.
+ */
+export function markScreened(
+	db: SqlDatabase,
+	customerId: string,
+	listVersion: string,
+): CustomerRow {
+	requireCustomer(db, customerId);
+	db.exec(
+		"UPDATE customers SET screened_at = ?, screened_list_version = ? WHERE customer_id = ?",
+		[nowIso(), listVersion, customerId],
 	);
 	return requireCustomer(db, customerId);
 }

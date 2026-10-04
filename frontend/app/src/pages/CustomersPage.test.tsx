@@ -66,6 +66,9 @@ function makeCustomer(
 		id_documents: [],
 		onboarded_by: "alice",
 		screening_entity_id: "ent-1",
+		// Screened against the lists the mocked engine reports as loaded.
+		screened_at: "2026-06-06T10:00:01Z",
+		screened_list_version: "wl-v1",
 		created_at: "2026-06-06T10:00:00Z",
 		updated_at: "2026-06-06T10:00:00Z",
 		...overrides,
@@ -556,5 +559,119 @@ describe("CustomersPage — the customer row reads as plain, truthful words", ()
 				screen.queryByRole("group", { name: "Editing REF-001" }),
 			).toBeNull(),
 		);
+	});
+});
+
+describe("CustomersPage — 'No matches' needs proof the customer was screened", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockClient.listReviewMatches.mockResolvedValue([]);
+		mockWatchlistVersion.mockReturnValue("wl-v1");
+		mockEngineBoot.mockResolvedValue(undefined);
+	});
+
+	it("an import whose screening threw never reads No matches (regression)", async () => {
+		// The import committed the rows, then the rescan threw: screening: null.
+		const unscreened = makeCustomer({
+			customer_reference: "CSV-1",
+			screened_at: null,
+			screened_list_version: null,
+		});
+		mockClient.listCustomers.mockResolvedValueOnce([]);
+		mockClient.importCustomers.mockResolvedValue({
+			customers: [unscreened],
+			screening: null,
+		});
+		mockClient.listCustomers.mockResolvedValue([unscreened]);
+		render(<CustomersPage />);
+		await waitFor(() => expect(mockClient.listCustomers).toHaveBeenCalled());
+
+		fireEvent.change(screen.getByLabelText("Customer spreadsheet"), {
+			target: {
+				files: [
+					new File(
+						["customer_reference,name\nCSV-1,Imported Person"],
+						"c.csv",
+						{
+							type: "text/csv",
+						},
+					),
+				],
+			},
+		});
+		fireEvent.click(
+			await screen.findByRole("button", { name: /import 1 customer/i }),
+		);
+
+		const cell = await screen.findByText("CSV-1");
+		const row = cell.closest("tr");
+		if (!row) throw new Error("row not found");
+		expect(
+			await within(row).findByText("Not screened yet"),
+		).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("a customer screened against older lists is not clear for the current ones", async () => {
+		mockWatchlistVersion.mockReturnValue("wl-v2");
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ screened_list_version: "wl-v1" }),
+		]);
+		const row = await renderedRow("REF-001");
+		expect(
+			await within(row).findByText("Not screened yet"),
+		).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("before the lists load, no customer reads clear", async () => {
+		mockWatchlistVersion.mockReturnValue(null);
+		mockEngineBoot.mockReturnValue(new Promise(() => undefined));
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("Lists loading")).toBeInTheDocument();
+		expect(within(row).queryByText("No matches")).toBeNull();
+	});
+
+	it("once the lists load, a proven customer reads No matches", async () => {
+		mockWatchlistVersion.mockReturnValueOnce(null).mockReturnValue("wl-v1");
+		mockClient.listCustomers.mockResolvedValue([makeCustomer()]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("No matches")).toBeInTheDocument();
+	});
+
+	it("open matches still show even without proof", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ screened_list_version: null }),
+		]);
+		mockClient.listReviewMatches.mockResolvedValue([makeMatch()]);
+		const row = await renderedRow("REF-001");
+		expect(await within(row).findByText("1 to review")).toBeInTheDocument();
+	});
+
+	it("offers to screen the unproven customers, and screens exactly them", async () => {
+		mockClient.listCustomers.mockResolvedValue([
+			makeCustomer({ customer_id: "proven", customer_reference: "P-1" }),
+			makeCustomer({
+				customer_id: "unproven",
+				customer_reference: "U-1",
+				screened_list_version: null,
+			}),
+		]);
+		mockScreenCustomer.mockResolvedValue([]);
+		render(<CustomersPage />);
+		const action = await screen.findByRole("button", {
+			name: "Screen 1 customer now",
+		});
+		expect(
+			screen.getByText(
+				/1 customer has not been screened against the current lists/i,
+			),
+		).toBeInTheDocument();
+		fireEvent.click(action);
+		await waitFor(() =>
+			expect(mockScreenCustomer).toHaveBeenCalledWith("unproven"),
+		);
+		expect(mockScreenCustomer).toHaveBeenCalledTimes(1);
 	});
 });
