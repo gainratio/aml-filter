@@ -102,7 +102,9 @@ describe("VectorIndex shared SQLite-vector adapter", () => {
 		// rather than materialized for the whole watchlist at construction time.
 		expect(lookupKeysForId).not.toHaveBeenCalled();
 		await index.ready();
-		expect(lookupKeysForId).toHaveBeenCalledTimes(2);
+		// Once per row for the content marker (keys are part of the index's
+		// identity) and once per row for the cold insert; one batch at a time.
+		expect(lookupKeysForId).toHaveBeenCalledTimes(4);
 
 		await expect(
 			index.lookupIds([{ namespace: "token", value: "salim" }], 1),

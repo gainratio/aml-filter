@@ -36,6 +36,46 @@ import {
 const PROFILE = process.env.LIVE_SMOKE_PROFILE ?? "";
 const EXPECT_SHA = process.env.LIVE_SMOKE_EXPECT_SHA ?? "";
 const PRIME_MARKER = ".live-smoke-prime.json";
+/** Set when the previous release's warm index is known stale (a marker-scheme
+ * change or a different signed list): the first load must REBUILD it. */
+const EXPECT_INDEX_REBUILD =
+	process.env.LIVE_SMOKE_EXPECT_INDEX_REBUILD === "1";
+
+interface IndexOpens {
+	readonly rebuilt: number;
+	readonly reused: number;
+}
+
+/** How many watchlist indexes this page rebuilt vs reused (see vectorIndex.ts). */
+async function indexOpens(page: Page): Promise<IndexOpens> {
+	return page.evaluate(() => {
+		const { amlIndexRebuilt, amlIndexReused } =
+			document.documentElement.dataset;
+		return {
+			rebuilt: Number(amlIndexRebuilt ?? 0),
+			reused: Number(amlIndexReused ?? 0),
+		};
+	});
+}
+
+/** Wait for the first index open, then require it to be a rebuild when one is expected. */
+async function expectIndexOpens(page: Page): Promise<IndexOpens> {
+	await expect
+		.poll(
+			async () => {
+				const opens = await indexOpens(page);
+				return opens.rebuilt + opens.reused;
+			},
+			{ timeout: 120_000 },
+		)
+		.toBeGreaterThan(0);
+	const opens = await indexOpens(page);
+	if (EXPECT_INDEX_REBUILD) {
+		expect(opens.reused, "a stale warm index must never be reused").toBe(0);
+		expect(opens.rebuilt).toBeGreaterThan(0);
+	}
+	return opens;
+}
 
 function requireProfile(): string {
 	if (PROFILE === "") {
@@ -149,12 +189,14 @@ test("@returning a visitor cached on the previous release reloads and screens", 
 		}
 		await page.goto("/screen", { waitUntil: "domcontentloaded" });
 		await bootScreen(page);
+		const firstLoad = await expectIndexOpens(page);
 		await page.reload({ waitUntil: "domcontentloaded" });
 		const evidence = await screenAndWorkstation(page, "returning");
+		const reload = await indexOpens(page);
 		await expectDeployedSha(page);
 		await expectCleanConsole(watch);
 		console.log(
-			`[live-smoke returning] cached opfs entries=${cached}; ${evidence}`,
+			`[live-smoke returning] cached opfs entries=${cached}; index first load rebuilt=${firstLoad.rebuilt} reused=${firstLoad.reused}; after reload rebuilt=${reload.rebuilt} reused=${reload.reused}; ${evidence}`,
 		);
 	} finally {
 		await context.close();

@@ -432,6 +432,7 @@ function buildLoadedFromMatrix(
 	version: string,
 	listId: string,
 	vectorIndexFactory?: AmlVectorIndexFactory,
+	bundleIdentity = "",
 ): LoadedWatchlist {
 	const ids = wireEntities.map((e) => e.entity_id);
 	const entities = new Map<string, Entity>();
@@ -449,6 +450,7 @@ function buildLoadedFromMatrix(
 				return entity === undefined ? [] : lexicalKeysForEntity(entity);
 			},
 			`aml-watchlist-${listId}`,
+			bundleIdentity,
 		),
 		entities,
 		version,
@@ -621,6 +623,10 @@ export interface BundleListFiles {
 	readonly vectorsF32: Uint8Array;
 	/** Raw bytes of `<slug>/meta.json` (the per-list BundleListMeta). */
 	readonly meta: Uint8Array;
+	/** The verified manifest hash the signed `/latest` pointer covers. It binds
+	 * the persistent warm index to this exact signed bundle, so ANY list change
+	 * (an alias-only one included) rebuilds the index instead of reusing it. */
+	readonly manifestHash: string;
 }
 
 /** Build browseable metadata without materializing the vector matrix. */
@@ -681,5 +687,6 @@ export function buildLoadedFromBundleFiles(
 		meta.version,
 		meta.listId,
 		vectorIndexFactory,
+		files.manifestHash,
 	);
 }

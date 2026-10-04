@@ -72,6 +72,9 @@ export async function buildRecallCorpus(
 			),
 			vectorsF32: vectorsToBytes(vectors),
 			meta: metaBytes(listId, listVersion, entities.length),
+			// No signed bundle exists here; the index marker still hashes every
+			// id, lookup key and vector, so this label only names the corpus.
+			manifestHash: `recall-corpus:${listId}@${listVersion}`,
 		},
 		createNodeSqliteVectorIndex,
 	);
