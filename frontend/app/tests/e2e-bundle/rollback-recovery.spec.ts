@@ -60,21 +60,19 @@ function chunkRequests(page: Page): () => number {
 }
 
 /**
- * Wait until the boot is PAST the signed sync: the model stage (or ready) only
- * begins after the bundle was verified and promoted, and a failure card means the
- * boot stopped somewhere. Returns the failure card's text, or "" when none.
+ * Wait until the boot is PAST the signed sync: ready, or a failure card meaning the
+ * boot stopped somewhere. (The model stage no longer marks the end of the sync: the
+ * model is built BEFORE the lists, to keep its WebAssembly allocation off the
+ * list-heavy heap that ran iPhone Safari out of memory.) Returns the failure
+ * card's text, or "" when none.
  */
 async function settlePastSync(page: Page): Promise<string> {
 	const card = page.locator(".screen-banner--error");
 	const search = page.getByPlaceholder("Search a name, e.g. Ivan Fakovich");
 	await expect
-		.poll(
-			async () =>
-				(await card.count()) > 0 ||
-				(await search.isEnabled()) ||
-				(await page.getByText("Loading the name-matching model").count()) > 0,
-			{ timeout: SYNC_TIMEOUT_MS },
-		)
+		.poll(async () => (await card.count()) > 0 || (await search.isEnabled()), {
+			timeout: SYNC_TIMEOUT_MS,
+		})
 		.toBe(true);
 	return (await card.count()) > 0 ? ((await card.textContent()) ?? "") : "";
 }

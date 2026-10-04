@@ -60,6 +60,29 @@ The Chromium C1 gate keeps post-boot JavaScript heap below **384 MiB** when the 
 available. This is a regression ceiling, not a claim about total RSS or WebAssembly
 memory; the physical iPhone acceptance run remains a separate release evidence item.
 
+## Boot order and the phone memory guard
+
+The engine builds the MiniLM/ONNX model **before** it downloads or indexes any
+signed list. onnxruntime-web makes its largest single WebAssembly allocation at model
+start; when that ran last, on top of the verified OFAC bytes and the in-memory SQLite
+index, iPhone Safari failed with `[wasm] RangeError: Out of memory` and the boot card
+read "Browser memory limit reached" (2026-10-03). Only the order moved: total residency
+and every score are unchanged. The sibling trade-off: a bad list signature no longer
+saves the ~23 MB model download, because the model is already built by then; boot is
+still fail-closed.
+
+Measured 2026-10-03 (Chromium, iPhone user agent, OFAC only, real bundle mirrored from
+aml-filter.com): WebAssembly memory at ready is about 166 MB (ORT 78, SQLite worker 72,
+bundle store 16). Renderer RSS after a forced GC dropped from 427-728 MB to 301-507 MB
+with the new order; run-to-run noise is large, so treat RSS as indicative only. This is
+Chromium on a desktop, not Safari: iPhone behaviour is still unmeasured.
+
+`pnpm --filter aml-filter-app test:e2e:memory` is the guard. It mirrors the real signed
+bundle, boots `/screen` as an iPhone, and asserts (1) the model file is requested before
+the first list chunk and (2) total WebAssembly memory in the page's workers stays under
+256 MiB. It needs the network once to mirror the bundle, so it is not part of
+`pnpm gate`.
+
 ## Shipped SQLite retrieval design
 
 `VectorIndex` calls `createSqliteVectorIndex` from

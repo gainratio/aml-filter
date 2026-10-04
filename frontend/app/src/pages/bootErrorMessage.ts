@@ -349,7 +349,7 @@ export function userFacingBootError(error: unknown): UserFacingBootError {
 		return {
 			title: "Browser memory limit reached",
 			recovery:
-				"Close other tabs, reload AML-Filter, and retry. On mobile, keep one screening tab open.",
+				"This device ran out of memory while starting the screening engine, so nothing was screened. Reload AML-Filter and retry; if it keeps happening on this phone or tablet, screen on a desktop browser.",
 			technicalDetail,
 		};
 	}

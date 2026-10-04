@@ -6,6 +6,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **iPhone Safari no longer starts the screening engine on top of the whole list.**
+  `/screen` failed on an iPhone with "Browser memory limit reached"
+  (`[wasm] RangeError: Out of memory`). The engine loaded the signed list and built
+  its in-memory SQLite index first, then asked onnxruntime-web for its largest
+  WebAssembly allocation. It now builds the model first. Scores and fail-closed
+  behaviour are unchanged. Reversed test contracts: a bad list signature no longer
+  avoids the model download, and the stage order is now loading-model, downloading,
+  verified, ready. The error card no longer blames other tabs; it says the device ran
+  out of memory and that nothing was screened. New `test:e2e:memory` guard asserts the
+  boot order and a 256 MiB WebAssembly ceiling over the real bundle. Not yet tested on
+  a real iPhone.
+
 ### Changed
 
 - **The owner's libraries move to their newest releases and new `@gainratio` names.**

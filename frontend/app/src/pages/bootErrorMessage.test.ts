@@ -33,8 +33,12 @@ describe("bootErrorMessage", () => {
 		);
 
 		expect(result.title).toBe("Browser memory limit reached");
-		expect(result.recovery).toMatch(/close other tabs/i);
+		// Honest about WHY and about what did not happen: the device ran out of
+		// memory (not necessarily because of other tabs), and no screen was run.
+		expect(result.recovery).toMatch(/ran out of memory/i);
+		expect(result.recovery).toMatch(/nothing was screened/i);
 		expect(result.recovery).toMatch(/reload/i);
+		expect(result.recovery).toMatch(/desktop/i);
 		expect(result.technicalDetail).toContain("WebAssembly.Memory.grow");
 	});
 
