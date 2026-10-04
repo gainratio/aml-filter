@@ -25,7 +25,7 @@ import {
 } from "./failedRequests";
 import { LIST_PROBES, type ListProbe, reviewBadgePattern } from "./probes";
 
-export { LIST_PROBES, type ListProbe, SCREEN_PROBE } from "./probes";
+export { type ListProbe, SCREEN_PROBE } from "./probes";
 
 async function fillProbeIdentifiers(
 	page: Page,
