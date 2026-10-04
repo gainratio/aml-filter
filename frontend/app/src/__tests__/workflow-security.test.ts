@@ -130,6 +130,36 @@ describe("mobile WebKit release gate", () => {
 	});
 });
 
+describe("memory budget gate", () => {
+	it("runs the persistent-index + wasm-budget lane inside the canonical gate", () => {
+		const root = JSON.parse(
+			readFileSync(join(repoRoot, "frontend", "package.json"), "utf8"),
+		) as { readonly scripts: Readonly<Record<string, string>> };
+		const app = JSON.parse(
+			readFileSync(join(repoRoot, "frontend", "app", "package.json"), "utf8"),
+		) as { readonly scripts: Readonly<Record<string, string>> };
+		const spec = readFileSync(
+			join(
+				repoRoot,
+				"frontend",
+				"app",
+				"tests",
+				"e2e-memory",
+				"boot-memory-budget.spec.ts",
+			),
+			"utf8",
+		);
+
+		expect(root.scripts.gate).toContain("run test:e2e:memory");
+		expect(app.scripts["test:e2e:memory"]).toContain(
+			"playwright.memory.config.ts",
+		);
+		expect(spec).toContain('"data-aml-index-storage"');
+		expect(spec).toContain("MIN_PERSISTED_INDEX_BYTES");
+		expect(spec).toContain("WASM_BUDGET_BYTES");
+	});
+});
+
 describe("the pin rule itself", () => {
 	it.each([
 		["a moving major tag", "actions/checkout@v7"],

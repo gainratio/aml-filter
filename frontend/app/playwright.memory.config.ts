@@ -4,8 +4,10 @@ import { defineConfig, devices } from "@playwright/test";
  * Phone-class memory guard over the production build with the REAL signed
  * bundle mirrored from aml-filter.com (`build:live`). The demo bundle is 64 KB, so
  * every other lane boots with almost nothing resident and cannot see an iPhone
- * out-of-memory. This lane needs the network once, to mirror the bundle, so it is
- * NOT part of `pnpm gate`; run it with `pnpm test:e2e:memory`.
+ * out-of-memory. This lane needs the network once, to mirror the bundle (CI has
+ * it: the gate also downloads the model), and IS part of `pnpm gate`, so the
+ * persistent-index and wasm-budget guards run on every PR. Run it alone with
+ * `pnpm test:e2e:memory`.
  *
  * Chromium with an iPhone user agent selects the phone scope (OFAC SDN only),
  * the same list set a real iPhone boots. It asserts a deterministic boot ORDER

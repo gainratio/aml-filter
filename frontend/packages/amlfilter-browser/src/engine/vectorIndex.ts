@@ -1,8 +1,13 @@
 // AML's watchlist-facing adapter over the shared SQLite + sqlite-vector
-// browser runtime. Each signed list is already durably cached in OPFS, so this
-// derived query index deliberately uses an isolated in-memory SQLite database:
-// one durable copy of the bundle, no stale per-version database files, and all
-// semantic scoring still runs through sqlite-vector in a Worker.
+// browser runtime. The derived query index lives in a persistent SQLite file on
+// OPFS with SQLite's own page cache sized to the device (memoryProfile "auto":
+// iOS gets the smallest cache), so the 48 MB index is NOT held in WebAssembly
+// heap next to the embedding model. Each list owns one database file (named by
+// list id) that is cleared and rebuilt on open, so no stale rows or per-version
+// files survive. In-memory SQLite is a last resort used only when OPFS cannot
+// open (private browsing, another tab owns the file); it is logged and exposed
+// through vectorIndexStorage() so the UI can say so. All semantic scoring still
+// runs through sqlite-vector in a Worker.
 
 import type { VectorIndex as SharedVectorIndex } from "@edgeproc/browser/vector";
 import {
@@ -18,6 +23,32 @@ export interface VectorHit {
 	readonly score: number;
 }
 
+/** Where the query index lives: pending, persistent OPFS, or the visible last-resort memory fallback. */
+export type VectorIndexStorage = "pending" | "opfs" | "memory-fallback";
+
+let storage: VectorIndexStorage = "pending";
+const storageListeners = new Set<() => void>();
+
+/** Current storage mode of the most recently opened index. */
+export function vectorIndexStorage(): VectorIndexStorage {
+	return storage;
+}
+
+/** useSyncExternalStore-compatible subscription to storage-mode changes. */
+export function subscribeVectorIndexStorage(listener: () => void): () => void {
+	storageListeners.add(listener);
+	return () => storageListeners.delete(listener);
+}
+
+function setStorage(next: VectorIndexStorage): void {
+	storage = next;
+	if (typeof document !== "undefined") {
+		document.documentElement.dataset.amlIndexStorage = next;
+	}
+	for (const listener of storageListeners) listener();
+}
+
+const DEFAULT_INDEX_NAME = "aml-watchlist";
 const INSERT_BATCH_SIZE = 512;
 const EMPTY_LOOKUP_KEYS: readonly SqliteLookupKey[] = [];
 
@@ -34,6 +65,38 @@ export type AmlVectorIndexFactory = (
 	options: SqliteVectorWorkerOptions,
 ) => Promise<AmlSqliteVectorIndex>;
 
+/** Persistent OPFS first; in-memory SQLite only if that cannot open, loudly. */
+async function openWithMemoryFallback(
+	factory: AmlVectorIndexFactory,
+	name: string,
+	dimension: number,
+): Promise<AmlSqliteVectorIndex> {
+	try {
+		const index = await factory({
+			name,
+			dimension,
+			persistence: "opfs",
+			memoryProfile: "auto",
+		});
+		setStorage("opfs");
+		return index;
+	} catch (cause) {
+		console.warn(
+			"AML vector index: OPFS unavailable, using the in-memory fallback (higher memory use)",
+			cause,
+		);
+		// The whole index lives in the heap here, so a capped profile would fail with SQLITE_NOMEM.
+		const index = await factory({
+			name,
+			dimension,
+			persistence: "memory",
+			memoryProfile: "full",
+		});
+		setStorage("memory-fallback");
+		return index;
+	}
+}
+
 /** Loaded, query-ready vector index over the decoded watchlist vectors. */
 export class VectorIndex {
 	readonly #dim: number;
@@ -49,6 +112,7 @@ export class VectorIndex {
 		factory: AmlVectorIndexFactory = createSqliteVectorIndex,
 		lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey> = () =>
 			EMPTY_LOOKUP_KEYS,
+		name: string = DEFAULT_INDEX_NAME,
 	) {
 		if (matrix.length !== ids.length * dim) {
 			throw new Error(
@@ -58,7 +122,7 @@ export class VectorIndex {
 		this.#ids = [...ids];
 		this.#dim = dim;
 		this.#factory = factory;
-		this.#ready = this.#initialize(matrix, ids, lookupKeysForId);
+		this.#ready = this.#initialize(matrix, ids, lookupKeysForId, name);
 	}
 
 	public get ntotal(): number {
@@ -133,13 +197,12 @@ export class VectorIndex {
 		matrix: Float32Array,
 		ids: ReadonlyArray<string>,
 		lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey>,
+		name: string,
 	): Promise<AmlSqliteVectorIndex> {
-		const index = await this.#factory({
-			name: "aml-watchlist",
-			dimension: this.#dim,
-			persistence: "memory",
-		});
+		const index = await openWithMemoryFallback(this.#factory, name, this.#dim);
 		try {
+			// A persistent file may hold rows from a previous session or version.
+			await index.clear();
 			for (let start = 0; start < ids.length; start += INSERT_BATCH_SIZE) {
 				const end = Math.min(start + INSERT_BATCH_SIZE, ids.length);
 				await index.insertKeyed(
