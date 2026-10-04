@@ -110,23 +110,27 @@ export function CustomerTableRow({
 	const reference = customer.customer_reference;
 	return (
 		<tr>
-			<td>{reference}</td>
-			<td>
+			<td data-label={t("list.columns.reference")}>{reference}</td>
+			<td data-label={t("list.columns.screening")}>
 				<ScreeningBadge summary={screening} />
 			</td>
-			<td>
+			<td data-label={t("list.columns.status")}>
 				<span className={statusBadgeClass(customer.onboarding_status)}>
 					{onboardingLabel(customer.onboarding_status, t)}
 				</span>
 			</td>
-			<td>
+			<td data-label={t("list.columns.risk")}>
 				<span className={riskBadgeClass(customer.kyc_risk_rating)}>
 					{kycRiskLabel(customer.kyc_risk_rating, t)}
 				</span>
 			</td>
-			<td>{actorLabel(customer.onboarded_by, t)}</td>
-			<td>{new Date(customer.created_at).toLocaleDateString()}</td>
-			<td className="table-cell-right">
+			<td data-label={t("list.columns.onboardedBy")}>
+				{actorLabel(customer.onboarded_by, t)}
+			</td>
+			<td data-label={t("list.columns.created")}>
+				{new Date(customer.created_at).toLocaleDateString()}
+			</td>
+			<td className="table-cell-right customer-row-actions-cell">
 				<fieldset
 					className="customer-row-actions"
 					aria-label={t("list.controls.actionsAria", { reference })}

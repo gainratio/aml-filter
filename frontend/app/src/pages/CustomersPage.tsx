@@ -646,7 +646,7 @@ export function CustomersPage() {
 					className="table-scroll"
 					aria-label={t("list.title", { total: customers.length })}
 				>
-					<table className="table">
+					<table className="table customers-table">
 						<thead>
 							<tr>
 								<th scope="col">{t("list.columns.reference")}</th>
