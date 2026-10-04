@@ -19,6 +19,12 @@ updates:
     ignore:
       - dependency-name: "@huggingface/transformers"
         versions: [">=4.3.0"]
+      # undici 8 requires Node >=22.19.0 and rejects Node 22's built-in fetch
+      # handler (InvalidArgumentError: invalid onRequestStart method,
+      # feedDispatcher.test.ts). Remove once frontend/.nvmrc moves to >=22.19
+      # and fetchWithTimeout.ts imports fetch from undici. Supersedes #172.
+      - dependency-name: "undici"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-npm:
         patterns: ["*"]
