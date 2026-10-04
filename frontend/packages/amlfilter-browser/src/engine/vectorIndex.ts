@@ -49,6 +49,13 @@ function setStorage(next: VectorIndexStorage): void {
 	for (const listener of storageListeners) listener();
 }
 
+/** Count each open's outcome on <html data-aml-index-rebuilt/-reused> so a live smoke can prove a returning visitor's stale index was rebuilt. */
+function countIndexOpen(outcome: "amlIndexRebuilt" | "amlIndexReused"): void {
+	if (typeof document === "undefined") return;
+	const { dataset } = document.documentElement;
+	dataset[outcome] = String(Number(dataset[outcome] ?? 0) + 1);
+}
+
 const DEFAULT_INDEX_NAME = "aml-watchlist";
 const INSERT_BATCH_SIZE = 512;
 const EMPTY_LOOKUP_KEYS: readonly SqliteLookupKey[] = [];
@@ -67,26 +74,72 @@ export type AmlVectorIndexFactory = (
 ) => Promise<AmlSqliteVectorIndex>;
 
 const MARKER_KEY = "content";
+/**
+ * Bumped whenever the marker's preimage changes. ea0db1b's marker covered ids
+ * and vectors but not the lookup keys, so an alias-only list update reused a
+ * stale index; the new scheme name guarantees every marker written before this
+ * fix mismatches and the index is rebuilt on the next load.
+ */
+const MARKER_SCHEME = "aml-index-marker/v2";
 
-/** SHA-256 over the verified vectors, ids and engine version: the identity of this index's content. */
+function toHex(digest: ArrayBuffer): string {
+	return Array.from(new Uint8Array(digest), (b) =>
+		b.toString(16).padStart(2, "0"),
+	).join("");
+}
+
+async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+	return toHex(await crypto.subtle.digest("SHA-256", bytes));
+}
+
+/** SHA-256 of the vector bytes, hashed in place (no full-matrix copy) unless the buffer is shared. */
+function vectorsDigest(matrix: Float32Array): Promise<string> {
+	const { buffer, byteOffset, byteLength } = matrix;
+	return sha256Hex(
+		buffer instanceof ArrayBuffer
+			? new Uint8Array(buffer, byteOffset, byteLength)
+			: new Uint8Array(buffer, byteOffset, byteLength).slice(),
+	);
+}
+
+/** One SHA-256 per insert batch of lookup keys, so keys are never held for the whole list at once. */
+async function lookupKeysDigests(
+	ids: ReadonlyArray<string>,
+	lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey>,
+): Promise<string[]> {
+	const encoder = new TextEncoder();
+	const digests: string[] = [];
+	for (let start = 0; start < ids.length; start += INSERT_BATCH_SIZE) {
+		const batch = ids
+			.slice(start, start + INSERT_BATCH_SIZE)
+			.map((id) => lookupKeysForId(id).map((k) => [k.namespace, k.value]));
+		digests.push(await sha256Hex(encoder.encode(JSON.stringify(batch))));
+	}
+	return digests;
+}
+
+/**
+ * The identity of this index's content: the verified bundle's manifest hash
+ * (so ANY signed list change forces a rebuild) plus, belt-and-braces, every
+ * row's id, lookup keys and vector bytes, the engine version and the scheme.
+ */
 async function contentMarker(
 	matrix: Float32Array,
 	ids: ReadonlyArray<string>,
 	dim: number,
+	lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey>,
+	bundleIdentity: string,
 ): Promise<string> {
-	const head = new TextEncoder().encode(
-		JSON.stringify([ENGINE_VERSION, dim, ids]),
-	);
-	const bytes = new Uint8Array(head.length + matrix.byteLength);
-	bytes.set(head);
-	bytes.set(
-		new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.byteLength),
-		head.length,
-	);
-	const digest = await crypto.subtle.digest("SHA-256", bytes);
-	return Array.from(new Uint8Array(digest), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	const preimage = JSON.stringify([
+		MARKER_SCHEME,
+		ENGINE_VERSION,
+		bundleIdentity,
+		dim,
+		ids,
+		await lookupKeysDigests(ids, lookupKeysForId),
+		await vectorsDigest(matrix),
+	]);
+	return sha256Hex(new TextEncoder().encode(preimage));
 }
 
 /** True only if every row, and nothing else, was written for this marker. Any doubt (including a corrupt file) is false. */
@@ -152,6 +205,7 @@ export class VectorIndex {
 		lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey> = () =>
 			EMPTY_LOOKUP_KEYS,
 		name: string = DEFAULT_INDEX_NAME,
+		bundleIdentity = "",
 	) {
 		if (matrix.length !== ids.length * dim) {
 			throw new Error(
@@ -161,7 +215,13 @@ export class VectorIndex {
 		this.#ids = [...ids];
 		this.#dim = dim;
 		this.#factory = factory;
-		this.#ready = this.#initialize(matrix, ids, lookupKeysForId, name);
+		this.#ready = this.#initialize(
+			matrix,
+			ids,
+			lookupKeysForId,
+			name,
+			bundleIdentity,
+		);
 	}
 
 	public get ntotal(): number {
@@ -237,11 +297,21 @@ export class VectorIndex {
 		ids: ReadonlyArray<string>,
 		lookupKeysForId: (id: string) => ReadonlyArray<SqliteLookupKey>,
 		name: string,
+		bundleIdentity: string,
 	): Promise<AmlSqliteVectorIndex> {
 		const index = await openWithMemoryFallback(this.#factory, name, this.#dim);
 		try {
-			const marker = await contentMarker(matrix, ids, this.#dim);
-			if (await holdsExactly(index, marker, ids.length)) return index;
+			const marker = await contentMarker(
+				matrix,
+				ids,
+				this.#dim,
+				lookupKeysForId,
+				bundleIdentity,
+			);
+			if (await holdsExactly(index, marker, ids.length)) {
+				countIndexOpen("amlIndexReused");
+				return index;
+			}
 			// Missing, mismatched or partial rows: rebuild, never serve stale ones.
 			await index.clear();
 			for (let start = 0; start < ids.length; start += INSERT_BATCH_SIZE) {
@@ -258,6 +328,7 @@ export class VectorIndex {
 					}),
 				);
 			}
+			countIndexOpen("amlIndexRebuilt");
 			return index;
 		} catch (error) {
 			await index.dispose();

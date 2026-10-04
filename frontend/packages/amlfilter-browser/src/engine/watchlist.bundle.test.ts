@@ -6,10 +6,13 @@
 // the SAME data built from the base64 JSON path (buildLoadedWatchlist), so the
 // bundle path changes nothing about the explainable score.
 
-import { describe, expect, it } from "vitest";
+import { FlatVectorIndex } from "@gainratio/browser/vector";
+import type { SqliteKeyedVectorRecord } from "@gainratio/browser/vector/sqlite";
+import { describe, expect, it, vi } from "vitest";
 import type { ScreenQuery } from "./domain";
 import type { Embedder } from "./embedder";
 import { createScreeningEngine } from "./screeningEngine";
+import type { AmlVectorIndexFactory } from "./vectorIndex";
 import {
 	type BundleListFiles,
 	buildLoadedFromBundleFiles,
@@ -100,6 +103,7 @@ function fixtureBundleFiles(): BundleListFiles {
 		entitiesJsonl: fixtureEntitiesJsonl(entities),
 		vectorsF32: fixtureVectorBytes(),
 		meta: fixtureMeta(entities.length),
+		manifestHash: "manifest-1",
 	};
 }
 
@@ -185,6 +189,71 @@ describe("buildLoadedFromBundleFiles — entities + vectors round trip", () => {
 		const hits = await loaded.index.search(q, 1);
 		expect(hits[0]?.id).toBe("OFAC_SDN:0001");
 		expect(hits[0]?.score).toBeCloseTo(1, 5);
+	});
+});
+
+/** One persistent index file shared across loads, as OPFS is across visits. */
+function sharedIndexFile() {
+	const db = new (class extends FlatVectorIndex {
+		public async insertKeyed(
+			records: ReadonlyArray<SqliteKeyedVectorRecord>,
+		): Promise<void> {
+			await this.insert(records);
+		}
+		public lookupIds(): Promise<ReadonlyArray<string>> {
+			return Promise.resolve([]);
+		}
+	})({ name: "x", dimension: DIM });
+	const insertKeyed = vi.spyOn(db, "insertKeyed");
+	const factory: AmlVectorIndexFactory = async () => db;
+	return { insertKeyed, factory };
+}
+
+describe("buildLoadedFromBundleFiles — warm index bound to the signed bundle", () => {
+	it("reuses the warm index for an identical bundle", async () => {
+		const { insertKeyed, factory } = sharedIndexFile();
+		await buildLoadedFromBundleFiles(
+			fixtureBundleFiles(),
+			factory,
+		).index.ready();
+		await buildLoadedFromBundleFiles(
+			fixtureBundleFiles(),
+			factory,
+		).index.ready();
+		expect(insertKeyed).toHaveBeenCalledTimes(1);
+	});
+
+	it("rebuilds when the verified manifest hash changes", async () => {
+		const { insertKeyed, factory } = sharedIndexFile();
+		await buildLoadedFromBundleFiles(
+			fixtureBundleFiles(),
+			factory,
+		).index.ready();
+		const next = { ...fixtureBundleFiles(), manifestHash: "manifest-2" };
+		await buildLoadedFromBundleFiles(next, factory).index.ready();
+		expect(insertKeyed).toHaveBeenCalledTimes(2);
+	});
+
+	it("rebuilds with the new alias's lookup keys after an alias-only update", async () => {
+		const { insertKeyed, factory } = sharedIndexFile();
+		await buildLoadedFromBundleFiles(
+			fixtureBundleFiles(),
+			factory,
+		).index.ready();
+		const entities = fixtureEntities().map((e, i) =>
+			i === 0 ? { ...e, aliases: ["vanya fakovich", "zorro"] } : e,
+		);
+		const next = {
+			...fixtureBundleFiles(),
+			entitiesJsonl: fixtureEntitiesJsonl(entities),
+		};
+		await buildLoadedFromBundleFiles(next, factory).index.ready();
+		expect(insertKeyed).toHaveBeenCalledTimes(2);
+		const written = insertKeyed.mock.calls[1]?.[0] ?? [];
+		const values = written.flatMap((r) =>
+			(r.lookupKeys ?? []).map((k) => k.value),
+		);
+		expect(values).toContain("zorro");
 	});
 });
 

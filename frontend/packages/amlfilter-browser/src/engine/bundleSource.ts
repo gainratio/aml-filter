@@ -350,6 +350,7 @@ export async function openBundleSource(
 				entitiesJsonl,
 				vectorsF32,
 				meta,
+				manifestHash: result.manifestHash,
 			});
 			if (loaded.version !== entry.version) {
 				throw new WatchlistFormatError(
