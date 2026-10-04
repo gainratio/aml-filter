@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, type Request } from "@playwright/test";
 
 /**
  * The post-deploy LIVE smoke — what a real visitor's browser sees on the
@@ -18,6 +18,10 @@ import { expect, type Page } from "@playwright/test";
  * The console must stay clean the whole way.
  */
 
+import {
+	type FailedRequestFacts,
+	isCompletedThenCancelled,
+} from "./failedRequests";
 import { LIST_PROBES, type ListProbe, reviewBadgePattern } from "./probes";
 
 export { LIST_PROBES, type ListProbe, SCREEN_PROBE } from "./probes";
@@ -42,6 +46,32 @@ const SEARCH_PLACEHOLDER = "Search a name, e.g. Ivan Fakovich";
 /** Everything the console said that a clean run must not contain. */
 export interface ConsoleWatch {
 	readonly problems: string[];
+	/** Resolves once every failed request seen so far has been classified. */
+	settled(): Promise<void>;
+}
+
+/** Read what Playwright knows about a failed request. */
+async function failedRequestFacts(
+	request: Request,
+): Promise<FailedRequestFacts> {
+	const response = await request.response().catch(() => null);
+	return {
+		errorText: request.failure()?.errorText ?? "unknown",
+		status: response?.status() ?? null,
+		responseEnd: request.timing().responseEnd,
+	};
+}
+
+/** Add a failed request to `problems` unless the browser merely cancelled it
+ * after the whole response had arrived (see failedRequests.ts). */
+async function recordFailedRequest(
+	request: Request,
+	problems: string[],
+): Promise<void> {
+	const facts = await failedRequestFacts(request);
+	if (!isCompletedThenCancelled(facts)) {
+		problems.push(`requestfailed: ${request.url()} (${facts.errorText})`);
+	}
 }
 
 /** Record every console error, uncaught exception, and failed same-origin
@@ -54,14 +84,14 @@ export function watchConsole(page: Page): ConsoleWatch {
 			problems.push(`console.error: ${message.text()}`);
 		}
 	});
+	const pending: Promise<void>[] = [];
 	page.on("requestfailed", (request) => {
 		const origin = new URL(page.url() || request.url()).origin;
 		if (request.url().startsWith(origin)) {
-			const reason = request.failure()?.errorText ?? "unknown";
-			problems.push(`requestfailed: ${request.url()} (${reason})`);
+			pending.push(recordFailedRequest(request, problems));
 		}
 	});
-	return { problems };
+	return { problems, settled: async () => void (await Promise.all(pending)) };
 }
 
 /** A first visit to the workstation asks for an analyst name (stored only in

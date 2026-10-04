@@ -57,7 +57,8 @@ async function persistentPage(
 	return { context, page: context.pages()[0] ?? (await context.newPage()) };
 }
 
-function expectCleanConsole(watch: ConsoleWatch): void {
+async function expectCleanConsole(watch: ConsoleWatch): Promise<void> {
+	await watch.settled();
 	expect(watch.problems, "the console must stay clean").toEqual([]);
 }
 
@@ -90,7 +91,7 @@ test("@fresh a first-time visitor screens every list on the live site", async ({
 	await enableEveryList(page);
 	const evidence = await screenAndWorkstation(page, "fresh");
 	await expectDeployedSha(page);
-	expectCleanConsole(watch);
+	await expectCleanConsole(watch);
 	testInfo.annotations.push({ type: "matches", description: evidence });
 	console.log(`[live-smoke fresh] ${evidence}`);
 });
@@ -151,7 +152,7 @@ test("@returning a visitor cached on the previous release reloads and screens", 
 		await page.reload({ waitUntil: "domcontentloaded" });
 		const evidence = await screenAndWorkstation(page, "returning");
 		await expectDeployedSha(page);
-		expectCleanConsole(watch);
+		await expectCleanConsole(watch);
 		console.log(
 			`[live-smoke returning] cached opfs entries=${cached}; ${evidence}`,
 		);
