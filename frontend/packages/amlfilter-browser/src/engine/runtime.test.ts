@@ -15,6 +15,7 @@ import {
 	defaultRuntimeDeps,
 	EngineRuntime,
 	MODEL_LOAD_IDLE_TIMEOUT_MS,
+	MODEL_READY_MARK,
 	modelLoadIdleTimeoutMs,
 	type RuntimeConfig,
 	type RuntimeDeps,
@@ -956,24 +957,130 @@ describe("EngineRuntime boot stages", () => {
 		// allocation on top of ~600 MB of resident list state, which is what ran
 		// iPhone Safari out of memory ("[wasm] RangeError: Out of memory"). The model
 		// must therefore be built while the tab is still empty.
+		// The property is that the warmup FINISHED (embedder ready) before the
+		// bundle opens — not merely that it started. The embed resolves on a later
+		// macrotask, so a runtime that kicks off the warmup and opens the bundle
+		// before awaiting it records "open-bundle" ahead of "embed-done".
 		const order: string[] = [];
 		const inner = bundleSourceOf([["OFAC_SDN", "test"]]);
 		const deps: RuntimeDeps = {
 			makeEmbedder: () => ({
 				embed: () => {
-					order.push("embed");
-					return Promise.resolve(new Float32Array(384));
+					order.push("embed-start");
+					return new Promise<Float32Array>((resolve) => {
+						setTimeout(() => {
+							order.push("embed-done");
+							resolve(new Float32Array(384));
+						}, 5);
+					});
 				},
 			}),
 			clearCache: () => Promise.resolve(),
 			openBundleSource: (...args) => {
 				order.push("open-bundle");
+				// The browser lane reads this mark when the first chunk is fetched.
+				readyMarkAtOpen =
+					performance.getEntriesByName(MODEL_READY_MARK).length > 0;
 				return inner(...args);
 			},
 		};
+		performance.clearMarks(MODEL_READY_MARK);
+		let readyMarkAtOpen = false;
 		await new EngineRuntime(deps).bootstrap(CONFIG, () => undefined);
-		expect(order.indexOf("embed")).toBeGreaterThanOrEqual(0);
-		expect(order.indexOf("embed")).toBeLessThan(order.indexOf("open-bundle"));
+		expect(
+			readyMarkAtOpen,
+			"model-ready mark set before the bundle opens",
+		).toBe(true);
+		expect(order.slice(0, 3)).toEqual([
+			"embed-start",
+			"embed-done",
+			"open-bundle",
+		]);
+	});
+
+	it("never blocks boot on navigator.storage.persist() (Firefox permission prompt)", async () => {
+		// Firefox answers persist() with a permission prompt and leaves the promise
+		// pending until the user clicks. Awaiting it hung /screen forever. The
+		// request is still made, but boot must reach the model and list stages
+		// without waiting for it.
+		const persist = vi.fn(() => new Promise<boolean>(() => undefined));
+		vi.stubGlobal("navigator", { storage: { persist } });
+		const deps: RuntimeDeps = {
+			makeEmbedder: instantModel,
+			clearCache: () => Promise.resolve(),
+			openBundleSource: bundleSourceOf([["OFAC_SDN", "test"]]),
+		};
+		const stages: BootStage[] = [];
+		const booted = new EngineRuntime(deps)
+			.bootstrap(CONFIG, (s) => stages.push(s))
+			.then(() => "booted" as const);
+		const hung = new Promise<"hung">((resolve) =>
+			setTimeout(() => resolve("hung"), 1_000),
+		);
+		expect(await Promise.race([booted, hung])).toBe("booted");
+		expect(persist).toHaveBeenCalledTimes(1);
+		expect(stages.map((s) => s.kind)).toEqual(
+			expect.arrayContaining(["loading-model", "downloading", "ready"]),
+		);
+	});
+
+	it("swallows a rejected persist() without an unhandled rejection", async () => {
+		// A plain function, not vi.fn: vi.fn attaches its own settle handler to a
+		// returned promise, which would mark the rejection handled and blind this.
+		let persistCalls = 0;
+		const persist = (): Promise<boolean> => {
+			persistCalls += 1;
+			return Promise.reject(new Error("denied"));
+		};
+		vi.stubGlobal("navigator", { storage: { persist } });
+		const unhandled: unknown[] = [];
+		const onUnhandled = (reason: unknown): void => {
+			unhandled.push(reason);
+		};
+		process.on("unhandledRejection", onUnhandled);
+		try {
+			const deps: RuntimeDeps = {
+				makeEmbedder: instantModel,
+				clearCache: () => Promise.resolve(),
+				openBundleSource: bundleSourceOf([["OFAC_SDN", "test"]]),
+			};
+			await new EngineRuntime(deps).bootstrap(CONFIG, () => undefined);
+			// Let any dangling rejection surface before checking.
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(persistCalls).toBe(1);
+			expect(unhandled).toEqual([]);
+		} finally {
+			process.off("unhandledRejection", onUnhandled);
+		}
+	});
+
+	it("boots when persist() throws synchronously", async () => {
+		// Some embedders throw (e.g. a SecurityError in an opaque origin) instead
+		// of returning a rejected promise.
+		const persist = (): Promise<boolean> => {
+			throw new Error("SecurityError");
+		};
+		vi.stubGlobal("navigator", { storage: { persist } });
+		const deps: RuntimeDeps = {
+			makeEmbedder: instantModel,
+			clearCache: () => Promise.resolve(),
+			openBundleSource: bundleSourceOf([["OFAC_SDN", "test"]]),
+		};
+		const stages: BootStage[] = [];
+		await new EngineRuntime(deps).bootstrap(CONFIG, (s) => stages.push(s));
+		expect(stages.at(-1)).toEqual({ kind: "ready" });
+	});
+
+	it("boots where navigator.storage is absent", async () => {
+		vi.stubGlobal("navigator", {});
+		const deps: RuntimeDeps = {
+			makeEmbedder: instantModel,
+			clearCache: () => Promise.resolve(),
+			openBundleSource: bundleSourceOf([["OFAC_SDN", "test"]]),
+		};
+		const stages: BootStage[] = [];
+		await new EngineRuntime(deps).bootstrap(CONFIG, (s) => stages.push(s));
+		expect(stages.at(-1)).toEqual({ kind: "ready" });
 	});
 
 	const instantModel = (): Embedder => ({

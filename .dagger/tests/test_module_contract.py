@@ -2920,3 +2920,25 @@ def test_should_skip_the_onnxruntime_cuda_download_when_dependencies_install(
     install = events.index("exec:pnpm install --frozen-lockfile")
     skip = events.index("env:ONNXRUNTIME_NODE_INSTALL=skip")
     assert skip < install
+
+
+def test_should_install_edge_for_the_browser_matrix_only_where_it_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: Microsoft ships Edge for linux/amd64 only. `playwright install msedge`
+    # exits 1 ("not supported on Linux Arm64") in the arm64 Dagger engine on Apple
+    # Silicon, so the install is arch-guarded; the matrix lane skips Edge when absent.
+    subject, events = smoke_recorder(monkeypatch)
+    monkeypatch.setattr(AmlFilter, "_with_uv", lambda _subject, container: container)
+
+    # When
+    subject.quality()
+
+    # Then
+    engines = "exec:pnpm --filter aml-filter-app exec playwright install --with-deps"
+    edge = next(event for event in events if "msedge" in event)
+    assert f"{engines} chromium firefox webkit" in events
+    assert edge.startswith("exec:sh -c ")
+    assert 'if [ "$(uname -m)" = x86_64 ]' in edge
+    assert "playwright install --with-deps msedge" in edge
+    assert events.index(edge) < events.index("exec:pnpm run gate")

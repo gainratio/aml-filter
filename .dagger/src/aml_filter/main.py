@@ -81,6 +81,15 @@ QUALITY_CACHES: Final = (
 PLAYWRIGHT_INSTALL: Final = split(
     "pnpm --filter aml-filter-app exec playwright install --with-deps chromium firefox webkit"
 )
+# Microsoft ships Edge for linux/amd64 only: `playwright install msedge` exits 1 with
+# "not supported on Linux Arm64" in the arm64 Dagger engine on Apple Silicon. CI runs
+# on amd64, so the browser-matrix Edge lane runs there; elsewhere it skips with a reason.
+PLAYWRIGHT_EDGE_INSTALL: Final = [
+    "sh",
+    "-c",
+    'if [ "$(uname -m)" = x86_64 ]; then '
+    "pnpm --filter aml-filter-app exec playwright install --with-deps msedge; fi",
+]
 APP_BUILD: Final = split("pnpm --filter aml-filter-app run build")
 # pnpm splits the audit by dependency type from the lockfile. `--prod` covers what ships
 # (the browser bundle, the publisher runtime) and runs inside the authorizing Dagger
@@ -626,6 +635,7 @@ class AmlFilter:
         container = mount_caches(self._with_uv(self._node(self.source)), QUALITY_CACHES)
         container = container.with_exec(["uv", "sync", "--project", "../eval", "--frozen"])
         container = container.with_exec(PLAYWRIGHT_INSTALL)
+        container = container.with_exec(PLAYWRIGHT_EDGE_INSTALL)
         return container.with_exec(["pnpm", "run", "gate"])
 
     @function
