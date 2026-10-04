@@ -4,6 +4,7 @@
 // fetch (keyed file + non-OK failure).
 
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { rejectionAfterBackoff } from "./backoffTestClock.ts";
 import { UN_RAW_FILE, unSource } from "./unSource.ts";
 
 const EDGE_XML = [
@@ -98,8 +99,7 @@ describe("unSource.fetchRaw", () => {
 			),
 		);
 		// Raised by the shared fetch seam now; assert the STATUS, not the prose.
-		await expect(unSource.fetchRaw()).rejects.toThrow(
-			"failed: 500 Server Error",
-		);
+		const error = await rejectionAfterBackoff(() => unSource.fetchRaw());
+		expect(error.message).toContain("failed: 500 Server Error");
 	});
 });

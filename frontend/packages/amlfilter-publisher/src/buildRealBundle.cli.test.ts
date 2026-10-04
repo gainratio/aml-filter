@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { BUNDLE_SOURCES, runRealBundle } from "./buildRealBundle.ts";
+import { rejectionAfterBackoff } from "./sources/backoffTestClock.ts";
 
 const state = vi.hoisted(() => ({
 	publishCalls: [] as {
@@ -158,7 +159,8 @@ describe("runRealBundle with a required feed down", () => {
 		);
 		const dir = await mkdtemp(join(tmpdir(), "aml-real-cli-"));
 		try {
-			await expect(
+			// A connection error is retried with real backoff; fast-forward it.
+			const error = await rejectionAfterBackoff(() =>
 				runRealBundle([
 					"--version",
 					"v1",
@@ -171,7 +173,8 @@ describe("runRealBundle with a required feed down", () => {
 					"--models",
 					join(dir, "models"),
 				]),
-			).rejects.toThrow(/OFAC_SDN.*required feed.*network down/i);
+			);
+			expect(error.message).toMatch(/OFAC_SDN.*required feed.*network down/i);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
