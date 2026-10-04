@@ -20,11 +20,12 @@
 // `pnpm build && vite preview` webServer stages it too; the staged files are
 // git-ignored like the model weights.
 //
-// Only the `asyncify` pair is staged: with no COOP/COEP (crossOriginIsolated is
-// false on localhost previews AND on aml-filter.com — see public/_headers), the
-// wasm execution provider always selects the asyncify build. If onnxruntime-web
-// ever asks for a different variant, the cold-blocked e2e fails loudly and this
-// list grows.
+// Only the plain (non-asyncify) pair is staged: embedder.ts names it explicitly
+// as `wasmPaths = { mjs, wasm }`. The asyncify build exists for the WebGPU EP,
+// which this app never uses, and since onnxruntime-web 1.31 its .wasm (26.9 MB)
+// is over the Cloudflare Pages 25 MiB per-file limit. If onnxruntime-web ever
+// asks for a different variant, the cold-blocked e2e fails loudly and this list
+// grows.
 
 import { copyFile, mkdir, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -33,8 +34,8 @@ import { fileURLToPath } from "node:url";
 
 /** The runtime files onnxruntime-web requests from `wasmPaths` at runtime. */
 export const ORT_RUNTIME_FILES = Object.freeze([
-	"ort-wasm-simd-threaded.asyncify.mjs",
-	"ort-wasm-simd-threaded.asyncify.wasm",
+	"ort-wasm-simd-threaded.mjs",
+	"ort-wasm-simd-threaded.wasm",
 ]);
 
 const here = dirname(fileURLToPath(import.meta.url));
