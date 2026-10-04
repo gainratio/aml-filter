@@ -19,6 +19,7 @@ import { expect, type Page, type Request } from "@playwright/test";
  * The console must stay clean the whole way.
  */
 
+import { isExcusedConsoleError } from "./consoleNoise";
 import {
 	type FailedRequestFacts,
 	isExcusedFailedRequest,
@@ -88,14 +89,46 @@ async function recordFailedRequest(
 	}
 }
 
+/** The page's origin, or "null" before it has one (about:blank). */
+function pageOrigin(page: Page): string {
+	try {
+		return new URL(page.url()).origin;
+	} catch {
+		return "null";
+	}
+}
+
+/** A main-frame navigation the page is in the middle of (request sent, new
+ * document not yet DOMContentLoaded): WebKit's teardown noise lands here. */
+function trackNavigation(page: Page): () => boolean {
+	let navigating = false;
+	page.on("request", (request) => {
+		if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+			navigating = true;
+		}
+	});
+	page.on("domcontentloaded", () => {
+		navigating = false;
+	});
+	return () => navigating;
+}
+
 /** Record every console error, uncaught exception, and failed same-origin
- * request for the lifetime of the page. */
+ * request for the lifetime of the page (see consoleNoise.ts for the one
+ * excused WebKit line). */
 export function watchConsole(page: Page): ConsoleWatch {
 	const problems: string[] = [];
+	const duringNavigation = trackNavigation(page);
 	page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
 	page.on("console", (message) => {
-		if (message.type() === "error") {
-			problems.push(`console.error: ${message.text()}`);
+		if (message.type() !== "error") return;
+		const facts = {
+			text: message.text(),
+			pageOrigin: pageOrigin(page),
+			duringNavigation: duringNavigation(),
+		};
+		if (!isExcusedConsoleError(facts)) {
+			problems.push(`console.error: ${facts.text}`);
 		}
 	});
 	const pending: Promise<void>[] = [];

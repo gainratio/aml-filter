@@ -210,9 +210,13 @@ test("@returning a visitor cached on the previous release reloads and screens", 
 		baseURL ?? "",
 	);
 	try {
-		const watch = watchConsole(page);
+		// A plain-text, app-free page just to read this origin's OPFS. Watch the
+		// console only AFTER it: WebKit styles a text/plain document with its own
+		// inline stylesheet, which `style-src 'self'` (public/_headers) refuses
+		// with a console error. That is the browser's viewer, not the app.
 		await page.goto("/robots.txt");
 		const cached = await opfsEntryCount(page);
+		const watch = watchConsole(page);
 		if (primed) {
 			const marker = readFileSync(markerPath, "utf8");
 			expect(
