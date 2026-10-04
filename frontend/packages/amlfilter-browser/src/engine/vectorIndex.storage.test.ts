@@ -1,5 +1,5 @@
-import { FlatVectorIndex } from "@edgeproc/browser/vector";
-import { createSqliteVectorIndex } from "@edgeproc/browser/vector/sqlite";
+import { FlatVectorIndex } from "@gainratio/browser/vector";
+import { createSqliteVectorIndex } from "@gainratio/browser/vector/sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type AmlVectorIndexFactory,

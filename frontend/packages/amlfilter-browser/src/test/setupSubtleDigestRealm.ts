@@ -4,8 +4,8 @@ import { vi } from "vitest";
 // shared package owns browser tests for the real SQLite/sqlite-vector assets;
 // here we replace only that environment boundary with its contract-compatible
 // exact in-memory adapter. Product builds never load this setup file.
-vi.mock("@edgeproc/browser/vector/sqlite", async () => {
-	const { FlatVectorIndex } = await import("@edgeproc/browser/vector");
+vi.mock("@gainratio/browser/vector/sqlite", async () => {
+	const { FlatVectorIndex } = await import("@gainratio/browser/vector");
 	class TestSqliteVectorIndex extends FlatVectorIndex {
 		readonly #lookupRows: Array<{
 			readonly id: string;

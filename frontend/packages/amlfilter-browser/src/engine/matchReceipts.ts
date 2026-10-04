@@ -16,7 +16,7 @@
 // the fail-closed control that guards the signed watchlist bundle, and the
 // screening path must not go dark because provenance is unavailable.
 
-import { canonicalBytes, type JsonValue, sha256Hex } from "@edgeproc/browser";
+import { canonicalBytes, type JsonValue, sha256Hex } from "@gainratio/browser";
 import type { Match, ScreenQuery } from "./domain";
 import {
 	defaultKeyStorage,

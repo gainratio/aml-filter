@@ -18,42 +18,43 @@ import {
 	syncIndex,
 	verifyEd25519,
 	verifyPlaintext,
-} from "@edgeproc/browser";
-import { assertVectorIndexConformance } from "@edgeproc/browser/vector";
+} from "@gainratio/browser";
+import { assertVectorIndexConformance } from "@gainratio/browser/vector";
 import {
 	createSqliteVectorIndex,
 	SqliteVectorIndexClient,
-} from "@edgeproc/browser/vector/sqlite";
+} from "@gainratio/browser/vector/sqlite";
 import { describe, expect, it } from "vitest";
 import workspaceText from "../../../../pnpm-workspace.yaml?raw";
 import packageJsonText from "../../package.json?raw";
 import vectorIndexSource from "./vectorIndex.ts?raw";
 
-const EDGE_PROC_BROWSER_REVISION =
-	"github:hseshadr/edgeproc-browser#36ab30a58225e593927a852d47005bbe9ad79f5b";
+// Contract reversed (2026-10-04): this used to pin an exact public Git commit.
+// The app now tracks our library's latest npm release through a caret range
+// with no upper cap; the committed lockfile fixes what a deploy actually builds.
+const GAINRATIO_BROWSER_RANGE = "^0.2.0";
 const PUBLIC_IMPORTS = [
-	"@edgeproc/browser",
-	"@edgeproc/browser/vector",
-	"@edgeproc/browser/vector/sqlite",
+	"@gainratio/browser",
+	"@gainratio/browser/vector",
+	"@gainratio/browser/vector/sqlite",
 ];
 
-describe("@edgeproc/browser consumer dependency", () => {
-	it("pins the standalone package to the reviewed public commit", () => {
+describe("@gainratio/browser consumer dependency", () => {
+	it("takes the standalone package from npm by caret range, not a Git pin", () => {
 		const manifest = JSON.parse(packageJsonText) as {
 			dependencies?: Record<string, string>;
 		};
 
-		expect(manifest.dependencies?.["@edgeproc/browser"]).toBe(
-			EDGE_PROC_BROWSER_REVISION,
+		expect(manifest.dependencies?.["@gainratio/browser"]).toBe(
+			GAINRATIO_BROWSER_RANGE,
 		);
-		expect(workspaceText).not.toContain('"@edgeproc/browser": "link:');
+		expect(manifest.dependencies?.["@edgeproc/browser"]).toBeUndefined();
+		expect(workspaceText).not.toContain('"@gainratio/browser": "link:');
 	});
 
 	it("resolves both public entrypoints from the installed standalone package", () => {
 		for (const packageImport of PUBLIC_IMPORTS) {
 			const resolved = import.meta.resolve(packageImport);
-			// The dependency key stays @edgeproc/browser; since 0.1.1 the package
-			// itself is named @gainratio/browser, so pnpm's real path carries that name.
 			expect(resolved).toContain("/node_modules/@gainratio/browser/dist/");
 			expect(resolved).not.toContain("/oss/edgeproc-browser/dist/");
 			expect(resolved).not.toContain("/amlfilter-browser/src/");
@@ -97,7 +98,7 @@ describe("@edgeproc/browser consumer dependency", () => {
 		expect(createSqliteVectorIndex).toEqual(expect.any(Function));
 		expect(SqliteVectorIndexClient).toEqual(expect.any(Function));
 		expect(assertVectorIndexConformance).toEqual(expect.any(Function));
-		expect(vectorIndexSource).toContain("@edgeproc/browser/vector/sqlite");
+		expect(vectorIndexSource).toContain("@gainratio/browser/vector/sqlite");
 		expect(vectorIndexSource).not.toContain("PackedVectorIndex");
 	});
 });

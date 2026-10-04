@@ -3,7 +3,7 @@
 // Double-Metaphone keys; SQLite owns postings, document-frequency filtering,
 // and deterministic id lookup. Final scoring remains unchanged.
 
-import type { SqliteLookupKey } from "@edgeproc/browser/vector/sqlite";
+import type { SqliteLookupKey } from "@gainratio/browser/vector/sqlite";
 import type { Entity } from "./domain";
 import { phoneticKeys, tokenSetSimilarity } from "./fuzzyText";
 import type { VectorIndex } from "./vectorIndex";

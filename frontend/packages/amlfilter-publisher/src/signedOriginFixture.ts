@@ -24,7 +24,7 @@ const ENCODER = new TextEncoder();
  * Production chunks are compressed by `edgeproc publish`, whose zstd encoder is
  * not resolvable from this package. A raw-block frame is still one legitimate
  * frame that bindingly declares its Frame_Content_Size, so the CLIENT decode
- * path (`decompressAndVerify`, through @edgeproc/browser) accepts and decodes it
+ * path (`decompressAndVerify`, through @gainratio/browser) accepts and decodes it
  * exactly as it does a compressed chunk — which is the path under test.
  */
 export function zstdRawFrame(plaintext: Uint8Array): Uint8Array {

@@ -24,7 +24,7 @@ import {
 	type SyncResult,
 	syncIndex,
 	verifyEd25519,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type BundleEngineClient,

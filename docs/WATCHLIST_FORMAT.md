@@ -46,7 +46,7 @@ aborts the load with no silent empty list.
 
 The trust anchor: a detached Ed25519 signature over the canonical bytes of the object
 **excluding** `signature`. Source of truth:
-`@edgeproc/browser`'s public `VersionPointer` contract.
+`@gainratio/browser`'s public `VersionPointer` contract.
 
 ```json
 {
@@ -76,7 +76,7 @@ once to a sequenced pointer; new incoming pointers must carry a valid sequence.
 ## `manifest/<manifest_hash>` — the `IndexManifest`
 
 Authenticated by its **content hash**, not an embedded signature. Source of truth:
-`@edgeproc/browser`'s public `IndexManifest`, `FileEntry`, and `ChunkRef` contracts.
+`@gainratio/browser`'s public `IndexManifest`, `FileEntry`, and `ChunkRef` contracts.
 
 ```json
 {

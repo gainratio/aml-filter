@@ -1,7 +1,7 @@
 # Browser memory architecture
 
 **TL;DR.** AML-Filter uses SQLite for two separate jobs without mixing their trust
-boundaries. Public retrieval runs in a Worker through `@edgeproc/browser`, SQLite 3.53.4
+boundaries. Public retrieval runs in a Worker through `@gainratio/browser`, SQLite 3.53.4
 (the latest stable release when this contract was updated), and sqlite-vector 1.1.2;
 each immutable signed list gets one derived in-memory database containing vectors and
 bounded exact token/Double-Metaphone postings. The verified bundle remains durably
@@ -86,7 +86,7 @@ the first list chunk and (2) total WebAssembly memory in the page's workers stay
 ## Shipped SQLite retrieval design
 
 `VectorIndex` calls `createSqliteVectorIndex` from
-`@edgeproc/browser/vector/sqlite`. The shared runtime packages SQLite 3.53.4 with the
+`@gainratio/browser/vector/sqlite`. The shared runtime packages SQLite 3.53.4 with the
 Apache-2.0 sqlite-vector 1.1.2 extension and executes it in a Worker. AML inserts decoded
 vectors and namespaced canonical-token/Double-Metaphone keys in bounded batches and
 requests `persistence: "memory"`; consequently each loaded immutable list has its own
@@ -121,7 +121,7 @@ loaded carelessly. The app therefore:
 - uses one-list-at-a-time vector residency on mobile, unknown-memory devices, and
   desktops reporting 8 GB or less;
 - delegates signed-bundle transport, verification, cross-tab locking, and durable
-  storage to `@edgeproc/browser` pinned to a reviewed public commit;
+  storage to `@gainratio/browser` from npm (tracks the latest release);
 - disposes the old engine before a reload, then builds and swaps the replacement;
 - prevents overlapping update checks and clears recurring timers on unmount.
 

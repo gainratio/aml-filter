@@ -14,7 +14,7 @@
 //
 // Primary entry point: EngineRuntime.bootstrap() → MultiListScreeningEngine.
 
-export { EngineOperationError } from "@edgeproc/browser";
+export { EngineOperationError } from "@gainratio/browser";
 // --- Assay additive score composition and policy decision contract ---
 export {
 	calculateAssayScore,

@@ -19,7 +19,7 @@ import {
 	canonicalBytes,
 	type JsonValue,
 	type VersionPointer,
-} from "@edgeproc/browser";
+} from "@gainratio/browser";
 import type { Entity } from "./domain";
 import type { Preset, ScoringQuery } from "./scoring";
 
