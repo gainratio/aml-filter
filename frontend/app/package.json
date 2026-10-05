@@ -14,6 +14,7 @@
 		"gen:stats": "node scripts/gen-demo-stats.mjs",
 		"prebuild": "pnpm run stage:assets",
 		"build": "tsc --noEmit && vite build",
+		"postbuild": "node scripts/check-pages-limits.mjs dist",
 		"test:contract": "node --test scripts/canonical-worker.test.mjs",
 		"preview": "vite preview",
 		"lint": "biome check .",
