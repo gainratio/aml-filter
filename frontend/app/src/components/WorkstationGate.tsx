@@ -20,7 +20,12 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "../lib/formatBytes";
-import { checkForWatchlistUpdates, syncToAnnounce } from "../lib/sync";
+import {
+	checkForWatchlistUpdates,
+	onUserSyncReport,
+	syncToAnnounce,
+	wasReportedToUser,
+} from "../lib/sync";
 import {
 	retainWorkstationRuntime,
 	type WorkstationHandle,
@@ -249,7 +254,9 @@ function EngineStatusStrip() {
 				// re-screened someone) gets a banner; the first-ever list load is a
 				// baseline and stays silent beside the onboarding alert.
 				const result = await syncToAnnounce(handle);
-				if (!cancelled && result !== null) {
+				// The user's own "Check for updates" may already have reported this
+				// same (shared) run: one re-screen gets one banner.
+				if (!cancelled && result !== null && !wasReportedToUser(result)) {
 					setAutoSync(result);
 				}
 			})
@@ -257,6 +264,15 @@ function EngineStatusStrip() {
 				if (!cancelled) setError(bootError ?? new Error("engine boot failed"));
 			});
 	}, []);
+
+	// A click that reports the run this banner shows takes over: step aside.
+	useEffect(
+		() =>
+			onUserSyncReport((reported) => {
+				setAutoSync((shown) => (shown === reported ? null : shown));
+			}),
+		[],
+	);
 
 	useEffect(() => {
 		startBoot();

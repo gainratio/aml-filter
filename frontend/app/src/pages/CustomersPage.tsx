@@ -27,7 +27,7 @@ import {
 	createCustomerExportFile,
 	readCustomerImportFile,
 } from "../lib/customerTransfer";
-import { checkForWatchlistUpdates, syncSummaryText } from "../lib/sync";
+import { checkForWatchlistUpdates, reportUserSync } from "../lib/sync";
 import { useLoadedListVersion } from "../lib/useLoadedListVersion";
 import { workstation } from "../lib/workstation";
 import {
@@ -245,7 +245,7 @@ export function CustomersPage() {
 				setSyncMessage(t("sync.enginePending"));
 				return;
 			}
-			setSyncMessage(syncSummaryText(result));
+			setSyncMessage(reportUserSync(result));
 			setLastSynced({ version: result.version, at: new Date().toISOString() });
 			await loadCustomers();
 		} catch (err) {

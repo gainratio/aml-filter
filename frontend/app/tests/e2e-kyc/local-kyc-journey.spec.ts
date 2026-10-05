@@ -240,11 +240,10 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	// "Watchlist updated: re-screened N customer(s)" proves it: the poll can win the
 	// race against the click, after which the click correctly says "already current"
 	// (seen in the trace of a failed run). The OFAC_SDN@demo-2 stamp below is the
-	// assertion that the new publish genuinely loaded. BOTH banners can be on screen
-	// at once (CI run 37240578597 hit a strict-mode violation), so take the first.
-	await expect(
-		page.getByText(/re-screened \d+ customer\(s\)/i).first(),
-	).toBeVisible({
+	// assertion that the new publish genuinely loaded. When the poll and the click
+	// share one re-screen, the user sees ONE banner (CI run 37240578597 once showed
+	// both); the strict locator below fails if two are ever on screen again.
+	await expect(page.getByText(/re-screened \d+ customer\(s\)/i)).toBeVisible({
 		timeout: 120_000,
 	});
 	// The UI now reports the advanced composite stamp as the last-synced version:

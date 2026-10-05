@@ -83,6 +83,40 @@ export async function checkForWatchlistUpdates(
 	return handle.rescan.syncWatchlist(published);
 }
 
+/**
+ * One re-screen, one banner. RescanService collapses concurrent syncWatchlist
+ * calls into one in-flight run, so the gate's background sync and a "Check for
+ * updates" click can receive the SAME result object. The click is the user's
+ * own question, so it always reports; the background banner for that same run
+ * stays silent (or steps aside if it is already up).
+ */
+const reportedToUser = new WeakSet<SyncResult>();
+const userReportListeners = new Set<(result: SyncResult) => void>();
+
+/** Report a sync the user asked for; returns the summary line to show. */
+export function reportUserSync(result: SyncResult): string {
+	reportedToUser.add(result);
+	for (const listener of userReportListeners) {
+		listener(result);
+	}
+	return syncSummaryText(result);
+}
+
+/** True when the user's own check already reported this exact sync run. */
+export function wasReportedToUser(result: SyncResult): boolean {
+	return reportedToUser.has(result);
+}
+
+/** Subscribe to user-reported syncs; returns the unsubscribe function. */
+export function onUserSyncReport(
+	listener: (result: SyncResult) => void,
+): () => void {
+	userReportListeners.add(listener);
+	return () => {
+		userReportListeners.delete(listener);
+	};
+}
+
 /** Plain-language one-liner for a completed sync — shared by every surface. */
 export function syncSummaryText(result: SyncResult): string {
 	if (!result.changed) {
