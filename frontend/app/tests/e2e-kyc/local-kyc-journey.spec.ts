@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Route, test } from "@playwright/test";
 import * as XLSX from "xlsx";
+import { isRecoveredPoolContention } from "./consoleNoise";
 
 /**
  * The local-first KYC workstation slice journey, end-to-end with no backend:
@@ -79,7 +80,9 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 		consoleErrors.push(`pageerror: ${err.message}`),
 	);
 	page.on("console", (msg) => {
-		if (msg.type() === "error")
+		// The vector pool's retried reload contention is logged, not an error
+		// (see consoleNoise.ts); step 12 proves the index still opened.
+		if (msg.type() === "error" && !isRecoveredPoolContention(msg.text()))
 			consoleErrors.push(`console.error: ${msg.text()}`);
 	});
 
@@ -593,8 +596,11 @@ test("local-first journey: no login → onboard → tiered match → resolve →
 	await expect(persistedRow).toContainText(RE_REVIEW_NOTES);
 
 	// =======================================================================
-	// 12. Console hygiene: zero browser errors across the entire journey.
+	// 12. Console hygiene: zero browser errors across the entire journey, and
+	//     the search index never fell back to memory (so any excused vector-pool
+	//     contention really did recover).
 	// =======================================================================
+	await expect(page.getByText(/Low-memory mode/)).toHaveCount(0);
 	expect(
 		consoleErrors,
 		`browser console errors:\n${consoleErrors.join("\n")}`,
