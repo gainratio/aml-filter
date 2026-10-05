@@ -74,13 +74,19 @@ overrides:
   nanoid: ">=3.3.17 <4"
   "undici@>=7.28.0 <7.29.1": "7.29.1"
 
-# Backport of SQLite check-in 9168a6f1be (forum b2fbb61642, 2026-09-30) into the
-# opfs-sahpool VFS that holds the workstation's KYC database. Unpatched, its
-# xCheckReservedLock always reports a RESERVED lock, so SQLite never rolls back a
-# hot journal: a tab killed mid-transaction leaves a torn database that
-# integrity_check still calls "ok". No npm build carries the fix yet (3.53.4-build2
-# is cut from a 2026-07-24 source). Drop this patch when the dependency is bumped
-# to a build that includes the check-in; pnpm fails the install on an unused patch,
-# and tests/e2e-kyc/sahpool-crash-rollback.spec.ts goes red on an unfixed build.
+# Backport of three SQLite check-ins into the opfs-sahpool VFS that holds the
+# workstation's KYC database (ext/wasm/api/sqlite3-vfs-opfs-sahpool.c-pp.js):
+#   9168a6f1be (GitHub a614ce42, forum b2fbb61642) xCheckReservedLock read a
+#     hard-coded RESERVED lock, so SQLite never rolled back a hot journal: a tab
+#     killed mid-transaction left a torn database integrity_check called "ok".
+#   9e2caaa382 (GitHub 3b28aa1c) a per-path lock table, so a second handle on the
+#     same file gets SQLITE_BUSY; releaseAccessHandles clears both maps.
+#   c9dd4d88e4 (GitHub cdbfe6a9, forum 3f0794c5d8) xSleep is a no-op: now that
+#     xLock can return BUSY, an inherited sleeping xSleep froze the worker for the
+#     whole busy_timeout.
+# No npm build carries them yet (3.53.4-build2 is cut from a 2026-07-24 source).
+# Drop this patch when the dependency is bumped to a build that includes all
+# three; pnpm fails the install on an unused patch, and
+# tests/e2e-kyc/sahpool-crash-rollback.spec.ts goes red on an unfixed build.
 patchedDependencies:
   '@sqlite.org/sqlite-wasm@3.53.4-build2': patches/@sqlite.org__sqlite-wasm@3.53.4-build2.patch

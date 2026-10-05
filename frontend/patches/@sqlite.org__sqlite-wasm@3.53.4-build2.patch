@@ -1,5 +1,5 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 5e6e43b..f55a336 100644
+index 5e6e43b..af3d9d9 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -15872,7 +15872,11 @@ async function sqlite3InitModule$1(moduleArg = {}) {
@@ -42,34 +42,58 @@ index 5e6e43b..f55a336 100644
  					return 0;
  				},
  				xWrite: function(pFile, pSrc, n, offset64) {
-@@ -16119,6 +16123,9 @@ async function sqlite3InitModule$1(moduleArg = {}) {
+@@ -16089,7 +16093,6 @@ async function sqlite3InitModule$1(moduleArg = {}) {
+ 				opfsVfs.addOnDispose(opfsVfs.$zName = wasm.allocCString(vfsName), () => setPoolForVfs(opfsVfs.pointer, 0));
+ 				if (dVfs) {
+ 					opfsVfs.$xRandomness = dVfs.$xRandomness;
+-					opfsVfs.$xSleep = dVfs.$xSleep;
+ 					dVfs.dispose();
+ 				}
+ 				if (!opfsVfs.$xRandomness && !vfsMethods.xRandomness) vfsMethods.xRandomness = function(pVfs, nOut, pOut) {
+@@ -16099,7 +16102,12 @@ async function sqlite3InitModule$1(moduleArg = {}) {
+ 					for (; i < nOut; ++i) heap[npOut + i] = Math.random() * 255e3 & 255;
+ 					return i;
+ 				};
+-				if (!opfsVfs.$xSleep && !vfsMethods.xSleep) vfsMethods.xSleep = (pVfs, ms) => 0;
++				/* aml-filter backport of sqlite check-in c9dd4d88e4 (GitHub mirror
++				cdbfe6a9, forum 3f0794c5d8): this VFS's xSleep() must be a no-op.
++				Only db handles within the same thread can ever come into
++				contention, and that contention cannot be resolved if one of the
++				handles sleeps in that same thread. */
++				vfsMethods.xSleep = (pVfs, ms) => 0;
+ 				sqlite3.vfs.installVfs({ vfs: {
+ 					struct: opfsVfs,
+ 					methods: vfsMethods
+@@ -16119,6 +16127,10 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  				#mapFilenameToSAH = /* @__PURE__ */ new Map();
  				#availableSAH = /* @__PURE__ */ new Set();
  				#mapS3FileToOFile_ = /* @__PURE__ */ new Map();
-+				/* Maps client-side file names to {nShared, lockType} for the
-+				files opened via this pool (os_unix.c:unixInodeInfo). */
++				/* aml-filter backport of sqlite check-in 9e2caaa382 (GitHub mirror
++				3b28aa1c): maps client-side file names to {nShared, lockType} for
++				the files opened via this pool (os_unix.c:unixInodeInfo). */
 +				#mapPathToLock = /* @__PURE__ */ new Map();
  				/** Buffer used by [sg]etAssociatedPath(). */
  				#apBody = new Uint8Array(HEADER_CORPUS_SIZE);
  				#dvBody;
-@@ -16204,6 +16211,7 @@ async function sqlite3InitModule$1(moduleArg = {}) {
+@@ -16204,6 +16216,8 @@ async function sqlite3InitModule$1(moduleArg = {}) {
  					this.#mapSAHToName.clear();
  					this.#mapFilenameToSAH.clear();
  					this.#availableSAH.clear();
++					this.#mapS3FileToOFile_.clear();
 +					this.#mapPathToLock.clear();
  				}
  				/**
  				Opens all files under this.vfsDir/this.#dhOpaque and acquires a
-@@ -16406,6 +16414,41 @@ async function sqlite3InitModule$1(moduleArg = {}) {
- 				Maps or unmaps (if file is falsy) the given (sqlite3_file*)
- 				to an xOpen file object and to this pool object.
- 				*/
+@@ -16402,6 +16416,41 @@ async function sqlite3InitModule$1(moduleArg = {}) {
+ 				getOFileForS3File(pFile) {
+ 					return this.#mapS3FileToOFile_.get(pFile);
+ 				}
 +				/** True if any handle on this filename holds RESERVED or higher. */
 +				hasReservedLock(filename) {
 +					const lk = this.#mapPathToLock.get(filename);
 +					return !!lk && lk.lockType > capi.SQLITE_LOCK_SHARED;
 +				}
-+				/** xLock() over the per-path lock table (upstream 9168a6f1be). */
++				/** xLock() over the per-path lock table (upstream 9e2caaa382). */
 +				lockFile(file, lockType) {
 +					if (file.lockType >= lockType) return 0;
 +					let lk = this.#mapPathToLock.get(file.path);
@@ -91,7 +115,7 @@ index 5e6e43b..f55a336 100644
 +					file.lockType = lockType;
 +					return 0;
 +				}
-+				/** xUnlock() over the per-path lock table (upstream 9168a6f1be). */
++				/** xUnlock() over the per-path lock table (upstream 9e2caaa382). */
 +				unlockFile(file, lockType) {
 +					if (file.lockType <= lockType) return;
 +					const lk = this.#mapPathToLock.get(file.path);
@@ -99,6 +123,6 @@ index 5e6e43b..f55a336 100644
 +					if (lockType === capi.SQLITE_LOCK_NONE && 0 === --lk.nShared) this.#mapPathToLock.delete(file.path);
 +					file.lockType = lockType;
 +				}
- 				mapS3FileToOFile(pFile, file) {
- 					if (file) {
- 						this.#mapS3FileToOFile_.set(pFile, file);
+ 				/**
+ 				Maps or unmaps (if file is falsy) the given (sqlite3_file*)
+ 				to an xOpen file object and to this pool object.
