@@ -7,7 +7,7 @@
 // bytes). PR CI stayed green; both production uploads then failed with
 // "Pages only supports files up to 25 MiB in size".
 
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -28,7 +28,10 @@ describe("Cloudflare Pages upload limits", () => {
 	it("rejects the asyncify wasm that broke the 2026-10-04 deploy, naming it", () => {
 		const entries = [
 			{ path: "index.html", bytes: 2_000 },
-			{ path: "assets/ort-wasm-simd-threaded.asyncify-CxOG5pUO.wasm", bytes: 26_861_777 },
+			{
+				path: "assets/ort-wasm-simd-threaded.asyncify-CxOG5pUO.wasm",
+				bytes: 26_861_777,
+			},
 		];
 		expect(() => assertPagesUploadLimits(entries)).toThrow(
 			/26214400-byte per-file limit: assets\/ort-wasm-simd-threaded\.asyncify-CxOG5pUO\.wasm \(26861777 bytes\)/,
@@ -60,7 +63,9 @@ describe("Cloudflare Pages upload limits", () => {
 		mkdirSync(join(root, "assets", "deep"), { recursive: true });
 		writeFileSync(join(root, "index.html"), "abc");
 		writeFileSync(join(root, "assets", "deep", "x.wasm"), "12345");
-		const entries = listFiles(root).sort((a, b) => a.path.localeCompare(b.path));
+		const entries = listFiles(root).sort((a, b) =>
+			a.path.localeCompare(b.path),
+		);
 		expect(entries).toEqual([
 			{ path: join("assets", "deep", "x.wasm"), bytes: 5 },
 			{ path: "index.html", bytes: 3 },
@@ -71,6 +76,8 @@ describe("Cloudflare Pages upload limits", () => {
 		const pkg = JSON.parse(
 			readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 		) as { scripts: Record<string, string> };
-		expect(pkg.scripts.postbuild).toBe("node scripts/check-pages-limits.mjs dist");
+		expect(pkg.scripts.postbuild).toBe(
+			"node scripts/check-pages-limits.mjs dist",
+		);
 	});
 });

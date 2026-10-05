@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { configDefaults } from "vitest/config";
 import { resolveOrtAsset } from "./src/dev/ortDevAsset";
+import { ortExternWasmPlugin } from "./src/dev/ortExternWasm";
 import {
 	cspFromHeadersFile,
 	localhostPreviewCsp,
@@ -155,6 +156,7 @@ export default defineConfig({
 	plugins: [
 		react(),
 		serveOrtRuntimeRawInDev(),
+		ortExternWasmPlugin(),
 		previewProdCspPlugin(),
 		localDemoPubkeyPin(),
 	],

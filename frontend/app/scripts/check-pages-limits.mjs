@@ -35,7 +35,9 @@ export function assertPagesUploadLimits(entries) {
 	}
 	const oversize = entries.filter((e) => e.bytes > MAX_PAGES_UPLOAD_FILE_BYTES);
 	if (oversize.length > 0) {
-		const detail = oversize.map((e) => `${e.path} (${e.bytes} bytes)`).join(", ");
+		const detail = oversize
+			.map((e) => `${e.path} (${e.bytes} bytes)`)
+			.join(", ");
 		throw new Error(
 			`Cloudflare Pages upload exceeds the ${MAX_PAGES_UPLOAD_FILE_BYTES}-byte per-file limit: ${detail}`,
 		);
