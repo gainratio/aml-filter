@@ -9,7 +9,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../lib/api";
-import SettingsPage from "./SettingsPage";
+import { SettingsPage } from "./SettingsPage";
 
 vi.mock("../lib/api", () => ({
 	apiClient: {

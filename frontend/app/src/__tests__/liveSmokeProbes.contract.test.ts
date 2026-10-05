@@ -4,7 +4,7 @@ import {
 	reviewBadgePattern,
 	reviewBadgeText,
 } from "../../tests/e2e-live/probes";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 import { listName } from "../lib/plainLabels";
 
 // The post-deploy live smoke (tests/e2e-live) only runs against production,

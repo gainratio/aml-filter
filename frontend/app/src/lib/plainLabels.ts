@@ -52,3 +52,27 @@ export function reasonLabel(signal: string, t: Translate): string {
 export function riskLabel(code: string, t: Translate): string {
 	return lookup(t, "risk", code, code);
 }
+
+/** A customer's onboarding status (`PENDING_REVIEW`, `ACTIVE`, …) in words. */
+export function onboardingLabel(code: string, t: Translate): string {
+	return lookup(t, "onboarding", code, code);
+}
+
+/** A customer's KYC risk rating (`LOW` / `MEDIUM` / `HIGH`) in words; null is unrated. */
+export function kycRiskLabel(code: string | null, t: Translate): string {
+	return lookup(t, "kycRisk", code ?? "UNRATED", code ?? "UNRATED");
+}
+
+/** The workstation's default `onboarded_by` stamp (schema DEFAULT 'local'). */
+const LOCAL_ACTOR = "local";
+
+/**
+ * Who onboarded a customer. The workstation stamps the internal id `local` when
+ * no name was typed; that id is plumbing, so it reads as "no name given".
+ */
+export function actorLabel(actor: string, t: Translate): string {
+	const id = actor.trim();
+	return id.length === 0 || id === LOCAL_ACTOR
+		? lookup(t, "actor", LOCAL_ACTOR, LOCAL_ACTOR)
+		: id;
+}

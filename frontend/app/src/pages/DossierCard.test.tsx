@@ -1,11 +1,13 @@
 import {
 	calculateAssayScore,
-	loadInstallKey,
+	InstallKeys,
+	InstallKeyUnavailable,
 	type Match,
 	type MatchScoreSubject,
 	matchScoreSubject,
 	signMatchReceipt,
 } from "@amlfilter/browser";
+import { memoryInstallKeySql } from "@amlfilter/browser/testing";
 import {
 	cleanup,
 	fireEvent,
@@ -14,6 +16,7 @@ import {
 	waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { InstallKeysContext, type KeyService } from "../lib/installKeysContext";
 import { DossierCard, dossierFromMatch } from "./DossierCard";
 
 // A valid Ed25519 seed that is NOT this jsdom install's key — receipts signed
@@ -79,27 +82,47 @@ async function signedMatch(seedHex?: string): Promise<Match> {
 			inputsHash: `sha256:${"0".repeat(64)}`,
 		},
 	);
-	const seed = seedHex ?? (await loadInstallKey(window.localStorage)).seedHex;
+	const seed = seedHex ?? (await keys.load()).seedHex;
 	return {
 		...baseMatch(),
 		score_receipt: await signMatchReceipt(subject, seed),
 	};
 }
 
-function renderCard(match: Match) {
-	return render(
-		<ul>
-			<DossierCard dossier={dossierFromMatch(match)} />
-		</ul>,
+// This install's key service, over real in-memory SQLite (jsdom has no OPFS).
+let keys: InstallKeys;
+
+function card(match: Match, service: KeyService = keys) {
+	return (
+		<InstallKeysContext.Provider value={service}>
+			<ul>
+				<DossierCard dossier={dossierFromMatch(match)} />
+			</ul>
+		</InstallKeysContext.Provider>
 	);
+}
+
+function renderCard(match: Match, service: KeyService = keys) {
+	return render(card(match, service));
+}
+
+function failingService(error: unknown): KeyService {
+	return {
+		load: () => Promise.reject(error),
+		onChange: () => () => undefined,
+	};
 }
 
 function headBadge(container: HTMLElement): Element | null {
 	return container.querySelector(".match-card__head .receipt-status");
 }
 
-beforeEach(() => {
-	window.localStorage.clear();
+beforeEach(async () => {
+	keys = new InstallKeys({
+		openSql: (await memoryInstallKeySql()).open,
+		legacy: null,
+		channel: null,
+	});
 });
 afterEach(cleanup);
 
@@ -180,7 +203,7 @@ describe("DossierCard receipt verdict", () => {
 
 	it("renders the distinct untrusted-signer failure state for a receipt signed by a foreign key", async () => {
 		// Pin this install's key first so the expected key exists and differs.
-		await loadInstallKey(window.localStorage);
+		await keys.load();
 		const foreign = await signedMatch(FOREIGN_SEED_HEX);
 		const { container } = renderCard(foreign);
 
@@ -194,7 +217,28 @@ describe("DossierCard receipt verdict", () => {
 		);
 	});
 
-	it("re-judges a new receipt against the key the store holds NOW (fail-closed on rekey)", async () => {
+	it("re-judges a shown receipt the moment the key is reset (fail-closed on rekey)", async () => {
+		const match = await signedMatch();
+		const { container } = renderCard(match);
+		await waitFor(() => {
+			expect(headBadge(container)?.getAttribute("data-status")).toBe(
+				"verified",
+			);
+		});
+
+		// The user resets the signing key (Settings, this tab or another). A
+		// receipt already on screen was signed by the OLD key: its badge must
+		// drop to the untrusted-signer state, never stay green on a stale key.
+		await keys.reset();
+
+		await waitFor(() => {
+			expect(headBadge(container)?.getAttribute("data-status")).toBe(
+				"wrong-key",
+			);
+		});
+	});
+
+	it("re-judges a NEW receipt against the key the store holds now", async () => {
 		const match = await signedMatch();
 		const receipt = match.score_receipt;
 		if (receipt === undefined) throw new Error("test setup: receipt missing");
@@ -204,18 +248,14 @@ describe("DossierCard receipt verdict", () => {
 				"verified",
 			);
 		});
+		const other = new InstallKeys({
+			openSql: (await memoryInstallKeySql()).open,
+			legacy: null,
+			channel: null,
+		});
 
-		// The store re-keys (the e2e drives this via a localStorage swap); the
-		// next screen's receipt still arrives signed by the OLD key because the
-		// engine's sealer pins its key at first seal. The badge must drop to the
-		// untrusted-signer state — never stay green against a stale key.
-		window.localStorage.clear();
-		const rekeyed: Match = { ...match, score_receipt: { ...receipt } };
-		rerender(
-			<ul>
-				<DossierCard dossier={dossierFromMatch(rekeyed)} />
-			</ul>,
-		);
+		rerender(card({ ...match, score_receipt: { ...receipt } }, other));
+
 		await waitFor(() => {
 			expect(headBadge(container)?.getAttribute("data-status")).toBe(
 				"wrong-key",
@@ -265,11 +305,11 @@ describe("DossierCard trust-anchor states", () => {
 	it("renders the verification-UNAVAILABLE state when the trust-anchor load FAILS (never badge-less)", async () => {
 		const match = await signedMatch();
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-			throw new Error("storage fault");
-		});
 
-		const { container } = renderCard(match);
+		const { container } = renderCard(
+			match,
+			failingService(new Error("storage fault")),
+		);
 		await waitFor(() => {
 			expect(headBadge(container)?.getAttribute("data-status")).toBe(
 				"unavailable",
@@ -297,30 +337,20 @@ describe("DossierCard trust-anchor states", () => {
 		);
 	});
 
-	it("renders the verification-UNAVAILABLE state when storage is blocked outright", async () => {
+	it("renders the verification-UNAVAILABLE state when another tab holds the key", async () => {
 		const match = await signedMatch();
-		const original = Object.getOwnPropertyDescriptor(
-			globalThis,
-			"localStorage",
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		const { container } = renderCard(
+			match,
+			failingService(new InstallKeyUnavailable("in use by another tab")),
 		);
-		Object.defineProperty(globalThis, "localStorage", {
-			configurable: true,
-			get() {
-				throw new Error("storage blocked by policy");
-			},
+
+		await waitFor(() => {
+			expect(headBadge(container)?.getAttribute("data-status")).toBe(
+				"unavailable",
+			);
 		});
-		try {
-			const { container } = renderCard(match);
-			await waitFor(() => {
-				expect(headBadge(container)?.getAttribute("data-status")).toBe(
-					"unavailable",
-				);
-			});
-		} finally {
-			if (original !== undefined) {
-				Object.defineProperty(globalThis, "localStorage", original);
-			}
-		}
 	});
 });
 

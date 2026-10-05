@@ -9,7 +9,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchEvent, ReviewMatch } from "../lib/api";
 import { apiClient } from "../lib/api";
-import ReviewBoardPage from "./ReviewBoardPage";
+import { ReviewBoardPage } from "./ReviewBoardPage";
 
 // The page talks to the backend exclusively through the apiClient singleton.
 // Mock that seam so the tests drive deterministic responses with no network.

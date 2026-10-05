@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type BrowserContext,
-	chromium,
+	type BrowserType,
 	expect,
 	type Page,
 	test,
@@ -14,10 +14,12 @@ import {
 	enableEveryList,
 	expectListMatch,
 	expectReviewRowsPerList,
+	legacySeedPublicKey,
 	liveBuildSha,
 	onboardEveryProbe,
 	opfsEntryCount,
 	SCREEN_PROBE,
+	settingsPublicKey,
 	watchConsole,
 } from "./liveSmoke";
 
@@ -87,10 +89,13 @@ function requireProfile(): string {
 	return PROFILE;
 }
 
+/** A persistent profile in the engine this project runs (chromium, firefox or
+ * webkit); each engine needs its own profile directory. */
 async function persistentPage(
+	engine: BrowserType,
 	baseURL: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
-	const context = await chromium.launchPersistentContext(requireProfile(), {
+	const context = await engine.launchPersistentContext(requireProfile(), {
 		baseURL,
 		headless: true,
 	});
@@ -118,6 +123,33 @@ async function screenAndWorkstation(page: Page, pass: string): Promise<string> {
 	return [`/screen ${screened}`, ...rows].join(" | ");
 }
 
+/**
+ * A returning visitor keeps their receipt signing key: the old localStorage
+ * seed is gone (moved into SQLite), and /settings shows the SAME public key
+ * that signed the previous release's receipts — so those receipts still verify.
+ */
+async function expectSigningKeyCarriedOver(
+	page: Page,
+	markerPath: string,
+): Promise<string> {
+	expect(
+		await legacySeedPublicKey(page),
+		"the old localStorage seed must be retired after the SQLite migration",
+	).toBeNull();
+	const current = await settingsPublicKey(page);
+	expect(current, "/settings shows the signing key").toMatch(/^[0-9a-f]{64}$/);
+	const primed: { installKey?: string | null } = existsSync(markerPath)
+		? JSON.parse(readFileSync(markerPath, "utf8"))
+		: {};
+	if (typeof primed.installKey === "string") {
+		expect(current, "signing key carried over from the previous release").toBe(
+			primed.installKey,
+		);
+		return `signing key carried over (${current?.slice(0, 12)}…)`;
+	}
+	return "signing key present (previous release recorded none)";
+}
+
 test.describe.configure({ timeout: BOOT_TIMEOUT_MS * 2 + 120_000 });
 
 test("@fresh a first-time visitor screens every list on the live site", async ({
@@ -138,14 +170,24 @@ test("@fresh a first-time visitor screens every list on the live site", async ({
 
 test("@prime cache the currently-live release into the returning profile", async ({
 	baseURL,
+	browserName,
+	playwright,
 }) => {
-	const { context, page } = await persistentPage(baseURL ?? "");
+	const { context, page } = await persistentPage(
+		playwright[browserName],
+		baseURL ?? "",
+	);
 	try {
 		await enableEveryList(page);
 		await screenAndWorkstation(page, "prime");
+		// The key that signed this release's receipts: an old release keeps its
+		// seed in localStorage, a newer one shows it in /settings.
+		const installKey =
+			(await legacySeedPublicKey(page)) ?? (await settingsPublicKey(page));
 		const marker = {
 			sha: await liveBuildSha(page),
 			opfs: await opfsEntryCount(page),
+			installKey,
 		};
 		writeFileSync(join(PROFILE, PRIME_MARKER), JSON.stringify(marker));
 		console.log(
@@ -158,14 +200,23 @@ test("@prime cache the currently-live release into the returning profile", async
 
 test("@returning a visitor cached on the previous release reloads and screens", async ({
 	baseURL,
+	browserName,
+	playwright,
 }, testInfo) => {
 	const markerPath = join(requireProfile(), PRIME_MARKER);
 	const primed = existsSync(markerPath);
-	const { context, page } = await persistentPage(baseURL ?? "");
+	const { context, page } = await persistentPage(
+		playwright[browserName],
+		baseURL ?? "",
+	);
 	try {
-		const watch = watchConsole(page);
+		// A plain-text, app-free page just to read this origin's OPFS. Watch the
+		// console only AFTER it: WebKit styles a text/plain document with its own
+		// inline stylesheet, which `style-src 'self'` (public/_headers) refuses
+		// with a console error. That is the browser's viewer, not the app.
 		await page.goto("/robots.txt");
 		const cached = await opfsEntryCount(page);
+		const watch = watchConsole(page);
 		if (primed) {
 			const marker = readFileSync(markerPath, "utf8");
 			expect(
@@ -193,10 +244,11 @@ test("@returning a visitor cached on the previous release reloads and screens", 
 		await page.reload({ waitUntil: "domcontentloaded" });
 		const evidence = await screenAndWorkstation(page, "returning");
 		const reload = await indexOpens(page);
+		const signing = await expectSigningKeyCarriedOver(page, markerPath);
 		await expectDeployedSha(page);
 		await expectCleanConsole(watch);
 		console.log(
-			`[live-smoke returning] cached opfs entries=${cached}; index first load rebuilt=${firstLoad.rebuilt} reused=${firstLoad.reused}; after reload rebuilt=${reload.rebuilt} reused=${reload.reused}; ${evidence}`,
+			`[live-smoke returning] cached opfs entries=${cached}; index first load rebuilt=${firstLoad.rebuilt} reused=${firstLoad.reused}; after reload rebuilt=${reload.rebuilt} reused=${reload.reused}; ${signing}; ${evidence}`,
 		);
 	} finally {
 		await context.close();

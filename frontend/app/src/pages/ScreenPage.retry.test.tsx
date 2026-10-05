@@ -66,6 +66,11 @@ vi.mock("@amlfilter/browser", () => {
 		}
 	}
 	return {
+		// The signing-key notice only needs a key that never resolves here.
+		installKeys: () => ({
+			load: () => new Promise(() => undefined),
+			onChange: () => () => undefined,
+		}),
 		EngineRuntime,
 		configFromEnv: () => ({}),
 		// jsdom lacks Worker/OPFS; force "supported" so boot reaches the banner.

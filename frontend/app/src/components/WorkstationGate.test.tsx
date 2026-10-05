@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkForWatchlistUpdates } from "../lib/sync";
 import { retainWorkstationRuntime, workstation } from "../lib/workstation";
-import WorkstationGate, { WATCHLIST_POLL_INTERVAL_MS } from "./WorkstationGate";
+import { WATCHLIST_POLL_INTERVAL_MS, WorkstationGate } from "./WorkstationGate";
 
 vi.mock("../lib/workstation", () => ({
 	workstation: vi.fn(),
@@ -334,6 +334,29 @@ describe("EngineStatusStrip (rendered inside WorkstationGate once ready)", () =>
 		await screen.findByText(/screening engine unavailable/i);
 		expect(screen.getByText(/FAISS index failed to load/i)).toBeInTheDocument();
 		// …but children are STILL rendered (non-blocking).
+		expect(screen.getByText("WORKSTATION CONTENT")).toBeInTheDocument();
+	});
+
+	it("Retry on the engine warning re-boots the engine and clears the warning", async () => {
+		const { handle, rejectBoot } = makeControllableHandle("Avery Analyst");
+		// biome-ignore lint/suspicious/noExplicitAny: structural fake for the mocked seam
+		mockWorkstation.mockResolvedValue(handle as any);
+		render(
+			<WorkstationGate>
+				<div>WORKSTATION CONTENT</div>
+			</WorkstationGate>,
+		);
+		await screen.findByText("WORKSTATION CONTENT");
+		await waitFor(() => expect(handle.engineBoot).toHaveBeenCalledTimes(1));
+		act(() => rejectBoot()(new Error("FAISS index failed to load")));
+		await screen.findByText(/screening engine unavailable/i);
+
+		fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+		await waitFor(() => expect(handle.engineBoot).toHaveBeenCalledTimes(2));
+		expect(
+			screen.queryByText(/screening engine unavailable/i),
+		).not.toBeInTheDocument();
 		expect(screen.getByText("WORKSTATION CONTENT")).toBeInTheDocument();
 	});
 });

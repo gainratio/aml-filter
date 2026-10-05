@@ -29,10 +29,19 @@ export type VectorIndexStorage = "pending" | "opfs" | "memory-fallback";
 
 let storage: VectorIndexStorage = "pending";
 const storageListeners = new Set<() => void>();
+// Each list owns its own index, so the fallback is tracked per list: a later
+// list opening on OPFS must not hide an earlier list that is still in memory.
+const fallbackLists = new Set<string>();
+let fallbackSnapshot: ReadonlyArray<string> = [];
 
-/** Current storage mode of the most recently opened index. */
+/** Storage mode across open indexes: "memory-fallback" while any list is in memory. */
 export function vectorIndexStorage(): VectorIndexStorage {
 	return storage;
+}
+
+/** List ids whose index fell back to memory, sorted; a stable snapshot for useSyncExternalStore. */
+export function vectorIndexFallbackLists(): ReadonlyArray<string> {
+	return fallbackSnapshot;
 }
 
 /** useSyncExternalStore-compatible subscription to storage-mode changes. */
@@ -41,7 +50,22 @@ export function subscribeVectorIndexStorage(listener: () => void): () => void {
 	return () => storageListeners.delete(listener);
 }
 
-function setStorage(next: VectorIndexStorage): void {
+/** `aml-watchlist-<listId>` → `<listId>`; any other name is reported as itself. */
+function listIdOf(indexName: string): string {
+	const prefix = `${DEFAULT_INDEX_NAME}-`;
+	return indexName.startsWith(prefix)
+		? indexName.slice(prefix.length)
+		: indexName;
+}
+
+function setStorage(indexName: string, mode: VectorIndexStorage): void {
+	if (mode === "memory-fallback") {
+		fallbackLists.add(listIdOf(indexName));
+	} else {
+		fallbackLists.delete(listIdOf(indexName));
+	}
+	fallbackSnapshot = [...fallbackLists].sort();
+	const next = fallbackLists.size > 0 ? "memory-fallback" : mode;
 	storage = next;
 	if (typeof document !== "undefined") {
 		document.documentElement.dataset.amlIndexStorage = next;
@@ -170,7 +194,7 @@ async function openWithMemoryFallback(
 			persistence: "opfs",
 			memoryProfile: "auto",
 		});
-		setStorage("opfs");
+		setStorage(name, "opfs");
 		return index;
 	} catch (cause) {
 		console.warn(
@@ -184,7 +208,7 @@ async function openWithMemoryFallback(
 			persistence: "memory",
 			memoryProfile: "full",
 		});
-		setStorage("memory-fallback");
+		setStorage(name, "memory-fallback");
 		return index;
 	}
 }

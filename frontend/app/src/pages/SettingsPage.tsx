@@ -4,6 +4,8 @@
  *   2. Watchlists (a checkbox per signed-catalog list — which lists are screened)
  *   3. Per-list overrides (a sensitivity override per ENABLED source list)
  *   4. Analyst name (the audit-trail signer, a SQLite settings row)
+ * plus the cached-lists control and the receipt signing key (export, import,
+ * reset — SigningKeySection).
  *
  * Apply persists the analyst name, re-bootstraps the engine over the chosen
  * watchlist set (a disabled list's matches drop out → SUPPRESSED on re-screen),
@@ -17,10 +19,13 @@ import { ANALYST_NAME_KEY } from "@amlfilter/workstation";
 import type { TFunction } from "i18next";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
+	useCallback,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { SigningKeySection } from "../components/SigningKeySection";
 import { apiClient } from "../lib/api";
 import { listAge } from "../lib/listAge";
 import { workstation } from "../lib/workstation";
@@ -93,7 +98,7 @@ function SensitivityControl({
 				aria-label={t("sensitivity.ariaLabel")}
 			>
 				{SENSITIVITY_LEVELS.map((level) => (
-					// biome-ignore lint/a11y/useSemanticElements: this is a custom segmented "slider" — a native radio can't carry the active-segment styling or the single-tabstop arrow-key roving used here; the ARIA radiogroup/radio pattern is the correct equivalent
+					// biome-ignore lint/a11y/useSemanticElements: the same ARIA radiogroup/radio segmented control as /screen's strictness slider, sharing its `screen-strictness__stop[aria-checked]` CSS and keyboard roving; moving to native <input type="radio"> must change both pages and that CSS together, so it is not done here alone
 					<button
 						key={level.level}
 						type="button"
@@ -336,7 +341,7 @@ function snapshotsDiffer(
 	);
 }
 
-export default function SettingsPage() {
+export function SettingsPage() {
 	const { t } = useTranslation("settings");
 	const [sensitivity, setSensitivity] = useState<Sensitivity>("balanced");
 	const [overrides, setOverrides] = useState<Overrides>({});
@@ -351,7 +356,8 @@ export default function SettingsPage() {
 	const [summary, setSummary] = useState<RescanSummary | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [cacheCleared, setCacheCleared] = useState<boolean>(false);
-	const [loadAttempt, setLoadAttempt] = useState<number>(0);
+	// Cancels the in-flight settings load.
+	const cancelLoad = useRef<(() => void) | null>(null);
 	const [loadFailed, setLoadFailed] = useState<boolean>(false);
 	// The last loaded-or-applied snapshot. The rescan summary alone cannot say
 	// whether Apply changed anything (a zero-customer book always rescans 0),
@@ -359,10 +365,14 @@ export default function SettingsPage() {
 	const [baseline, setBaseline] = useState<SettingsSnapshot | null>(null);
 	const [appliedChange, setAppliedChange] = useState<boolean>(false);
 
-	// loadAttempt is an intentional trigger: retryLoad restarts the same load effect.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: loadAttempt is the explicit retry trigger
-	useEffect(() => {
+	// One settings load. Mount (and a language change) starts one; Retry starts
+	// another directly from its handler. Each load cancels the previous one.
+	const startLoad = useCallback(() => {
+		cancelLoad.current?.();
 		let cancelled = false;
+		cancelLoad.current = () => {
+			cancelled = true;
+		};
 		setLoadFailed(false);
 		async function load(): Promise<void> {
 			const config = await apiClient.getScreeningConfig();
@@ -392,15 +402,20 @@ export default function SettingsPage() {
 				setError(errorMessage(err, t("errors.load")));
 			}
 		});
+	}, [t]);
+
+	useEffect(() => {
+		startLoad();
 		return () => {
-			cancelled = true;
+			cancelLoad.current?.();
+			cancelLoad.current = null;
 		};
-	}, [t, loadAttempt]);
+	}, [startLoad]);
 
 	function retryLoad(): void {
 		setError(null);
 		setLoaded(false);
-		setLoadAttempt((attempt) => attempt + 1);
+		startLoad();
 	}
 
 	function toggleWatchlist(id: string, next: boolean): void {
@@ -580,6 +595,8 @@ export default function SettingsPage() {
 				onRetry={loadFailed ? retryLoad : undefined}
 				t={t}
 			/>
+
+			<SigningKeySection />
 		</div>
 	);
 }

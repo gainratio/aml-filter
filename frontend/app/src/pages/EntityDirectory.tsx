@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DossierCard, dossierFromEntity } from "./DossierCard";
 
-export const DIRECTORY_PAGE_SIZE = 24;
+const DIRECTORY_PAGE_SIZE = 24;
 
 interface EntityDirectoryProps {
 	readonly entities: ReadonlyArray<Entity>;

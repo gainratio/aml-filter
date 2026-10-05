@@ -1,22 +1,25 @@
 import {
 	subscribeVectorIndexStorage,
-	vectorIndexStorage,
+	vectorIndexFallbackLists,
 } from "@amlfilter/browser";
 import { type ReactNode, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
+import { listName } from "../lib/plainLabels";
 import "../styles/common.css";
 
 interface LayoutProps {
 	children: ReactNode;
 }
 
-export default function Layout({ children }: LayoutProps) {
+export function Layout({ children }: LayoutProps) {
 	const { t } = useTranslation("common");
 	const { pathname } = useLocation();
-	const indexStorage = useSyncExternalStore(
+	// Per list: a later list opening on persistent storage must not hide an
+	// earlier list whose index is still held in memory.
+	const fallbackLists = useSyncExternalStore(
 		subscribeVectorIndexStorage,
-		vectorIndexStorage,
+		vectorIndexFallbackLists,
 	);
 	const navItems = [
 		{ path: "/screen", label: t("nav.screen") },
@@ -59,13 +62,15 @@ export default function Layout({ children }: LayoutProps) {
 					</div>
 				</nav>
 			</header>
-			{indexStorage === "memory-fallback" ? (
+			{fallbackLists.length > 0 ? (
 				<p
 					className="page-notice text-muted"
 					role="status"
 					data-testid="index-fallback-notice"
 				>
-					{t("indexFallback.notice")}
+					{t("indexFallback.notice", {
+						lists: fallbackLists.map((id) => listName(id, t)).join(", "),
+					})}
 				</p>
 			) : null}
 			<main className="page-main">{children}</main>

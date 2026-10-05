@@ -8,7 +8,7 @@ import { ANALYST_NAME_KEY } from "@amlfilter/workstation";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../lib/api";
-import SettingsPage from "./SettingsPage";
+import { SettingsPage } from "./SettingsPage";
 
 vi.mock("../lib/api", () => ({
 	apiClient: {

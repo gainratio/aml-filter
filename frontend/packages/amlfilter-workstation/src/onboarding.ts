@@ -21,6 +21,26 @@ export const ONBOARDING_THRESHOLD = 0.65;
 /** The screen surface the service needs — ScreeningEngine satisfies it. */
 export interface NameScreener {
 	screen(query: ScreenQuery): Promise<ScreenResponse>;
+	/**
+	 * The composite stamp of the lists the engine has loaded, read right after a
+	 * screen. It is what a customer's screening proof records; null means the
+	 * screen proves nothing about which lists it ran against (stale, not current).
+	 */
+	listVersion(): string | null;
+}
+
+/**
+ * Record positive proof of a completed screen. Call only AFTER the screen's
+ * matches are stored, so any failure on the way leaves the customer unproven.
+ */
+export async function markScreenedWith(
+	store: WorkstationStore,
+	customerId: string,
+	listVersion: string | null,
+): Promise<void> {
+	if (listVersion !== null) {
+		await store.markScreened(customerId, listVersion);
+	}
 }
 
 export interface OnboardRequest {
@@ -72,6 +92,7 @@ export class LocalOnboardingService {
 			dob,
 			threshold,
 		});
+		const listVersion = this.#screener.listVersion();
 		const profile = canonicalProfile(request.name, country);
 		const tiered = response.matches.map((match) =>
 			tierMatch(match, profile, threshold),
@@ -80,6 +101,7 @@ export class LocalOnboardingService {
 			tiered.length === 0
 				? []
 				: await this.#store.recordMatches(customer.customer_id, tiered);
+		await markScreenedWith(this.#store, customer.customer_id, listVersion);
 		return { customer, matches };
 	}
 }

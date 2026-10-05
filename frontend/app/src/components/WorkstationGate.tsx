@@ -13,13 +13,19 @@ import type { TFunction } from "i18next";
 import {
 	type FormEvent,
 	type ReactNode,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "../lib/formatBytes";
-import { checkForWatchlistUpdates, syncToAnnounce } from "../lib/sync";
+import {
+	checkForWatchlistUpdates,
+	onUserSyncReport,
+	syncToAnnounce,
+	wasReportedToUser,
+} from "../lib/sync";
 import {
 	retainWorkstationRuntime,
 	type WorkstationHandle,
@@ -55,24 +61,27 @@ function messageOf(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-export default function WorkstationGate({
+export function WorkstationGate({
 	children,
 	bootEngine = true,
 }: WorkstationGateProps) {
 	const { t } = useTranslation(["common", "errors"]);
 	const [phase, setPhase] = useState<GatePhase>({ kind: "booting" });
-	const [nonce, setNonce] = useState(0);
 	const [name, setName] = useState("");
-	const releaseLease = useRef<(() => void) | null>(null);
+	// Cancels the in-flight DB boot and releases its runtime lease.
+	const cancelBoot = useRef<(() => void) | null>(null);
 
-	// nonce is not read in the body — it is the intentional re-fire trigger:
-	// Retry bumps it so this effect re-runs the DB boot (workstation() cleared
-	// its memo when the prior attempt rejected).
-	// biome-ignore lint/correctness/useExhaustiveDependencies: nonce is an intentional re-fire trigger, not read in the body
-	useEffect(() => {
+	// One DB boot attempt. Mount starts the first; Retry starts another directly
+	// from its click handler (workstation() cleared its memo when the prior
+	// attempt rejected). Each attempt cancels the previous one first.
+	const startBoot = useCallback(() => {
+		cancelBoot.current?.();
 		let cancelled = false;
-		releaseLease.current?.();
-		releaseLease.current = retainWorkstationRuntime();
+		const releaseLease = retainWorkstationRuntime();
+		cancelBoot.current = () => {
+			cancelled = true;
+			releaseLease();
+		};
 		setPhase({ kind: "booting" });
 		// Ask the browser to protect OPFS from eviction (spec risk: quota /
 		// eviction). Best-effort: jsdom/tests and older browsers lack it.
@@ -89,12 +98,15 @@ export default function WorkstationGate({
 					setPhase({ kind: "error", message: messageOf(error) });
 				}
 			});
+	}, []);
+
+	useEffect(() => {
+		startBoot();
 		return () => {
-			cancelled = true;
-			releaseLease.current?.();
-			releaseLease.current = null;
+			cancelBoot.current?.();
+			cancelBoot.current = null;
 		};
-	}, [nonce]);
+	}, [startBoot]);
 
 	const handleNameSubmit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -133,11 +145,7 @@ export default function WorkstationGate({
 						<code>{safeError.technicalDetail}</code>
 					</details>
 				</div>
-				<button
-					type="button"
-					className="btn btn-primary"
-					onClick={() => setNonce((n) => n + 1)}
-				>
+				<button type="button" className="btn btn-primary" onClick={startBoot}>
 					{t("common:actions.retry")}
 				</button>
 			</div>
@@ -216,16 +224,20 @@ function EngineStatusStrip() {
 	// `EngineOperationError.code` / `.name`, which a string has already lost.
 	const [error, setError] = useState<unknown>(null);
 	const [autoSync, setAutoSync] = useState<SyncResult | null>(null);
-	const [nonce, setNonce] = useState(0);
+	const cancelBoot = useRef<(() => void) | null>(null);
 	// Guards the once-per-boot auto-sync: the engine version is only known after
 	// engineBoot resolves, and we must not re-fire on every render.
 	const autoSyncFired = useRef(false);
 
-	// nonce is not read in the body — it is the intentional re-fire trigger:
-	// Retry bumps it so this effect re-kicks the background engine bootstrap.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: nonce is an intentional re-fire trigger, not read in the body
-	useEffect(() => {
+	// One background engine boot attempt. Mount starts the first; Retry and a
+	// confirmed cache clear start another directly from their handlers. Each
+	// attempt cancels the previous one first.
+	const startBoot = useCallback(() => {
+		cancelBoot.current?.();
 		let cancelled = false;
+		cancelBoot.current = () => {
+			cancelled = true;
+		};
 		setError(null);
 		workstation()
 			.then(async (handle) => {
@@ -242,17 +254,33 @@ function EngineStatusStrip() {
 				// re-screened someone) gets a banner; the first-ever list load is a
 				// baseline and stays silent beside the onboarding alert.
 				const result = await syncToAnnounce(handle);
-				if (!cancelled && result !== null) {
+				// The user's own "Check for updates" may already have reported this
+				// same (shared) run: one re-screen gets one banner.
+				if (!cancelled && result !== null && !wasReportedToUser(result)) {
 					setAutoSync(result);
 				}
 			})
 			.catch((bootError: unknown) => {
 				if (!cancelled) setError(bootError ?? new Error("engine boot failed"));
 			});
+	}, []);
+
+	// A click that reports the run this banner shows takes over: step aside.
+	useEffect(
+		() =>
+			onUserSyncReport((reported) => {
+				setAutoSync((shown) => (shown === reported ? null : shown));
+			}),
+		[],
+	);
+
+	useEffect(() => {
+		startBoot();
 		return () => {
-			cancelled = true;
+			cancelBoot.current?.();
+			cancelBoot.current = null;
 		};
-	}, [nonce]);
+	}, [startBoot]);
 
 	// Recurring poll: while the tab stays open, re-check for a newly-published
 	// watchlist version on an interval (a nightly refresh is picked up without a
@@ -316,14 +344,14 @@ function EngineStatusStrip() {
 								const handle = await workstation();
 								await handle.clearListCache();
 							}}
-							onCleared={() => setNonce((n) => n + 1)}
+							onCleared={startBoot}
 						/>
 					)}
 				</div>
 				<button
 					type="button"
 					className="btn btn-secondary btn-sm"
-					onClick={() => setNonce((n) => n + 1)}
+					onClick={startBoot}
 				>
 					{t("common:actions.retry")}
 				</button>

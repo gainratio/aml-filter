@@ -179,6 +179,24 @@ function broadMatches(given: string, n: number): Array<typeof ivanMatch> {
 	}));
 }
 
+// The live "Jane Smith" shape: the engine fills its whole quota of nearest
+// candidates, yet only ONE of them clears the display line — the rest is
+// low-trigram neighbour noise the strictness gate withholds.
+function janeSmithCandidates(): Array<typeof ivanMatch> {
+	const hit = matchWithTrigram(
+		{ entity_id: "DEMO:JANE", primary_name: "Jane Smithson" },
+		0.7,
+		0.62,
+	);
+	const noise = Array.from({ length: SEARCH_K - 1 }, (_, i) =>
+		matchWithTrigram(
+			{ entity_id: `DEMO:NOISE${i}`, primary_name: `Unrelated Person ${i}` },
+			0.1,
+		),
+	);
+	return [hit, ...noise];
+}
+
 // Two distinguishable matches for the stale-cancellation test. The "slow"
 // query resolves LATER (longer delay) than the "fast" one, so if cancellation
 // is broken the slow result would clobber the fast one.
@@ -345,6 +363,14 @@ vi.mock("@amlfilter/browser", async (importActual) => {
 							list_versions_used: {},
 							execution_time_ms: 6,
 							matches: broadMatches("Mohammed", SEARCH_K),
+						});
+					}
+					if (lower === "jane smith") {
+						return Promise.resolve({
+							request_id: "jane",
+							list_versions_used: {},
+							execution_time_ms: 5,
+							matches: janeSmithCandidates(),
 						});
 					}
 					// "mustafa": one short of the cap — the engine ran out of candidates,
@@ -783,7 +809,7 @@ describe("ScreenPage — a capped result list says so", () => {
 		fireEvent.change(box, { target: { value: "mohammed" } });
 
 		const note = await waitFor(() =>
-			screen.getByText(/closest matches/i, {
+			screen.getByText(/closest names/i, {
 				selector: ".screen-results__capped",
 			}),
 		);
@@ -798,6 +824,28 @@ describe("ScreenPage — a capped result list says so", () => {
 		).toHaveLength(SEARCH_K);
 		// It must read as a cap, not as an exact total the engine never reported.
 		expect(note.textContent).not.toMatch(/\bof\s+\d/i);
+	});
+
+	it("never says it is showing more cards than it shows (the Jane Smith case)", async () => {
+		render(<ScreenPage />);
+		const box = await readyBox();
+		fireEvent.change(box, { target: { value: "jane smith" } });
+
+		const count = await waitFor(() =>
+			screen.getByText(/potential match/i, {
+				selector: ".screen-results__count",
+			}),
+		);
+		expect(count.textContent).toMatch(/^1 potential match /);
+		expect(
+			screen.getAllByText(/Jane Smithson/, { selector: ".match-card__name" }),
+		).toHaveLength(1);
+		// The cap note talks about the candidates that were COMPARED, never as if
+		// those candidates were matches on screen.
+		const note = document.querySelector(".screen-results__capped");
+		expect(note?.textContent).toContain(`${SEARCH_K} closest names`);
+		expect(note?.textContent).not.toMatch(/showing/i);
+		expect(note?.textContent).not.toMatch(/closest matches/i);
 	});
 
 	it("stays silent when the engine returns fewer results than the cap", async () => {

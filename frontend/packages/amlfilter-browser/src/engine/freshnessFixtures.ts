@@ -5,8 +5,8 @@
 // literal shape of every catalog fixture in this package, so it lives here once
 // instead of being retyped in five test files.
 //
-// TWO SHAPES, deliberately. `FRESH`/`STALE` are the WIRE block a publisher
-// stages. `*_RESOLVED` are what the bundle path projects onto a catalog entry
+// TWO SHAPES, deliberately. `FRESH` is the WIRE block a publisher
+// stages. `FRESH_RESOLVED` is what the bundle path projects onto a catalog entry
 // after the shared rule runs — the same fields plus `agedFrom`, which records
 // WHICH instant the age came from. A pre-per-list-freshness bundle carries no
 // wire block at all and resolves with `agedFrom: "generatedAt"`.
@@ -24,23 +24,8 @@ export const FRESH: ListFreshness = {
 	staleReason: null,
 };
 
-/** A list the publisher could NOT refresh, re-served from the last good copy —
- * keeping the instant it was ORIGINALLY fetched, so its age is its real age. */
-export const STALE: ListFreshness = {
-	fetchedAt: "2026-07-29T00:00:00Z",
-	sourceUpdatedAt: null,
-	stale: true,
-	staleReason: "EU feed returned HTTP 500",
-};
-
 /** {@link FRESH} as a PROJECTED catalog entry carries it. */
 export const FRESH_RESOLVED: ResolvedListFreshness = {
 	...FRESH,
-	agedFrom: "fetchedAt",
-};
-
-/** {@link STALE} as a PROJECTED catalog entry carries it. */
-export const STALE_RESOLVED: ResolvedListFreshness = {
-	...STALE,
 	agedFrom: "fetchedAt",
 };

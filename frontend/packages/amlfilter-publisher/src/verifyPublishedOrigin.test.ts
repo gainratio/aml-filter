@@ -12,13 +12,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { IntegrityError, SignatureError } from "@amlfilter/browser/engine";
 import { describe, expect, it } from "vitest";
-import * as originVerifier from "./verifyPublishedOrigin.ts";
 import {
 	httpFetchBytes,
+	nextPublishedSequence,
 	type OriginFetch,
 	OriginVerifyError,
 	parseVerifyArgs,
+	runNextPublishedSequence,
 	runVerifyPublishedOrigin,
+	sequenceAfterLive,
 	verifyPublishedOrigin,
 } from "./verifyPublishedOrigin.ts";
 
@@ -199,44 +201,22 @@ describe("verifyPublishedOrigin against the committed demo origin", () => {
 });
 
 describe("next published monotonic sequence", () => {
-	type SequenceModule = {
-		readonly sequenceAfterLive: (current: number) => number;
-		readonly nextPublishedSequence: (args: {
-			readonly baseUrl: string;
-			readonly fetchBytes: OriginFetch;
-			readonly pubkey: Uint8Array;
-		}) => Promise<number>;
-		readonly runNextPublishedSequence: (
-			argv: ReadonlyArray<string>,
-			deps: {
-				readonly fetchBytes: OriginFetch;
-				readonly readFile: (path: string) => Uint8Array;
-				readonly log: (line: string) => void;
-			},
-		) => Promise<number>;
-	};
-	const sequenceModule = originVerifier as unknown as Partial<SequenceModule>;
-
 	it("increments the verified live pointer, independent of an older workflow run id", async () => {
-		expect(sequenceModule.sequenceAfterLive).toBeTypeOf("function");
 		const live = JSON.parse(
 			new TextDecoder().decode(await fixtureFetch()(`${BASE}/latest`)),
 		) as { sequence: number };
-		expect(sequenceModule.sequenceAfterLive?.(live.sequence)).toBe(
-			live.sequence + 1,
-		);
+		expect(sequenceAfterLive(live.sequence)).toBe(live.sequence + 1);
 		// A rerun of an old GitHub workflow still derives from LIVE state; no run id
 		// participates in this operation.
-		expect(sequenceModule.sequenceAfterLive?.(50_000)).toBe(50_001);
+		expect(sequenceAfterLive(50_000)).toBe(50_001);
 	});
 
 	it("fetches and signature-verifies the live pointer before incrementing", async () => {
-		expect(sequenceModule.nextPublishedSequence).toBeTypeOf("function");
 		const live = JSON.parse(
 			new TextDecoder().decode(await fixtureFetch()(`${BASE}/latest`)),
 		) as { sequence: number };
 		await expect(
-			sequenceModule.nextPublishedSequence?.({
+			nextPublishedSequence({
 				baseUrl: BASE,
 				fetchBytes: fixtureFetch(),
 				pubkey: PUBKEY,
@@ -257,7 +237,7 @@ describe("next published monotonic sequence", () => {
 			},
 		);
 		await expect(
-			sequenceModule.nextPublishedSequence?.({
+			nextPublishedSequence({
 				baseUrl: BASE,
 				fetchBytes,
 				pubkey: PUBKEY,
@@ -266,15 +246,14 @@ describe("next published monotonic sequence", () => {
 	});
 
 	it("refuses to overflow JavaScript's safe-integer sequence space", () => {
-		expect(() =>
-			sequenceModule.sequenceAfterLive?.(Number.MAX_SAFE_INTEGER),
-		).toThrow(/safe integer/i);
+		expect(() => sequenceAfterLive(Number.MAX_SAFE_INTEGER)).toThrow(
+			/safe integer/i,
+		);
 	});
 
 	it("prints one shell-safe decimal candidate for workflow consumption", async () => {
-		expect(sequenceModule.runNextPublishedSequence).toBeTypeOf("function");
 		const lines: string[] = [];
-		const sequence = await sequenceModule.runNextPublishedSequence?.(
+		const sequence = await runNextPublishedSequence(
 			["--base-url", BASE, "--pubkey", join(APP_PUBLIC, "public.key")],
 			{
 				fetchBytes: fixtureFetch(),
@@ -292,7 +271,7 @@ describe("next published monotonic sequence", () => {
 	// must now fail closed against the single pinned key.
 	it("rejects an old-key-signed prior pointer — strict single-key fail-closed", async () => {
 		await expect(
-			sequenceModule.nextPublishedSequence?.({
+			nextPublishedSequence({
 				baseUrl: BASE,
 				fetchBytes: legacyFixtureFetch(),
 				pubkey: PROD_PIN,
@@ -325,7 +304,7 @@ describe("next published monotonic sequence", () => {
 	// workflow cannot silently reopen the dual-trust path.
 	it("CLI: rejects the removed --fallback-pubkey flag as unknown", async () => {
 		await expect(
-			sequenceModule.runNextPublishedSequence?.(
+			runNextPublishedSequence(
 				[
 					"--base-url",
 					BASE,
@@ -345,7 +324,7 @@ describe("next published monotonic sequence", () => {
 
 	it("CLI: rejects an unknown flag on next-published-sequence", async () => {
 		await expect(
-			sequenceModule.runNextPublishedSequence?.(
+			runNextPublishedSequence(
 				["--base-url", BASE, "--pubkey", "prod.key", "--nope", "x"],
 				{
 					fetchBytes: legacyFixtureFetch(),

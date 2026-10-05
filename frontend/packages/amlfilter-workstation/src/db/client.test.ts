@@ -37,6 +37,8 @@ function makeCustomerRow(): CustomerRow {
 		kyc_risk_rating: null,
 		id_documents: [],
 		onboarded_by: "local",
+		screened_at: null,
+		screened_list_version: null,
 		created_at: "2026-06-09T00:00:00.000Z",
 		updated_at: "2026-06-09T00:00:00.000Z",
 	};

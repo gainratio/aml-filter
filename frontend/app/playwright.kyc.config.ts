@@ -43,9 +43,10 @@ export default defineConfig({
 			// Minified SPA (bundling the committed signed catalog + per-list dirs +
 			// pinned pubkey as static public/ assets). The model-load ceiling is bounded so a
 			// blocked weights path fails loudly in seconds (same as the C1 config).
-			command: `pnpm build && pnpm exec vite preview --port ${SPA_PORT} --strictPort`,
+			// serve-preview holds the port through the build (see the script header).
+			command: `node scripts/serve-preview.mjs --port ${SPA_PORT}`,
 			url: `http://localhost:${SPA_PORT}/`,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer: false,
 			timeout: 240_000,
 			// 120s production ceiling — full headroom for a cold in-tab model compile
 			// on a slow CI runner (45s was marginal and flaked).

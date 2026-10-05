@@ -90,6 +90,12 @@ yourself: the verdict is computed in your browser, with no server asked, against
 this install's own key — if the sealed data were altered in any way, the chip would read
 **Not verified — tampered**.
 
+That key belongs to this browser. To keep it when you clear browser data or move to a
+new computer, open **`/settings` → Receipt signing key → Export the key**, pick a
+passphrase (12+ characters), and keep the file. **Import a key** on the new browser
+restores it, so your old receipts still verify there. **Reset signing key** makes a new
+key; after that, receipts signed earlier only verify against the public key you saved.
+
 ## 3. Choose lists and sensitivity (`/settings`)
 
 Go to **`/settings`** to configure the screening run. It persists to the local SQLite

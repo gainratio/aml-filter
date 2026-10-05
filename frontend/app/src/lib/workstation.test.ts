@@ -42,6 +42,7 @@ function makeStore(): WorkstationStore {
 		updateCustomer: vi.fn(),
 		deleteCustomer: vi.fn(),
 		recordMatches: vi.fn(),
+		markScreened: vi.fn().mockResolvedValue(undefined),
 		listReviewMatches: vi.fn().mockResolvedValue([]),
 		resolveMatch: vi.fn(),
 		listCustomers: vi.fn().mockResolvedValue([]),
@@ -120,6 +121,16 @@ describe("workstation boot", () => {
 		const handle = await workstation(deps);
 		expect(handle.watchlistVersion()).toBe("watchlist-v-test");
 		expect(deps.runtime.version).toHaveBeenCalled();
+	});
+
+	it("an onboarded customer is marked screened against the runtime's loaded lists", async () => {
+		const store = makeStore();
+		vi.mocked(store.createCustomer).mockResolvedValue({
+			customer_id: "c-9",
+		} as Awaited<ReturnType<WorkstationStore["createCustomer"]>>);
+		const handle = await workstation(makeDeps(store));
+		await handle.onboarding.onboard({ customer_reference: "R-9", name: "Ann" });
+		expect(store.markScreened).toHaveBeenCalledWith("c-9", "watchlist-v-test");
 	});
 
 	it("fetchPublishedVersion + reloadWatchlist delegate to the runtime", async () => {

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import i18n from "../i18n";
+import { i18n } from "../i18n";
 import {
+	actorLabel,
+	kycRiskLabel,
 	listName,
 	matchEventLabel,
+	onboardingLabel,
 	reasonLabel,
 	resolutionLabel,
 	riskLabel,
@@ -80,5 +83,41 @@ describe("score reasons read as plain words", () => {
 
 	it("names the risk category in words", () => {
 		expect(riskLabel("SANCTION", t)).toBe("Sanctioned");
+	});
+});
+
+describe("customer codes read as words, never as raw enums", () => {
+	it.each([
+		["DRAFT", "Draft"],
+		["PENDING_REVIEW", "Awaiting approval"],
+		["ACTIVE", "Approved"],
+		["REJECTED", "Rejected"],
+	])("onboarding %s reads as %s", (code, label) => {
+		expect(onboardingLabel(code, t)).toBe(label);
+	});
+
+	it.each([
+		["LOW", "Low"],
+		["MEDIUM", "Medium"],
+		["HIGH", "High"],
+	])("KYC risk %s reads as %s", (code, label) => {
+		expect(kycRiskLabel(code, t)).toBe(label);
+	});
+
+	it("an unrated customer reads as Not rated", () => {
+		expect(kycRiskLabel(null, t)).toBe("Not rated");
+	});
+
+	it("an unknown onboarding code stays printable", () => {
+		expect(onboardingLabel("ESCALATED", t)).toBe("ESCALATED");
+	});
+
+	it("the workstation's internal actor id never reaches the screen", () => {
+		expect(actorLabel("local", t)).toBe("No name given");
+		expect(actorLabel("", t)).toBe("No name given");
+	});
+
+	it("a real analyst name is shown as typed", () => {
+		expect(actorLabel("Priya Analyst", t)).toBe("Priya Analyst");
 	});
 });

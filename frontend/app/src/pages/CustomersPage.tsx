@@ -1,16 +1,24 @@
 /** KYC customer onboarding page (the /v1/customers tier). */
 
 import type { TFunction } from "i18next";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import {
 	apiClient,
 	type CustomerOnboardResponse,
 	type CustomerResponse,
+	type CustomerUpdateRequest,
 	type IdDocument,
 	type KycRiskRating,
 	type OnboardingStatus,
 } from "../lib/api";
+import {
+	listAllReviewMatches,
+	type ScreeningSummary,
+	type ScreeningView,
+	screeningStateFor,
+	screeningSummaries,
+} from "../lib/customerScreening";
 import {
 	buildCustomerImportPreview,
 	type CustomerImportDuplicate,
@@ -19,19 +27,20 @@ import {
 	createCustomerExportFile,
 	readCustomerImportFile,
 } from "../lib/customerTransfer";
-import { checkForWatchlistUpdates, syncSummaryText } from "../lib/sync";
+import { checkForWatchlistUpdates, reportUserSync } from "../lib/sync";
+import { useLoadedListVersion } from "../lib/useLoadedListVersion";
 import { workstation } from "../lib/workstation";
-
-const ONBOARDING_STATUSES: OnboardingStatus[] = [
-	"DRAFT",
-	"PENDING_REVIEW",
-	"ACTIVE",
-	"REJECTED",
-];
-
-const RISK_RATINGS: KycRiskRating[] = ["LOW", "MEDIUM", "HIGH"];
+import {
+	type CustomerDraft,
+	CustomerEditorRow,
+	CustomerTableRow,
+	draftOf,
+	UnscreenedNotice,
+} from "./CustomerTableRow";
 
 interface IdDocumentRow {
+	/** Stable React key for this form row (never submitted). */
+	key: string;
 	doc_type: string;
 	number: string;
 	issuing_country: string;
@@ -44,13 +53,6 @@ interface NewCustomerForm {
 	onboarded_by: string;
 	country: string;
 	dob: string;
-}
-
-/** Inline edit buffer for a single customer row (name / country). */
-interface EditState {
-	customerId: string;
-	name: string;
-	country: string;
 }
 
 interface ImportPreviewState {
@@ -68,18 +70,37 @@ const EMPTY_FORM: NewCustomerForm = {
 	dob: "",
 };
 
-function statusBadgeClass(status: string): string {
-	if (status === "ACTIVE") return "badge badge-success";
-	if (status === "REJECTED") return "badge badge-danger";
-	if (status === "PENDING_REVIEW") return "badge badge-warning";
-	return "badge badge-muted";
+/** Only the fields the editor actually changed, so an unchanged field is never rewritten. */
+function changedFields(
+	before: CustomerResponse,
+	draft: CustomerDraft,
+): CustomerUpdateRequest {
+	return {
+		...(draft.name !== before.name ? { name: draft.name } : {}),
+		...(draft.country !== (before.country ?? "")
+			? { country: draft.country }
+			: {}),
+		...(draft.status !== before.onboarding_status
+			? { onboarding_status: draft.status as OnboardingStatus }
+			: {}),
+		...(draft.risk !== "" && draft.risk !== before.kyc_risk_rating
+			? { kyc_risk_rating: draft.risk as KycRiskRating }
+			: {}),
+	};
 }
 
-function riskBadgeClass(rating: string | null): string {
-	if (rating === "HIGH") return "badge badge-danger";
-	if (rating === "MEDIUM") return "badge badge-warning";
-	if (rating === "LOW") return "badge badge-success";
-	return "badge badge-muted";
+/** Screening summaries per customer, or null when the matches could not be read. */
+async function loadScreening(): Promise<ReadonlyMap<
+	string,
+	ScreeningSummary
+> | null> {
+	try {
+		return screeningSummaries(
+			await listAllReviewMatches((page) => apiClient.listReviewMatches(page)),
+		);
+	} catch {
+		return null;
+	}
 }
 
 function toIdDocuments(rows: IdDocumentRow[]): IdDocument[] {
@@ -97,9 +118,13 @@ function errorMessage(err: unknown, fallback: string): string {
 	return err instanceof Error ? err.message : fallback;
 }
 
-export default function CustomersPage() {
+export function CustomersPage() {
 	const { t } = useTranslation("customers");
 	const [customers, setCustomers] = useState<CustomerResponse[]>([]);
+	const [screening, setScreening] = useState<ReadonlyMap<
+		string,
+		ScreeningSummary
+	> | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [form, setForm] = useState<NewCustomerForm>(EMPTY_FORM);
@@ -113,13 +138,16 @@ export default function CustomersPage() {
 		version: string;
 		at: string;
 	} | null>(null);
-	const [editing, setEditing] = useState<EditState | null>(null);
+	const [editing, setEditing] = useState<CustomerDraft | null>(null);
 	const [importPreview, setImportPreview] = useState<ImportPreviewState | null>(
 		null,
 	);
 	const [importing, setImporting] = useState(false);
 	const [transferMessage, setTransferMessage] = useState<string | null>(null);
 	const importInputRef = useRef<HTMLInputElement>(null);
+	const lists = useLoadedListVersion();
+	const refreshListVersion = lists.refresh;
+	const [screeningNow, setScreeningNow] = useState(false);
 
 	const loadCustomers = useCallback(async () => {
 		try {
@@ -127,12 +155,41 @@ export default function CustomersPage() {
 			setError(null);
 			const data = await apiClient.listCustomers();
 			setCustomers(data);
+			setScreening(await loadScreening());
+			await refreshListVersion();
 		} catch (err) {
 			setError(errorMessage(err, t("errors.load")));
 		} finally {
 			setLoading(false);
 		}
-	}, [t]);
+	}, [t, refreshListVersion]);
+
+	const viewFor = (customer: CustomerResponse): ScreeningView => {
+		const view = screeningStateFor(screening, customer, lists.version);
+		// A failed engine boot can never prove a screen: say "Not checked".
+		return lists.failed && view.state === "listsLoading"
+			? { state: "unknown", open: 0 }
+			: view;
+	};
+	const unscreened = customers.filter(
+		(customer) => viewFor(customer).state === "notScreened",
+	);
+
+	const handleScreenUnscreened = async () => {
+		try {
+			setScreeningNow(true);
+			setError(null);
+			const handle = await workstation();
+			for (const customer of unscreened) {
+				await handle.rescan.screenCustomer(customer.customer_id);
+			}
+			await loadCustomers();
+		} catch (err) {
+			setError(errorMessage(err, t("errors.screen")));
+		} finally {
+			setScreeningNow(false);
+		}
+	};
 
 	useEffect(() => {
 		loadCustomers();
@@ -156,32 +213,6 @@ export default function CustomersPage() {
 			await loadCustomers();
 		} catch (err) {
 			setError(errorMessage(err, t("errors.onboard")));
-		}
-	};
-
-	const handleStatusChange = async (
-		customerId: string,
-		onboarding_status: OnboardingStatus,
-	) => {
-		try {
-			setError(null);
-			await apiClient.updateCustomer(customerId, { onboarding_status });
-			await loadCustomers();
-		} catch (err) {
-			setError(errorMessage(err, t("errors.updateStatus")));
-		}
-	};
-
-	const handleRiskChange = async (
-		customerId: string,
-		kyc_risk_rating: KycRiskRating,
-	) => {
-		try {
-			setError(null);
-			await apiClient.updateCustomer(customerId, { kyc_risk_rating });
-			await loadCustomers();
-		} catch (err) {
-			setError(errorMessage(err, t("errors.updateRisk")));
 		}
 	};
 
@@ -214,7 +245,7 @@ export default function CustomersPage() {
 				setSyncMessage(t("sync.enginePending"));
 				return;
 			}
-			setSyncMessage(syncSummaryText(result));
+			setSyncMessage(reportUserSync(result));
 			setLastSynced({ version: result.version, at: new Date().toISOString() });
 			await loadCustomers();
 		} catch (err) {
@@ -226,16 +257,23 @@ export default function CustomersPage() {
 
 	const handleEditSave = async () => {
 		if (editing === null) return;
+		const before = customers.find(
+			(customer) => customer.customer_id === editing.customerId,
+		);
+		if (before === undefined) return;
 		try {
 			setError(null);
-			// Persist name/country, then re-screen this customer against the
-			// current watchlist so the review board reflects the new identity.
-			await apiClient.updateCustomer(editing.customerId, {
-				name: editing.name,
-				country: editing.country,
-			});
-			const handle = await workstation();
-			await handle.rescan.screenCustomer(editing.customerId);
+			const patch = changedFields(before, editing);
+			if (Object.keys(patch).length > 0) {
+				await apiClient.updateCustomer(editing.customerId, patch);
+			}
+			// A new name or country is a new identity: re-screen this customer so
+			// the review board reflects it. Status and risk alone change nothing
+			// the screen reads.
+			if (patch.name !== undefined || patch.country !== undefined) {
+				const handle = await workstation();
+				await handle.rescan.screenCustomer(editing.customerId);
+			}
 			setEditing(null);
 			await loadCustomers();
 		} catch (err) {
@@ -326,12 +364,18 @@ export default function CustomersPage() {
 	const addIdDocRow = () =>
 		setIdDocs((rows) => [
 			...rows,
-			{ doc_type: "", number: "", issuing_country: "", expiry: "" },
+			{
+				key: crypto.randomUUID(),
+				doc_type: "",
+				number: "",
+				issuing_country: "",
+				expiry: "",
+			},
 		]);
 
 	const updateIdDocRow = (
 		index: number,
-		field: keyof IdDocumentRow,
+		field: Exclude<keyof IdDocumentRow, "key">,
 		value: string,
 	) =>
 		setIdDocs((rows) =>
@@ -557,8 +601,7 @@ export default function CustomersPage() {
 					) : (
 						idDocs.map((row, index) => (
 							<div
-								// biome-ignore lint/suspicious/noArrayIndexKey: rows are positional with no stable id
-								key={index}
+								key={row.key}
 								className="form-grid mb-sm"
 								data-testid="id-doc-row"
 							>
@@ -628,6 +671,13 @@ export default function CustomersPage() {
 			</form>
 
 			<h2>{t("list.title", { total: customers.length })}</h2>
+			{!loading && unscreened.length > 0 ? (
+				<UnscreenedNotice
+					count={unscreened.length}
+					busy={screeningNow}
+					onScreen={handleScreenUnscreened}
+				/>
+			) : null}
 			{loading ? (
 				<p>{t("list.loading")}</p>
 			) : customers.length === 0 ? (
@@ -637,10 +687,11 @@ export default function CustomersPage() {
 					className="table-scroll"
 					aria-label={t("list.title", { total: customers.length })}
 				>
-					<table className="table">
+					<table className="table customers-table">
 						<thead>
 							<tr>
 								<th scope="col">{t("list.columns.reference")}</th>
+								<th scope="col">{t("list.columns.screening")}</th>
 								<th scope="col">{t("list.columns.status")}</th>
 								<th scope="col">{t("list.columns.risk")}</th>
 								<th scope="col">{t("list.columns.onboardedBy")}</th>
@@ -651,138 +702,29 @@ export default function CustomersPage() {
 							</tr>
 						</thead>
 						<tbody>
-							{customers.map((customer) => (
-								<tr key={customer.customer_id}>
-									<td>{customer.customer_reference}</td>
-									<td>
-										<span
-											className={statusBadgeClass(customer.onboarding_status)}
-										>
-											{customer.onboarding_status}
-										</span>
-									</td>
-									<td>
-										<span className={riskBadgeClass(customer.kyc_risk_rating)}>
-											{customer.kyc_risk_rating ?? t("list.unrated")}
-										</span>
-									</td>
-									<td>{customer.onboarded_by}</td>
-									<td>{new Date(customer.created_at).toLocaleDateString()}</td>
-									<td className="table-cell-right">
-										<div className="flex-gap-sm">
-											<select
-												aria-label={t("list.controls.statusAria", {
-													reference: customer.customer_reference,
-												})}
-												value={customer.onboarding_status}
-												onChange={(e) =>
-													handleStatusChange(
-														customer.customer_id,
-														e.target.value as OnboardingStatus,
-													)
-												}
-												className="form-select"
-											>
-												{ONBOARDING_STATUSES.map((s) => (
-													<option key={s} value={s}>
-														{s}
-													</option>
-												))}
-											</select>
-											<select
-												aria-label={t("list.controls.riskAria", {
-													reference: customer.customer_reference,
-												})}
-												value={customer.kyc_risk_rating ?? ""}
-												onChange={(e) =>
-													handleRiskChange(
-														customer.customer_id,
-														e.target.value as KycRiskRating,
-													)
-												}
-												className="form-select"
-											>
-												<option value="" disabled>
-													{t("list.controls.riskPlaceholder")}
-												</option>
-												{RISK_RATINGS.map((r) => (
-													<option key={r} value={r}>
-														{r}
-													</option>
-												))}
-											</select>
-											{editing?.customerId === customer.customer_id ? (
-												<>
-													<input
-														type="text"
-														aria-label={t("list.controls.editNameAria", {
-															reference: customer.customer_reference,
-														})}
-														value={editing.name}
-														onChange={(e) =>
-															setEditing({ ...editing, name: e.target.value })
-														}
-														className="form-input"
-													/>
-													<input
-														type="text"
-														aria-label={t("list.controls.editCountryAria", {
-															reference: customer.customer_reference,
-														})}
-														value={editing.country}
-														maxLength={2}
-														onChange={(e) =>
-															setEditing({
-																...editing,
-																country: e.target.value,
-															})
-														}
-														className="form-input"
-													/>
-													<button
-														type="button"
-														onClick={handleEditSave}
-														className="btn btn-primary btn-sm"
-													>
-														{t("actions.save")}
-													</button>
-													<button
-														type="button"
-														onClick={() => setEditing(null)}
-														className="btn btn-secondary btn-sm"
-													>
-														{t("actions.cancel")}
-													</button>
-												</>
-											) : (
-												<button
-													type="button"
-													aria-label={t("list.controls.editAria", {
-														reference: customer.customer_reference,
-													})}
-													onClick={() =>
-														setEditing({
-															customerId: customer.customer_id,
-															name: customer.name,
-															country: customer.country ?? "",
-														})
-													}
-													className="btn btn-secondary btn-sm"
-												>
-													{t("actions.edit")}
-												</button>
-											)}
-											<button
-												type="button"
-												onClick={() => handleDelete(customer.customer_id)}
-												className="btn btn-danger btn-sm"
-											>
-												{t("actions.delete")}
-											</button>
-										</div>
-									</td>
-								</tr>
-							))}
+							{customers.map((customer) => {
+								const isEditing = editing?.customerId === customer.customer_id;
+								return (
+									<Fragment key={customer.customer_id}>
+										<CustomerTableRow
+											customer={customer}
+											screening={viewFor(customer)}
+											editing={isEditing}
+											onEdit={() => setEditing(draftOf(customer))}
+											onDelete={() => handleDelete(customer.customer_id)}
+										/>
+										{isEditing && editing !== null ? (
+											<CustomerEditorRow
+												reference={customer.customer_reference}
+												draft={editing}
+												onChange={setEditing}
+												onSave={handleEditSave}
+												onCancel={() => setEditing(null)}
+											/>
+										) : null}
+									</Fragment>
+								);
+							})}
 						</tbody>
 					</table>
 				</section>

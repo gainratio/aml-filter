@@ -60,5 +60,46 @@
 		"load": "Failed to load settings",
 		"apply": "Failed to apply settings",
 		"clearCache": "Failed to clear cached lists"
+	},
+	"signingKey": {
+		"title": "Receipt signing key",
+		"description": "Every score receipt is signed with this browser's own key. Anyone with the public key below can check that a receipt was not changed after it was signed. The key is kept in this browser's local SQLite database and never leaves the device unless you export it.",
+		"loading": "Loading the signing key…",
+		"unavailable": "The signing key can't be loaded here: {{reason}}",
+		"publicKeyLabel": "Public key (share this to let others check your receipts)",
+		"memoryNotice": "This browser refused persistent storage, so the signing key lives only in this tab and is lost when you close it. Receipts you make now can only be checked later if you export the key below.",
+		"error": "Something went wrong: {{message}}",
+		"export": {
+			"title": "Export the key",
+			"description": "Saves the key to a file, encrypted with a passphrase you choose (at least {{min}} characters). The file is useless without the passphrase, and the passphrase can't be recovered, so keep both safe.",
+			"passphrase": "Passphrase",
+			"confirm": "Repeat passphrase",
+			"button": "Export encrypted key",
+			"mismatch": "The two passphrases don't match.",
+			"tooShort": "Use at least {{min}} characters.",
+			"done": "Key exported."
+		},
+		"import": {
+			"title": "Import a key",
+			"description": "Replaces this browser's key with the one in an export file, for example when you move to a new computer. Receipts signed with the current key will then only verify with its public key, so export it first if you still need it.",
+			"file": "Key file",
+			"passphrase": "Import passphrase",
+			"button": "Import key",
+			"noFile": "Choose a key file first.",
+			"done": "Key imported. Public key: {{publicKey}}",
+			"errors": {
+				"wrongPassphrase": "Wrong passphrase, or the file was changed. Nothing was imported.",
+				"malformed": "That is not a signing-key file. Nothing was imported.",
+				"unsupported": "This key file comes from a newer version of the app. Nothing was imported.",
+				"mismatch": "The key inside this file doesn't match its public key. Nothing was imported."
+			}
+		},
+		"reset": {
+			"button": "Reset signing key…",
+			"warning": "Resetting deletes this key and makes a new one. Receipts signed before the reset can then only be verified with the public key you exported or wrote down (shown above). Export the key first if you may need to prove old receipts.",
+			"confirm": "Delete the key and make a new one",
+			"cancel": "Cancel",
+			"done": "Signing key reset. New public key: {{publicKey}}"
+		}
 	}
 }

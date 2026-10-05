@@ -142,6 +142,21 @@ describe("schema migrations", () => {
 		expect(maxVersion[0]?.v).toBe(SCHEMA_VERSION);
 	});
 
+	it("applies v5 — screening-proof columns, backfilled NULL so no old row reads as screened", () => {
+		seedV1(db);
+		db.exec(
+			`INSERT INTO customers (customer_id, customer_reference, name, created_at, updated_at)
+			 VALUES ('c1', 'REF-1', 'Ivan', 't', 't')`,
+		);
+		expect(migrate(db)).toBe(SCHEMA_VERSION);
+		expect(SCHEMA_VERSION).toBe(5);
+		const rows = db.selectObjects(
+			"SELECT screened_at, screened_list_version FROM customers WHERE customer_id = 'c1'",
+		);
+		expect(rows[0]?.screened_at).toBeNull();
+		expect(rows[0]?.screened_list_version).toBeNull();
+	});
+
 	it("applies v4 — the match_events append-only triggers", () => {
 		expect(migrate(db)).toBe(SCHEMA_VERSION);
 		const triggers = db
@@ -171,7 +186,11 @@ describe("schema migrations", () => {
 		);
 		db.exec("DROP TRIGGER match_events_no_update");
 		db.exec("DROP TRIGGER match_events_no_delete");
-		db.exec("DELETE FROM schema_migrations WHERE version = 4");
+		// Roll the ledger back to v3 exactly: later steps (v5's columns) are undone
+		// too, so the migration re-runs v4 and everything after it.
+		db.exec("ALTER TABLE customers DROP COLUMN screened_at");
+		db.exec("ALTER TABLE customers DROP COLUMN screened_list_version");
+		db.exec("DELETE FROM schema_migrations WHERE version >= 4");
 
 		expect(migrate(db)).toBe(SCHEMA_VERSION);
 

@@ -16,7 +16,7 @@
 //
 // See csl.ts for the provenance rationale and the field-level notes.
 
-import { CSL_SDN_SOURCE, parseCslSdn } from "./csl.ts";
+import { parseCslSdn } from "./csl.ts";
 import {
 	cancelResponse,
 	fetchWithTimeout,
@@ -132,5 +132,3 @@ export const ofacSource: WatchlistSource = {
 		return parseCslSdn(raw[CSL_FILE] ?? "", listVersion);
 	},
 };
-
-export { CSL_SDN_SOURCE };

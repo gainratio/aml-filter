@@ -74,6 +74,10 @@ export interface CustomerRow {
 	readonly kyc_risk_rating: string | null;
 	readonly id_documents: ReadonlyArray<IdDocument>;
 	readonly onboarded_by: string;
+	/** When the customer was last screened; null = never (or identity changed since). */
+	readonly screened_at: string | null;
+	/** Composite stamp of the lists that screen ran against; null = unproven. */
+	readonly screened_list_version: string | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -191,6 +195,8 @@ export interface WorkstationStore {
 		customerId: string,
 		matches: ReadonlyArray<TieredMatch>,
 	): Promise<ReadonlyArray<ReviewRow>>;
+	/** Record a completed screen against the lists stamped `listVersion`. */
+	markScreened(customerId: string, listVersion: string): Promise<CustomerRow>;
 	listReviewMatches(filters: ReviewFilters): Promise<ReadonlyArray<ReviewRow>>;
 	resolveMatch(
 		matchId: string,

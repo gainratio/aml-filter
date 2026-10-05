@@ -11,8 +11,10 @@ import { expect, type Page, test } from "@playwright/test";
  * RESERVED lock". SQLite therefore never treats a leftover rollback journal as
  * hot, so the pages a dying transaction already spilled into the database file
  * stay there, and `PRAGMA integrity_check` still says "ok". Upstream fixed it in
- * check-in 9168a6f1be (forum b2fbb61642, 2026-09-30); no npm build carries it
- * yet, so frontend/patches/ backports that check-in.
+ * check-in 9168a6f1be (forum b2fbb61642, 2026-09-30), with the per-path lock
+ * table of 9e2caaa382 (GitHub 3b28aa1c) and the no-op xSleep of c9dd4d88e4
+ * (GitHub cdbfe6a9, forum 3f0794c5d8); no npm build carries them yet, so
+ * frontend/patches/ backports all three. The second test pins c9dd4d88e4.
  *
  * This drives the EXACT installed package the workstation DB worker bundles
  * (packages/amlfilter-workstation/node_modules/@sqlite.org/sqlite-wasm) in a
@@ -99,6 +101,27 @@ const steps = {
 		postMessage({ inTransaction: true, journal });
 		await new Promise(() => {}); // never COMMIT: the page kills us here
 	},
+	async busy(pool) {
+		// Two handles on one file in this thread, as the KYC worker can hold.
+		await pool.wipeFiles();
+		const a = openDb(pool);
+		a.exec("CREATE TABLE t (x INTEGER)");
+		const b = openDb(pool);
+		b.exec("PRAGMA busy_timeout = 3000");
+		a.exec("BEGIN IMMEDIATE");
+		const started = performance.now();
+		let message = "";
+		try {
+			b.exec("BEGIN IMMEDIATE");
+		} catch (error) {
+			message = String(error && error.message ? error.message : error);
+		}
+		const elapsedMs = performance.now() - started;
+		a.exec("ROLLBACK");
+		a.close();
+		b.close();
+		return { busy: /BUSY/.test(message), elapsedMs };
+	},
 	async verify(pool) {
 		const db = openDb(pool);
 		const [row] = db.selectObjects(
@@ -160,7 +183,7 @@ async function serveHarness(page: Page): Promise<void> {
 /** Runs one step in a fresh worker; "crash" resolves once the txn is open. */
 function runStep(
 	page: Page,
-	step: "seed" | "crash" | "verify",
+	step: "seed" | "crash" | "verify" | "busy",
 ): Promise<unknown> {
 	return page.evaluate(
 		({ url, name }) =>
@@ -209,4 +232,20 @@ test("a worker killed mid-transaction leaves no torn rows after reopen (hot jour
 	});
 	// The hot journal was consumed by the rollback, not left behind.
 	expect(after.files).not.toContain("/ledger.sqlite3-journal");
+});
+
+test("a second writer gets SQLITE_BUSY at once: the pool never sleeps in the busy handler", async ({
+	page,
+}) => {
+	await serveHarness(page);
+	await page.goto(`${HARNESS}/index.html`);
+	// Contention in an opfs-sahpool only comes from handles in this same thread,
+	// so sleeping out a busy_timeout can never resolve it; it only freezes the
+	// worker (upstream c9dd4d88e4). A 3 s busy_timeout must still fail fast.
+	const result = (await runStep(page, "busy")) as {
+		busy: boolean;
+		elapsedMs: number;
+	};
+	expect(result.busy).toBe(true);
+	expect(result.elapsedMs).toBeLessThan(1_000);
 });

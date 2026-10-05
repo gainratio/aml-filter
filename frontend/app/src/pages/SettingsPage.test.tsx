@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../lib/api";
-import SettingsPage from "./SettingsPage";
+import { SettingsPage } from "./SettingsPage";
 
 // The page talks to the persisted screening config through the apiClient
 // singleton, and to the analyst-name settings row through the workstation
@@ -85,6 +85,17 @@ describe("SettingsPage", () => {
 				"true",
 			),
 		);
+	});
+
+	it("offers the receipt signing key section (export, import, reset)", async () => {
+		render(<SettingsPage />);
+
+		expect(
+			await screen.findByRole("heading", { name: "Receipt signing key" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Reset signing key…" }),
+		).toBeInTheDocument();
 	});
 
 	it("selecting a different sensitivity then Apply calls setScreeningConfig with that sensitivity", async () => {

@@ -41,7 +41,7 @@ export interface ScreenTarget {
 }
 
 /** The three facts a decision reads, pulled off one returned match. */
-export function factsOf(match: Match, query: string): CandidateFacts {
+function factsOf(match: Match, query: string): CandidateFacts {
 	return {
 		score: match.score,
 		lexical: lexicalOf(match),

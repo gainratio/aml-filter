@@ -353,17 +353,24 @@ const defaultDeps: RuntimeDeps = {
 
 /**
  * Best-effort request that the browser keep the list cache + private storage durable
- * (not evicted under storage pressure). Guarded: a browser without the
- * Storage API, or a denied request, is a no-op — durability is an
- * optimization, never a correctness requirement (every load re-verifies).
+ * (not evicted under storage pressure). FIRE-AND-FORGET: Firefox answers
+ * persist() with a permission prompt and leaves the promise pending until the
+ * user clicks, so awaiting it hung boot forever. The request is made, never
+ * awaited; a rejection (or a synchronous throw) is swallowed. A browser without
+ * the Storage API is a no-op — durability is an optimization, never a
+ * correctness requirement (every load re-verifies).
  */
-async function requestPersistentStorage(): Promise<void> {
+function requestPersistentStorage(): void {
 	try {
-		await navigator.storage?.persist?.();
+		navigator.storage?.persist?.().catch(() => undefined);
 	} catch {
 		// Persistence is best-effort; a failure must not abort bootstrap.
 	}
 }
+
+/** User Timing mark set the moment the embedder warmup has FINISHED, before any
+ * signed-list bytes are requested (the iPhone OOM boot order). */
+export const MODEL_READY_MARK = "aml:model-ready";
 
 /** Build the production runtime deps (signed-bundle source + embedder Worker). */
 export function defaultRuntimeDeps(): RuntimeDeps {
@@ -1005,8 +1012,8 @@ export class EngineRuntime {
 		// Ask the browser to keep the model cache + private storage durable ONCE up front
 		// (best-effort, guarded — a no-op where unsupported). Model weights use
 		// CacheStorage; signed bundle bytes use the Worker-owned durable store.
-		await requestPersistentStorage();
-		assertCurrent();
+		// Never awaited: Firefox's permission prompt would block boot until clicked.
+		requestPersistentStorage();
 		// MODEL FIRST. The ONNX/WASM runtime makes the largest single WebAssembly
 		// allocation of the boot, and on iPhone Safari that allocation failed with
 		// "[wasm] RangeError: Out of memory" when it landed on top of the verified
@@ -1052,6 +1059,10 @@ export class EngineRuntime {
 		modelProgressTick = warmup.tick;
 		await warmup.promise;
 		assertCurrent();
+		// A User Timing mark so a browser lane can prove the ORDER on the real
+		// build: the embedder is READY (not merely requested) before the first
+		// signed-list chunk is fetched. Guarded for runtimes without User Timing.
+		globalThis.performance?.mark?.(MODEL_READY_MARK);
 		onStage({ kind: "downloading" });
 		// Feed cold-sync per-chunk progress to the downloading banner for THIS boot
 		// only. The bundle open is memoized + called once (in #loadEnabledLists →

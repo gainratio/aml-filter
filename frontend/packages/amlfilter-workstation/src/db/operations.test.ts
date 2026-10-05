@@ -14,6 +14,7 @@ import {
 	getSetting,
 	listCustomers,
 	listReviewMatches,
+	markScreened,
 	recordMatches,
 	replaceMatches,
 	resolveMatch,
@@ -777,5 +778,60 @@ describe("createCustomer check-then-insert race", () => {
 		expect(() =>
 			createCustomer(racy, { customer_reference: "REF-RACE", name: "B" }),
 		).toThrow(DuplicateReferenceError);
+	});
+});
+
+describe("screening proof (markScreened)", () => {
+	function customer() {
+		return createCustomer(db, {
+			customer_reference: "REF-P",
+			name: "Ann Example",
+			country: "GB",
+		});
+	}
+
+	it("a new customer carries no proof of screening", () => {
+		const row = customer();
+		expect(row.screened_at).toBeNull();
+		expect(row.screened_list_version).toBeNull();
+	});
+
+	it("records when and against which lists the customer was screened", () => {
+		const row = customer();
+		const marked = markScreened(db, row.customer_id, "OFAC_SDN@v1|UN@v2");
+		expect(marked.screened_list_version).toBe("OFAC_SDN@v1|UN@v2");
+		expect(marked.screened_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+		expect(listCustomers(db)[0]?.screened_list_version).toBe(
+			"OFAC_SDN@v1|UN@v2",
+		);
+	});
+
+	it("refuses to mark a customer that does not exist", () => {
+		expect(() => markScreened(db, "missing", "v")).toThrow(NotFoundError);
+	});
+
+	it("a name or country change voids the proof: the new identity was never screened", () => {
+		const row = customer();
+		markScreened(db, row.customer_id, "v1");
+		expect(
+			updateCustomer(db, row.customer_id, { name: "Ann Renamed" })
+				.screened_list_version,
+		).toBeNull();
+		markScreened(db, row.customer_id, "v1");
+		expect(
+			updateCustomer(db, row.customer_id, { country: "FR" }).screened_at,
+		).toBeNull();
+	});
+
+	it("a status/risk change or an unchanged name keeps the proof", () => {
+		const row = customer();
+		markScreened(db, row.customer_id, "v1");
+		const after = updateCustomer(db, row.customer_id, {
+			onboarding_status: "ACTIVE",
+			kyc_risk_rating: "LOW",
+			name: "Ann Example",
+			country: "GB",
+		});
+		expect(after.screened_list_version).toBe("v1");
 	});
 });

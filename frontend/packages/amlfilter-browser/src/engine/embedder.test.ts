@@ -136,7 +136,16 @@ describe("ORT wasm loader self-hosting (house standard §8.1b)", () => {
 	it("configureOrtWasmPaths points the loader at the same-origin /ort/ copy", () => {
 		const fakeOrt: OrtWasmEnvLike = {};
 		configureOrtWasmPaths(fakeOrt);
-		expect(fakeOrt.wasmPaths).toBe("/ort/");
+		expect(fakeOrt.wasmPaths).toEqual({
+			mjs: "/ort/ort-wasm-simd-threaded.mjs",
+			wasm: "/ort/ort-wasm-simd-threaded.wasm",
+		});
+	});
+
+	it("turns off the transformers.js wasm cache (its blob: factory import breaks the CSP)", () => {
+		// With an object wasmPaths, transformers.js would re-import the loader
+		// from a blob: URL, which `script-src 'self'` rejects.
+		expect(env.useWasmCache).toBe(false);
 	});
 
 	it("disables remote model fallback so a missing local weight fails closed (no HF fetch)", () => {
@@ -152,7 +161,10 @@ describe("ORT wasm loader self-hosting (house standard §8.1b)", () => {
 		// from the staged same-origin /ort/ copy instead of the jsDelivr CDN. If
 		// transformers.js ever moves the knob, this fails here — not in prod.
 		const backends = env.backends as { onnx?: { wasm?: OrtWasmEnvLike } };
-		expect(backends.onnx?.wasm?.wasmPaths).toBe("/ort/");
+		expect(backends.onnx?.wasm?.wasmPaths).toEqual({
+			mjs: "/ort/ort-wasm-simd-threaded.mjs",
+			wasm: "/ort/ort-wasm-simd-threaded.wasm",
+		});
 	});
 });
 

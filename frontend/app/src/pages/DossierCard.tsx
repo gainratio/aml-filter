@@ -1,10 +1,8 @@
 import {
-	defaultKeyStorage,
 	EMPTY_IDENTIFIERS,
 	type Entity,
 	type EntityType,
 	type Identifiers,
-	loadInstallKey,
 	type Match,
 	type MatchReason,
 	type MatchScoreSubject,
@@ -20,6 +18,7 @@ import {
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useKeyService } from "../lib/installKeysContext";
 import {
 	listName,
 	reasonLabel,
@@ -127,31 +126,30 @@ type InstallKeyState =
 	| { readonly status: "ready"; readonly publicKey: string };
 
 /**
- * The ONLY signer this card trusts: this install's own key, read from the
- * same storage the engine's sealer signs with. Re-resolved whenever a new
- * receipt arrives, and reset to `loading` — the fail-closed default — while
- * resolving, so a receipt is never judged against a stale key. Blocked storage
- * and a failed load both land on `unavailable` (rendered, audit-logged), never
- * on a silently missing badge.
+ * The ONLY signer this card trusts: this install's own key, from the same
+ * service the engine's sealer signs with. Re-resolved whenever a new receipt
+ * arrives AND whenever the key changes (a reset or import, in this tab or
+ * another), reset to `loading` — the fail-closed default — while resolving,
+ * so a receipt is never judged against a stale key. A failed load (no Worker,
+ * the key database held by another tab) lands on `unavailable` (rendered,
+ * audit-logged), never on a silently missing badge.
  */
 function useInstallKeyState(
 	receipt: ScoreReceipt | undefined,
 ): InstallKeyState {
+	const keys = useKeyService();
 	const [state, setState] = useState<InstallKeyState>({ status: "loading" });
+	const [generation, setGeneration] = useState(0);
+	useEffect(() => keys.onChange(() => setGeneration((g) => g + 1)), [keys]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: generation is an intentional re-fire trigger (the key changed), not read in the body
 	useEffect(() => {
 		setState({ status: "loading" });
 		if (receipt === undefined) {
 			return;
 		}
-		// No usable storage means no stable install key (matchReceipts.ts never
-		// seals there either): say so on screen rather than invent a signer.
-		const storage = defaultKeyStorage();
-		if (storage === null) {
-			setState({ status: "unavailable" });
-			return;
-		}
 		let active = true;
-		loadInstallKey(storage)
+		keys
+			.load()
 			.then((key) => {
 				if (active) {
 					setState({ status: "ready", publicKey: key.publicKeyHex });
@@ -168,7 +166,7 @@ function useInstallKeyState(
 		return () => {
 			active = false;
 		};
-	}, [receipt]);
+	}, [receipt, keys, generation]);
 	return state;
 }
 

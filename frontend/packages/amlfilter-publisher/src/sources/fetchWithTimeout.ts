@@ -59,7 +59,7 @@ export const FEED_DISPATCHER = createFeedDispatcher();
 export const SOURCE_FETCH_TIMEOUT_MS = 45_000;
 
 /** Total attempts (1 initial + retries) for a transiently-failing feed. */
-export const FEED_FETCH_ATTEMPTS = 4;
+const FEED_FETCH_ATTEMPTS = 4;
 
 /** First backoff pause; each further retry doubles it. */
 const BACKOFF_BASE_MS = 5_000;
@@ -105,7 +105,7 @@ function describeLink(error: unknown): string {
  * failure as the bare `TypeError: fetch failed` and puts the real reason
  * (EAI_AGAIN, ECONNRESET, UND_ERR_SOCKET, a cert error…) on `cause`; dropping
  * it cost 24 days of a stale UK list (2026-09). Cycle-safe. */
-export function describeErrorChain(error: unknown): string {
+function describeErrorChain(error: unknown): string {
 	const parts = [String(error)];
 	const seen = new Set<unknown>([error]);
 	let cause = error instanceof Error ? error.cause : undefined;

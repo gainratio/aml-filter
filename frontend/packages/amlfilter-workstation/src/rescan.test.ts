@@ -107,6 +107,20 @@ class FakeStore implements WorkstationStore {
 		return Promise.resolve([...next.values()]);
 	}
 
+	markScreened(customerId: string, listVersion: string): Promise<CustomerRow> {
+		const index = this.customers.findIndex((c) => c.customer_id === customerId);
+		const before = this.customers[index];
+		if (before === undefined)
+			throw new Error(`customer ${customerId} not found`);
+		const after = {
+			...before,
+			screened_at: "2026-06-19T00:00:01.000Z",
+			screened_list_version: listVersion,
+		};
+		this.customers[index] = after;
+		return Promise.resolve(after);
+	}
+
 	listReviewMatches(
 		_filters: ReviewFilters,
 	): Promise<ReadonlyArray<ReviewRow>> {
@@ -175,6 +189,7 @@ function customerRow(
 	id: string,
 	name: string,
 	dob: string | null = null,
+	screenedListVersion: string | null = null,
 ): CustomerRow {
 	return {
 		customer_id: id,
@@ -186,6 +201,8 @@ function customerRow(
 		kyc_risk_rating: null,
 		id_documents: [],
 		onboarded_by: "local",
+		screened_at: screenedListVersion === null ? null : "2026-06-19T00:00:01Z",
+		screened_list_version: screenedListVersion,
 		created_at: "2026-06-19T00:00:00.000Z",
 		updated_at: "2026-06-19T00:00:00.000Z",
 	};
@@ -203,6 +220,7 @@ function screenerFor(
 				execution_time_ms: 1,
 			}),
 		),
+		listVersion: () => "v",
 	};
 }
 
@@ -227,6 +245,7 @@ function gatedScreenerFor(byName: Record<string, ReadonlyArray<Match>>): {
 				execution_time_ms: 1,
 			};
 		}),
+		listVersion: () => "v",
 	};
 	return { screener, release: open };
 }
@@ -234,7 +253,8 @@ function gatedScreenerFor(byName: Record<string, ReadonlyArray<Match>>): {
 describe("RescanService.syncWatchlist", () => {
 	it("does NOT re-screen when the stored version equals the current version", async () => {
 		const store = new FakeStore();
-		store.seedCustomer(customerRow("c-1", "Ivan Fakovich"));
+		// Proven against v1: an unchanged version has nothing to re-screen.
+		store.seedCustomer(customerRow("c-1", "Ivan Fakovich", null, "v1"));
 		await store.setSetting(LAST_SYNCED_VERSION_KEY, "v1");
 		const screener = screenerFor({ "Ivan Fakovich": [makeMatch()] });
 		const service = new RescanService(store, screener);
@@ -245,6 +265,29 @@ describe("RescanService.syncWatchlist", () => {
 		expect(result.version).toBe("v1");
 		expect(result.customersScanned).toBe(0);
 		expect(screener.screen).not.toHaveBeenCalled();
+	});
+
+	it("an unchanged version still forces a re-screen of every STALE customer (null or other-version proof)", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("never", "Never Screened", null, null));
+		store.seedCustomer(customerRow("old", "Old Lists", null, "v0"));
+		store.seedCustomer(customerRow("ok", "Proven Now", null, "v1"));
+		await store.setSetting(LAST_SYNCED_VERSION_KEY, "v1");
+		const screener = { ...screenerFor({}), listVersion: () => "v1" };
+		const service = new RescanService(store, screener);
+
+		const result = await service.syncWatchlist("v1");
+
+		expect(result.changed).toBe(false);
+		expect(result.customersScanned).toBe(2);
+		const screened = vi
+			.mocked(screener.screen)
+			.mock.calls.map(([query]) => query.name)
+			.sort();
+		expect(screened).toEqual(["Never Screened", "Old Lists"]);
+		expect((await store.getCustomer("never"))?.screened_list_version).toBe(
+			"v1",
+		);
 	});
 
 	it("re-screens every customer and persists the new version when it changed", async () => {
@@ -321,6 +364,67 @@ describe("RescanService.syncWatchlist", () => {
 		expect(result.clearedHits).toBe(1);
 		expect(result.newHits).toBe(0);
 		expect(await store.listReviewMatches({})).toHaveLength(0);
+	});
+});
+
+describe("RescanService — positive proof of screening", () => {
+	function versioned(screener: NameScreener, version: string | null) {
+		return { ...screener, listVersion: () => version };
+	}
+
+	it("marks the customer screened against the loaded lists, after the matches are stored", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		const service = new RescanService(
+			store,
+			versioned(screenerFor({}), "OFAC_SDN@v9"),
+		);
+
+		await service.screenCustomer("c-1");
+
+		const row = await store.getCustomer("c-1");
+		expect(row?.screened_list_version).toBe("OFAC_SDN@v9");
+	});
+
+	it("a screen that throws leaves the customer unproven", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		const screener = versioned(
+			{
+				screen: vi.fn().mockRejectedValue(new Error("engine died")),
+				listVersion: () => "OFAC_SDN@v9",
+			},
+			"OFAC_SDN@v9",
+		);
+		const service = new RescanService(store, screener);
+
+		await expect(service.rescanAll()).rejects.toThrow("engine died");
+
+		expect((await store.getCustomer("c-1"))?.screened_list_version).toBeNull();
+	});
+
+	it("marks only after the matches are stored: a failed write leaves the customer unproven", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		vi.spyOn(store, "replaceMatches").mockRejectedValue(new Error("disk full"));
+		const service = new RescanService(
+			store,
+			versioned(screenerFor({}), "OFAC_SDN@v9"),
+		);
+
+		await expect(service.screenCustomer("c-1")).rejects.toThrow("disk full");
+
+		expect((await store.getCustomer("c-1"))?.screened_list_version).toBeNull();
+	});
+
+	it("without a known list version there is nothing to prove, so nothing is marked", async () => {
+		const store = new FakeStore();
+		store.seedCustomer(customerRow("c-1", "Anna Clean"));
+		const service = new RescanService(store, versioned(screenerFor({}), null));
+
+		await service.screenCustomer("c-1");
+
+		expect((await store.getCustomer("c-1"))?.screened_list_version).toBeNull();
 	});
 });
 
