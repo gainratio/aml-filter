@@ -9,10 +9,14 @@
  */
 
 import {
+	checkNewInstallKeyPassphrase,
 	type InstallKey,
+	InstallKeyExportError,
+	type InstallKeyExportRejection,
 	InstallKeyImportError,
 	type InstallKeyImportRejection,
 	MIN_PASSPHRASE_LENGTH,
+	type NewPassphraseCheck,
 } from "@amlfilter/browser";
 import type { TFunction } from "i18next";
 import { type ReactElement, useEffect, useState } from "react";
@@ -56,24 +60,49 @@ function useKeyState(keys: KeyAdmin): KeyState {
 const IMPORT_ERROR_KEY: Record<InstallKeyImportRejection, string> = {
 	malformed: "signingKey.import.errors.malformed",
 	"unsupported-version": "signingKey.import.errors.unsupported",
+	unsupported: "signingKey.import.errors.unsupportedSettings",
 	"wrong-passphrase-or-tampered": "signingKey.import.errors.wrongPassphrase",
 	"key-mismatch": "signingKey.import.errors.mismatch",
+	"too-costly": "signingKey.import.errors.tooCostly",
+	"out-of-memory": "signingKey.import.errors.outOfMemory",
+	unavailable: "signingKey.import.errors.unavailable",
 };
+
+const EXPORT_ERROR_KEY: Record<InstallKeyExportRejection, string> = {
+	empty: "signingKey.export.empty",
+	"too-short": "signingKey.export.tooShort",
+	"out-of-memory": "signingKey.export.errors.outOfMemory",
+	unavailable: "signingKey.export.errors.unavailable",
+};
+
+/** scrypt with r = 8 holds 2^(workFactor + 10) bytes. */
+function scryptMiB(workFactor: number | undefined): number {
+	return 2 ** ((workFactor ?? 20) - 10);
+}
 
 function importErrorText(error: unknown, t: TFunction): string {
 	if (error instanceof InstallKeyImportError) {
-		return t(IMPORT_ERROR_KEY[error.reason]);
+		return t(IMPORT_ERROR_KEY[error.reason], {
+			mib: scryptMiB(error.workFactor),
+		});
 	}
 	return t("signingKey.error", { message: messageOf(error) });
 }
 
-function saveFile(text: string, publicKeyHex: string): void {
+function exportErrorText(error: unknown, t: TFunction): string {
+	if (error instanceof InstallKeyExportError) {
+		return t(EXPORT_ERROR_KEY[error.reason], { min: MIN_PASSPHRASE_LENGTH });
+	}
+	return t("signingKey.error", { message: messageOf(error) });
+}
+
+function saveFile(bytes: Uint8Array<ArrayBuffer>, publicKeyHex: string): void {
 	const url = URL.createObjectURL(
-		new Blob([text], { type: "application/json" }),
+		new Blob([bytes], { type: "application/octet-stream" }),
 	);
 	const link = document.createElement("a");
 	link.href = url;
-	link.download = `amlfilter-signing-key-${publicKeyHex.slice(0, 8)}.json`;
+	link.download = `amlfilter-signing-key-${publicKeyHex.slice(0, 8)}.age`;
 	link.click();
 	URL.revokeObjectURL(url);
 }
@@ -108,9 +137,13 @@ interface PassphraseInputProps {
 	readonly autoComplete: "new-password" | "current-password";
 	readonly value: string;
 	readonly onChange: (value: string) => void;
+	/** An inline problem with this field, announced and linked to it. */
+	readonly problem?: string | null;
 }
 
 function PassphraseInput(props: PassphraseInputProps): ReactElement {
+	const problemId = `${props.id}-problem`;
+	const problem = props.problem ?? null;
 	return (
 		<>
 			<label className="form-label" htmlFor={props.id}>
@@ -122,8 +155,15 @@ function PassphraseInput(props: PassphraseInputProps): ReactElement {
 				autoComplete={props.autoComplete}
 				className="form-input"
 				value={props.value}
+				aria-invalid={problem === null ? undefined : true}
+				aria-describedby={problem === null ? undefined : problemId}
 				onChange={(e) => props.onChange(e.target.value)}
 			/>
+			{problem !== null && (
+				<p id={problemId} className="form-error" role="alert">
+					{problem}
+				</p>
+			)}
 		</>
 	);
 }
@@ -147,39 +187,64 @@ function ActionButton({ label, onAction }: ActionButtonProps): ReactElement {
 	);
 }
 
-function exportProblem(
-	passphrase: string,
+interface FieldProblems {
+	readonly passphrase: string | null;
+	readonly confirm: string | null;
+}
+
+/**
+ * Inline problems for the two fields. A mismatch shows as soon as the user
+ * types a confirmation; empty / too short only after they try to export.
+ */
+function fieldProblems(
+	check: NewPassphraseCheck,
 	confirm: string,
+	attempted: boolean,
 	t: TFunction,
-): string | null {
-	if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
-		return t("signingKey.export.tooShort", { min: MIN_PASSPHRASE_LENGTH });
+): FieldProblems {
+	if (check.ok) {
+		return { passphrase: null, confirm: null };
 	}
-	return passphrase === confirm ? null : t("signingKey.export.mismatch");
+	if (check.reason === "mismatch") {
+		const show = attempted || confirm !== "";
+		return {
+			passphrase: null,
+			confirm: show ? t("signingKey.export.mismatch") : null,
+		};
+	}
+	const key =
+		check.reason === "empty"
+			? "signingKey.export.empty"
+			: "signingKey.export.tooShort";
+	return {
+		passphrase: attempted ? t(key, { min: MIN_PASSPHRASE_LENGTH }) : null,
+		confirm: null,
+	};
 }
 
 function ExportForm({ keys, t }: FormProps): ReactElement {
 	const [passphrase, setPassphrase] = useState("");
 	const [confirm, setConfirm] = useState("");
+	const [attempted, setAttempted] = useState(false);
 	const [notice, setNotice] = useState<Notice>(null);
+	const check = checkNewInstallKeyPassphrase(passphrase, confirm);
+	const problems = fieldProblems(check, confirm, attempted, t);
 
 	async function handleExport(): Promise<void> {
-		const problem = exportProblem(passphrase, confirm, t);
-		if (problem !== null) {
-			setNotice({ kind: "error", text: problem });
+		setAttempted(true);
+		setNotice(null);
+		if (!check.ok) {
 			return;
 		}
 		try {
-			const text = await keys.exportEncrypted(passphrase);
-			saveFile(text, (await keys.load()).publicKeyHex);
+			const bytes = await keys.exportEncrypted(passphrase);
+			saveFile(bytes, (await keys.load()).publicKeyHex);
 			setPassphrase("");
 			setConfirm("");
+			setAttempted(false);
 			setNotice({ kind: "success", text: t("signingKey.export.done") });
 		} catch (error) {
-			setNotice({
-				kind: "error",
-				text: t("signingKey.error", { message: messageOf(error) }),
-			});
+			setNotice({ kind: "error", text: exportErrorText(error, t) });
 		}
 	}
 
@@ -195,6 +260,7 @@ function ExportForm({ keys, t }: FormProps): ReactElement {
 				autoComplete="new-password"
 				value={passphrase}
 				onChange={setPassphrase}
+				problem={problems.passphrase}
 			/>
 			<PassphraseInput
 				id="export-confirm"
@@ -202,6 +268,7 @@ function ExportForm({ keys, t }: FormProps): ReactElement {
 				autoComplete="new-password"
 				value={confirm}
 				onChange={setConfirm}
+				problem={problems.confirm}
 			/>
 			<ActionButton
 				label={t("signingKey.export.button")}
@@ -223,7 +290,8 @@ function ImportForm({ keys, t }: FormProps): ReactElement {
 			return;
 		}
 		try {
-			const key = await keys.importEncrypted(await file.text(), passphrase);
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const key = await keys.importEncrypted(bytes, passphrase);
 			setPassphrase("");
 			setNotice({
 				kind: "success",
@@ -244,7 +312,7 @@ function ImportForm({ keys, t }: FormProps): ReactElement {
 			<input
 				id="import-file"
 				type="file"
-				accept="application/json,.json"
+				accept=".age,.json,application/octet-stream,application/json"
 				className="form-input"
 				onChange={(e) => setFile(e.target.files?.[0] ?? null)}
 			/>
