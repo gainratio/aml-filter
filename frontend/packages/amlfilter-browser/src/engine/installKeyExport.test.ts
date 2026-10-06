@@ -69,7 +69,9 @@ async function ageWith(payload: unknown): Promise<Uint8Array> {
 	return sealed.bytes;
 }
 
-function failingRunner(reason: "out_of_memory" | "unavailable"): SealRunner {
+function failingRunner(
+	reason: "out_of_memory" | "unavailable" | "timed_out",
+): SealRunner {
 	return {
 		seal: async () => ({ ok: false, reason }),
 		open: async () => ({ ok: false, reason }),
@@ -119,7 +121,11 @@ describe("sealInstallKeyExport", { timeout: 30_000 }, () => {
 
 	it("reports a device that cannot encrypt, honestly", async () => {
 		const key = await publicKeyHex(SEED);
-		for (const reason of ["out_of_memory", "unavailable"] as const) {
+		for (const [reason, expected] of [
+			["out_of_memory", "out-of-memory"],
+			["unavailable", "unavailable"],
+			["timed_out", "timed-out"],
+		] as const) {
 			const error = await sealInstallKeyExport(
 				SEED,
 				key,
@@ -127,9 +133,7 @@ describe("sealInstallKeyExport", { timeout: 30_000 }, () => {
 				failingRunner(reason),
 			).catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(InstallKeyExportError);
-			expect((error as InstallKeyExportError).reason).toBe(
-				reason === "out_of_memory" ? "out-of-memory" : "unavailable",
-			);
+			expect((error as InstallKeyExportError).reason).toBe(expected);
 		}
 	});
 });
@@ -293,6 +297,7 @@ describe("openInstallKeyExport: version 2 (age) files", {
 		for (const [reason, expected] of [
 			["out_of_memory", "out-of-memory"],
 			["unavailable", "unavailable"],
+			["timed_out", "timed-out"],
 		] as const) {
 			expect(
 				await reasonOf(

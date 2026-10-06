@@ -81,6 +81,7 @@
 			"empty": "Enter a passphrase.",
 			"errors": {
 				"outOfMemory": "This device ran out of memory while encrypting the key. Close other tabs or apps and try again. Nothing was saved.",
+				"timedOut": "Encrypting the key took too long and was stopped. Nothing was saved. Close other tabs or apps and try again.",
 				"unavailable": "The encryption code didn't load. Check your connection and try again. Nothing was saved."
 			}
 		},
@@ -100,6 +101,7 @@
 				"unsupportedSettings": "This file uses encryption settings this app can't open. Nothing was imported.",
 				"tooCostly": "This file needs {{mib}} MiB of memory to open, more than this app allows. Nothing was imported.",
 				"outOfMemory": "This device ran out of memory while unlocking the file, so your passphrase was not checked. Close other tabs or apps and try again. Nothing was imported.",
+				"timedOut": "Unlocking the file took too long and was stopped, so your passphrase was not checked. Nothing was imported. Close other tabs or apps and try again.",
 				"unavailable": "The decryption code didn't load, so your passphrase was not checked. Check your connection and try again. Nothing was imported."
 			}
 		},

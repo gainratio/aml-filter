@@ -20,10 +20,14 @@ import {
 	type LegacyOpenResult,
 	MIN_PASSPHRASE_LENGTH,
 	type NewPassphraseRejection,
-	type OpenResult,
 	openLegacyInstallKey,
 } from "./installKeySeal";
-import { defaultSealRunner, type SealRunner } from "./installKeySealRunner";
+import {
+	defaultSealRunner,
+	type OpenRunResult,
+	type SealRunner,
+	type SealRunResult,
+} from "./installKeySealRunner";
 
 export { MIN_PASSPHRASE_LENGTH };
 
@@ -42,6 +46,7 @@ export type InstallKeyImportRejection =
 	| "key-mismatch"
 	| "too-costly"
 	| "out-of-memory"
+	| "timed-out"
 	| "unavailable";
 
 export class InstallKeyImportError extends Error {
@@ -65,6 +70,7 @@ export type InstallKeyExportRejection =
 	| "empty"
 	| "too-short"
 	| "out-of-memory"
+	| "timed-out"
 	| "unavailable";
 
 export class InstallKeyExportError extends Error {
@@ -125,6 +131,19 @@ function checkExportPassphrase(passphrase: string): void {
 	}
 }
 
+// The passphrase is checked before sealing, so the library's own passphrase and
+// work-factor refusals mean the encryption code misbehaved: "unavailable".
+const SEAL_FAILURE: Record<
+	Extract<SealRunResult, { ok: false }>["reason"],
+	InstallKeyExportRejection
+> = {
+	empty_passphrase: "unavailable",
+	invalid_work_factor: "unavailable",
+	out_of_memory: "out-of-memory",
+	timed_out: "timed-out",
+	unavailable: "unavailable",
+};
+
 /** Encrypt the seed under a passphrase. Returns the age file's bytes. */
 export async function sealInstallKeyExport(
 	seedHex: string,
@@ -147,8 +166,7 @@ export async function sealInstallKeyExport(
 		// A copy on a plain ArrayBuffer, so it can go straight into a Blob.
 		return new Uint8Array(sealed.bytes);
 	}
-	const reason =
-		sealed.reason === "out_of_memory" ? "out-of-memory" : "unavailable";
+	const reason = SEAL_FAILURE[sealed.reason];
 	throw new InstallKeyExportError(reason, `could not encrypt: ${reason}`);
 }
 
@@ -163,6 +181,8 @@ const IMPORT_MESSAGES: Record<InstallKeyImportRejection, string> = {
 	"too-costly": "the file needs more memory to open than this app allows",
 	"out-of-memory":
 		"the device ran out of memory; the passphrase was not checked",
+	"timed-out":
+		"decrypting took too long and was stopped; the passphrase was not checked",
 	unavailable:
 		"the decryption code failed to load; the passphrase was not checked",
 };
@@ -175,7 +195,7 @@ function refuse(
 }
 
 type LibraryFailure =
-	| Extract<OpenResult, { ok: false }>
+	| Extract<OpenRunResult, { ok: false }>
 	| Extract<LegacyOpenResult, { ok: false }>;
 
 const LIBRARY_REASON: Record<
@@ -189,6 +209,7 @@ const LIBRARY_REASON: Record<
 	too_costly: "too-costly",
 	too_large: "malformed",
 	out_of_memory: "out-of-memory",
+	timed_out: "timed-out",
 	unavailable: "unavailable",
 };
 

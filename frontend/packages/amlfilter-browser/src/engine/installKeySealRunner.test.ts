@@ -2,10 +2,11 @@
 // lives for one call. These tests drive the message protocol with a fake
 // Worker that runs the real handler.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import sealSeamSource from "./installKeySeal.ts?raw";
 import {
 	handleSealRequest,
+	SEAL_WORKER_TIMEOUT_MS,
 	type SealRequest,
 	type SealResponse,
 	type SealWorkerLike,
@@ -21,6 +22,7 @@ function fakeWorker(): SealWorkerLike & { terminated: boolean } {
 		terminated: false,
 		onmessage: null as ((event: { data: SealResponse }) => void) | null,
 		onerror: null as (() => void) | null,
+		onmessageerror: null as (() => void) | null,
 		postMessage(request: SealRequest) {
 			void handleSealRequest(request).then((data) =>
 				worker.onmessage?.({ data }),
@@ -39,6 +41,7 @@ function brokenWorker(): SealWorkerLike & { terminated: boolean } {
 		terminated: false,
 		onmessage: null,
 		onerror: null as (() => void) | null,
+		onmessageerror: null,
 		postMessage() {
 			queueMicrotask(() => worker.onerror?.());
 		},
@@ -92,6 +95,106 @@ describe("workerSealRunner", { timeout: 30_000 }, () => {
 			ok: false,
 			reason: "unavailable",
 		});
+	});
+});
+
+/** A Worker that took the request and then died without a word. */
+function silentWorker(): SealWorkerLike & {
+	terminated: boolean;
+	reply(data: SealResponse): void;
+} {
+	const worker = {
+		terminated: false,
+		onmessage: null as ((event: { data: SealResponse }) => void) | null,
+		onerror: null,
+		onmessageerror: null as (() => void) | null,
+		postMessage() {},
+		terminate() {
+			worker.terminated = true;
+		},
+		reply(data: SealResponse) {
+			worker.onmessage?.({ data });
+		},
+	};
+	return worker;
+}
+
+/** Settles `promise` into a box so a test can see whether it is still pending. */
+function track<T>(promise: Promise<T>): { settled: boolean; value?: T } {
+	const box: { settled: boolean; value?: T } = { settled: false };
+	void promise.then((value) => {
+		box.settled = true;
+		box.value = value;
+	});
+	return box;
+}
+
+const TIMED_OUT = { ok: false, reason: "timed_out" } as const;
+
+describe("workerSealRunner when the Worker goes quiet", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("waits 60 s: generous for scrypt work factor 18 on a slow phone", () => {
+		expect(SEAL_WORKER_TIMEOUT_MS).toBe(60_000);
+	});
+
+	it.each(["seal", "open"] as const)(
+		"%s gives up at the limit, ends the Worker, and says it timed out",
+		async (op) => {
+			vi.useFakeTimers();
+			const worker = silentWorker();
+			const runner = workerSealRunner(() => worker);
+
+			const call: Promise<unknown> = runner[op](PAYLOAD, PASSPHRASE);
+			const result = track(call);
+			await vi.advanceTimersByTimeAsync(SEAL_WORKER_TIMEOUT_MS - 1);
+			expect(result.settled).toBe(false);
+			expect(worker.terminated).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(1);
+			expect(result).toEqual({ settled: true, value: TIMED_OUT });
+			expect(worker.terminated).toBe(true);
+		},
+	);
+
+	it("ignores a reply that arrives after it gave up", async () => {
+		vi.useFakeTimers();
+		const worker = silentWorker();
+		const pending = workerSealRunner(() => worker).seal(PAYLOAD, PASSPHRASE);
+
+		await vi.advanceTimersByTimeAsync(SEAL_WORKER_TIMEOUT_MS);
+		worker.reply({ ok: true, bytes: PAYLOAD });
+
+		expect(await pending).toEqual(TIMED_OUT);
+	});
+
+	it("clears its timer once the Worker answers", async () => {
+		vi.useFakeTimers();
+		const worker = silentWorker();
+		const pending = workerSealRunner(() => worker).open(PAYLOAD, PASSPHRASE);
+
+		worker.reply({ ok: false, reason: "wrong_passphrase_or_tampered" });
+
+		expect(await pending).toEqual({
+			ok: false,
+			reason: "wrong_passphrase_or_tampered",
+		});
+		expect(vi.getTimerCount()).toBe(0);
+		expect(worker.terminated).toBe(true);
+	});
+
+	it("reports a reply that cannot be read as unavailable", async () => {
+		vi.useFakeTimers();
+		const worker = silentWorker();
+		const pending = workerSealRunner(() => worker).seal(PAYLOAD, PASSPHRASE);
+
+		worker.onmessageerror?.();
+
+		expect(await pending).toEqual({ ok: false, reason: "unavailable" });
+		expect(vi.getTimerCount()).toBe(0);
+		expect(worker.terminated).toBe(true);
 	});
 });
 

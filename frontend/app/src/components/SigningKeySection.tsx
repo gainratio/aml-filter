@@ -65,6 +65,7 @@ const IMPORT_ERROR_KEY: Record<InstallKeyImportRejection, string> = {
 	"key-mismatch": "signingKey.import.errors.mismatch",
 	"too-costly": "signingKey.import.errors.tooCostly",
 	"out-of-memory": "signingKey.import.errors.outOfMemory",
+	"timed-out": "signingKey.import.errors.timedOut",
 	unavailable: "signingKey.import.errors.unavailable",
 };
 
@@ -72,6 +73,7 @@ const EXPORT_ERROR_KEY: Record<InstallKeyExportRejection, string> = {
 	empty: "signingKey.export.empty",
 	"too-short": "signingKey.export.tooShort",
 	"out-of-memory": "signingKey.export.errors.outOfMemory",
+	"timed-out": "signingKey.export.errors.timedOut",
 	unavailable: "signingKey.export.errors.unavailable",
 };
 

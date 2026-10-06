@@ -270,6 +270,31 @@ describe("exporting the key", { timeout: 30_000 }, () => {
 		expect(blobs).toHaveLength(0);
 	});
 
+	it("says when encrypting took too long, and offers a retry", async () => {
+		const blobs = captureDownloads();
+		renderSection(
+			withOverride({
+				exportEncrypted: () =>
+					Promise.reject(new InstallKeyExportError("timed-out", "slow")),
+			}),
+		);
+		await shownPublicKey();
+
+		type("Passphrase", PASSPHRASE);
+		type("Repeat passphrase", PASSPHRASE);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Export encrypted key" }),
+		);
+
+		expect(
+			await screen.findByText(/took too long.*Nothing was saved.*try again/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Export encrypted key" }),
+		).toBeEnabled();
+		expect(blobs).toHaveLength(0);
+	});
+
 	it("refuses a short passphrase", async () => {
 		captureDownloads();
 		renderSection();
@@ -371,6 +396,7 @@ describe("importing a key", { timeout: 30_000 }, () => {
 			/ran out of memory while unlocking.*passphrase was not checked/,
 		],
 		["unavailable", /didn't load.*passphrase was not checked/],
+		["timed-out", /took too long.*passphrase was not checked.*try again/],
 		["unsupported", /encryption settings this app can't open/],
 	] as const)("explains a %s refusal honestly", async (reason, text) => {
 		const { file } = await exportFile();
