@@ -35,7 +35,7 @@
 	},
 	"dependencies": {
 		"@amlfilter/browser": "workspace:*",
-		"@gainratio/browser": "^0.2.0",
+		"@gainratio/browser": "^0.4.1",
 		"@huggingface/transformers": "^4.3.0",
 		"@noble/ed25519": "^3.2.0",
 		"undici": "7.30.0"

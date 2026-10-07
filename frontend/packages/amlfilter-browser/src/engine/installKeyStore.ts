@@ -19,6 +19,7 @@ import {
 	type SqlRow,
 	type SqlStatement,
 	type SqlStorage,
+	type SqlTransactionResult,
 } from "@gainratio/browser/sql";
 
 export type { SqlBind, SqlRow, SqlStatement, SqlStorage };
@@ -26,11 +27,17 @@ export type { SqlBind, SqlRow, SqlStatement, SqlStorage };
 /** Stable database name (the seam hashes it into the OPFS pool name). */
 export const INSTALL_KEY_DATABASE = "amlfilter-install-key";
 
-/** The slice of the seam's SqlDatabase this store uses. */
-export type InstallKeySql = Pick<
-	SqlDatabase,
-	"storage" | "exec" | "query" | "transaction" | "close"
->;
+/**
+ * The slice of the seam's SqlDatabase this store uses. Only the statement-list
+ * form of `transaction`: since 0.3 the seam also has a callback form, and this
+ * store never needs it.
+ */
+export interface InstallKeySql
+	extends Pick<SqlDatabase, "storage" | "exec" | "query" | "close"> {
+	transaction(
+		statements: ReadonlyArray<SqlStatement>,
+	): Promise<SqlTransactionResult>;
+}
 
 /** Opens one session on the install-key database. */
 export type InstallKeySqlOpener = () => Promise<InstallKeySql>;

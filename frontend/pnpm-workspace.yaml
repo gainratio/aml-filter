@@ -71,7 +71,7 @@ allowBuilds:
 # undici 8.x copy is untouched. The advisory turned main CI red on 2026-09-29
 # (`pnpm audit --audit-level low`), which silently skipped the deploy and blocked
 # every watchlist publish (they require an exact-green main).
-# Keep ONE @hpcc-js/wasm-zstd copy at 1.16.2. @gainratio/browser (^0.2.0 from npm) declares
+# Keep ONE @hpcc-js/wasm-zstd copy at 1.16.2. @gainratio/browser (^0.4.1 from npm) declares
 # `^1.16.1` and its own gate runs 1.16.2; the app ships one copy of that exact
 # build instead of two (almamesh pins the same version).
 overrides:

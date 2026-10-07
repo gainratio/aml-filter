@@ -71,13 +71,19 @@
 		"error": "Something went wrong: {{message}}",
 		"export": {
 			"title": "Export the key",
-			"description": "Saves the key to a file, encrypted with a passphrase you choose (at least {{min}} characters). The file is useless without the passphrase, and the passphrase can't be recovered, so keep both safe.",
+			"description": "Saves the key to a file, encrypted with a passphrase you choose (at least {{min}} characters). The file is a standard age file: useless without the passphrase, and the passphrase can't be recovered, so keep both safe.",
 			"passphrase": "Passphrase",
 			"confirm": "Repeat passphrase",
 			"button": "Export encrypted key",
-			"mismatch": "The two passphrases don't match.",
+			"mismatch": "Passwords don't match.",
 			"tooShort": "Use at least {{min}} characters.",
-			"done": "Key exported."
+			"done": "Key exported.",
+			"empty": "Enter a passphrase.",
+			"errors": {
+				"outOfMemory": "This device ran out of memory while encrypting the key. Close other tabs or apps and try again. Nothing was saved.",
+				"timedOut": "Encrypting the key took too long and was stopped. Nothing was saved. Close other tabs or apps and try again.",
+				"unavailable": "The encryption code didn't load. Check your connection and try again. Nothing was saved."
+			}
 		},
 		"import": {
 			"title": "Import a key",
@@ -91,7 +97,12 @@
 				"wrongPassphrase": "Wrong passphrase, or the file was changed. Nothing was imported.",
 				"malformed": "That is not a signing-key file. Nothing was imported.",
 				"unsupported": "This key file comes from a newer version of the app. Nothing was imported.",
-				"mismatch": "The key inside this file doesn't match its public key. Nothing was imported."
+				"mismatch": "The key inside this file doesn't match its public key. Nothing was imported.",
+				"unsupportedSettings": "This file uses encryption settings this app can't open. Nothing was imported.",
+				"tooCostly": "This file needs {{mib}} MiB of memory to open, more than this app allows. Nothing was imported.",
+				"outOfMemory": "This device ran out of memory while unlocking the file, so your passphrase was not checked. Close other tabs or apps and try again. Nothing was imported.",
+				"timedOut": "Unlocking the file took too long and was stopped, so your passphrase was not checked. Nothing was imported. Close other tabs or apps and try again.",
+				"unavailable": "The decryption code didn't load, so your passphrase was not checked. Check your connection and try again. Nothing was imported."
 			}
 		},
 		"reset": {

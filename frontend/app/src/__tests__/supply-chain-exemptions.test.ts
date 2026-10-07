@@ -136,8 +136,8 @@ describe("pnpm dependency policy", () => {
 			workstationPackageFile,
 			publisherPackageFile,
 		].map((file) => JSON.parse(readFileSync(file, "utf8")));
-		expect(browser.dependencies?.["@gainratio/browser"]).toBe("^0.2.0");
-		expect(publisher.dependencies?.["@gainratio/browser"]).toBe("^0.2.0");
+		expect(browser.dependencies?.["@gainratio/browser"]).toBe("^0.4.1");
+		expect(publisher.dependencies?.["@gainratio/browser"]).toBe("^0.4.1");
 		expect(app.dependencies?.["@gainratio/errors"]).toBe("^0.2.1");
 		expect(app.dependencies?.["@gainratio/receipt-ui"]).toBe("^0.3.0");
 		expect(browser.dependencies?.["@gainratio/avow"]).toBe("^0.5.2");

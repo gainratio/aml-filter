@@ -92,10 +92,17 @@ export {
 	type LegacyKeyStorage,
 } from "./engine/installKey";
 export {
+	InstallKeyExportError,
+	type InstallKeyExportRejection,
 	InstallKeyImportError,
 	type InstallKeyImportRejection,
 	MIN_PASSPHRASE_LENGTH,
 } from "./engine/installKeyExport";
+export {
+	checkNewInstallKeyPassphrase,
+	type NewPassphraseCheck,
+	type NewPassphraseRejection,
+} from "./engine/installKeySeal";
 export { InstallKeyUnavailable } from "./engine/installKeyStore";
 // --- the sealer that wraps each returned match in a signed score receipt ---
 export {

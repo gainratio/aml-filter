@@ -9,7 +9,6 @@ import {
 	MemoryCacheStore,
 	materializeFile,
 	NetworkError,
-	OpfsCacheStore,
 	ResponseTooLargeError,
 	RollbackError,
 	SignatureError,
@@ -32,7 +31,7 @@ import vectorIndexSource from "./vectorIndex.ts?raw";
 // Contract reversed (2026-10-04): this used to pin an exact public Git commit.
 // The app now tracks our library's latest npm release through a caret range
 // with no upper cap; the committed lockfile fixes what a deploy actually builds.
-const GAINRATIO_BROWSER_RANGE = "^0.2.0";
+const GAINRATIO_BROWSER_RANGE = "^0.4.1";
 const PUBLIC_IMPORTS = [
 	"@gainratio/browser",
 	"@gainratio/browser/vector",
@@ -68,7 +67,6 @@ describe("@gainratio/browser consumer dependency", () => {
 			EngineClient,
 			EngineOperationError,
 			MemoryCacheStore,
-			OpfsCacheStore,
 			decompressAndVerify,
 			fetchBytes,
 			materializeFile,

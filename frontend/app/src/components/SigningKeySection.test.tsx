@@ -1,4 +1,8 @@
-import { InstallKeys } from "@amlfilter/browser";
+import {
+	InstallKeyExportError,
+	InstallKeyImportError,
+	InstallKeys,
+} from "@amlfilter/browser";
 import {
 	type MemoryInstallKeySql,
 	memoryInstallKeySql,
@@ -11,11 +15,16 @@ import {
 	waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import goldenV1 from "../../../packages/amlfilter-browser/src/engine/__fixtures__/install-key-export-v1.golden.json?raw";
 import { InstallKeysContext, type KeyAdmin } from "../lib/installKeysContext";
 import { SigningKeySection } from "./SigningKeySection";
 
 const PASSPHRASE = "correct horse battery staple";
-// PBKDF2 at 600,000 iterations takes a second or more on a loaded runner.
+// The previous release's v1 export (PBKDF2 + AES-GCM), written by its own code.
+const GOLDEN_PASSPHRASE = "golden fixture passphrase v1";
+const GOLDEN_PUBLIC_KEY =
+	"5526f742941711b3bc530ba44ff6f6dab0f0ab71af832f41a7fe3b9fdaed9c60";
+// scrypt (128 MiB) and PBKDF2 (600,000 iterations) take a second or more on a loaded runner.
 const CRYPTO_WAIT = { timeout: 15_000 };
 
 let sql: MemoryInstallKeySql;
@@ -50,6 +59,24 @@ function captureDownloads(): Blob[] {
 		revokeObjectURL: () => undefined,
 	});
 	return blobs;
+}
+
+/** The service, with one operation replaced. */
+function withOverride(override: Partial<KeyAdmin>): KeyAdmin {
+	return {
+		load: () => keys.load(),
+		onChange: (listener) => keys.onChange(listener),
+		reset: () => keys.reset(),
+		exportEncrypted: (p) => keys.exportEncrypted(p),
+		importEncrypted: (f, p) => keys.importEncrypted(f, p),
+		...override,
+	};
+}
+
+function chooseFile(file: File): void {
+	fireEvent.change(screen.getByLabelText("Key file"), {
+		target: { files: [file] },
+	});
 }
 
 function type(label: string, value: string): void {
@@ -97,7 +124,7 @@ describe("SigningKeySection", () => {
 			onChange: () => () => undefined,
 			reset: () => keys.reset(),
 			exportEncrypted: (p) => keys.exportEncrypted(p),
-			importEncrypted: (t, p) => keys.importEncrypted(t, p),
+			importEncrypted: (f, p) => keys.importEncrypted(f, p),
 		};
 
 		renderSection(failing);
@@ -157,28 +184,114 @@ describe("exporting the key", { timeout: 30_000 }, () => {
 		);
 
 		await screen.findByText("Key exported.", undefined, CRYPTO_WAIT);
-		const text = await blobs[0]?.text();
-		expect(text).toBeDefined();
+		const blob = blobs[0];
+		expect(blob?.type).toBe("application/octet-stream");
+		const bytes = new Uint8Array(
+			(await blob?.arrayBuffer()) ?? new ArrayBuffer(0),
+		);
+		const text = new TextDecoder().decode(bytes);
+		expect(text.startsWith("age-encryption.org/v1\n")).toBe(true);
 		expect(text).not.toContain((await keys.load()).seedHex);
 		const other = serviceOver(await memoryInstallKeySql());
-		const imported = await other.importEncrypted(text ?? "", PASSPHRASE);
+		const imported = await other.importEncrypted(bytes, PASSPHRASE);
 		expect(imported.publicKeyHex).toBe(publicKey);
 	});
 
-	it("refuses mismatched passphrases", async () => {
-		const blobs = captureDownloads();
+	it("says inline, as you type, when the passphrases don't match", async () => {
 		renderSection();
 		await shownPublicKey();
 
 		type("Passphrase", PASSPHRASE);
 		type("Repeat passphrase", `${PASSPHRASE}!`);
+
+		const message = await screen.findByText("Passwords don't match.");
+		expect(message).toHaveAttribute("role", "alert");
+		const confirm = screen.getByLabelText("Repeat passphrase");
+		expect(confirm).toHaveAttribute("aria-describedby", message.id);
+		expect(confirm).toHaveAttribute("aria-invalid", "true");
+
+		type("Repeat passphrase", PASSPHRASE);
+		expect(screen.queryByText("Passwords don't match.")).toBeNull();
+		expect(confirm).not.toHaveAttribute("aria-invalid", "true");
+	});
+
+	it("refuses mismatched passphrases and saves nothing", async () => {
+		const blobs = captureDownloads();
+		renderSection();
+		await shownPublicKey();
+
+		type("Passphrase", PASSPHRASE);
 		fireEvent.click(
 			screen.getByRole("button", { name: "Export encrypted key" }),
 		);
 
 		expect(
-			await screen.findByText("The two passphrases don't match."),
+			await screen.findByText("Passwords don't match."),
 		).toBeInTheDocument();
+		expect(blobs).toHaveLength(0);
+	});
+
+	it("asks for a passphrase when there is none", async () => {
+		const blobs = captureDownloads();
+		renderSection();
+		await shownPublicKey();
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Export encrypted key" }),
+		);
+
+		const message = await screen.findByText("Enter a passphrase.");
+		expect(screen.getByLabelText("Passphrase")).toHaveAttribute(
+			"aria-describedby",
+			message.id,
+		);
+		expect(blobs).toHaveLength(0);
+	});
+
+	it("says plainly when the device runs out of memory", async () => {
+		const blobs = captureDownloads();
+		renderSection(
+			withOverride({
+				exportEncrypted: () =>
+					Promise.reject(new InstallKeyExportError("out-of-memory", "oom")),
+			}),
+		);
+		await shownPublicKey();
+
+		type("Passphrase", PASSPHRASE);
+		type("Repeat passphrase", PASSPHRASE);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Export encrypted key" }),
+		);
+
+		expect(
+			await screen.findByText(/ran out of memory while encrypting/),
+		).toBeInTheDocument();
+		expect(blobs).toHaveLength(0);
+	});
+
+	it("says when encrypting took too long, and offers a retry", async () => {
+		const blobs = captureDownloads();
+		renderSection(
+			withOverride({
+				exportEncrypted: () =>
+					Promise.reject(new InstallKeyExportError("timed-out", "slow")),
+			}),
+		);
+		await shownPublicKey();
+
+		type("Passphrase", PASSPHRASE);
+		type("Repeat passphrase", PASSPHRASE);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Export encrypted key" }),
+		);
+
+		expect(
+			await screen.findByText(/took too long.*Nothing was saved.*try again/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Export encrypted key" }),
+		).toBeEnabled();
 		expect(blobs).toHaveLength(0);
 	});
 
@@ -202,9 +315,11 @@ describe("exporting the key", { timeout: 30_000 }, () => {
 describe("importing a key", { timeout: 30_000 }, () => {
 	async function exportFile(): Promise<{ file: File; publicKey: string }> {
 		const source = serviceOver(await memoryInstallKeySql());
-		const text = await source.exportEncrypted(PASSPHRASE);
+		const bytes = await source.exportEncrypted(PASSPHRASE);
 		return {
-			file: new File([text], "key.json", { type: "application/json" }),
+			file: new File([bytes], "key.age", {
+				type: "application/octet-stream",
+			}),
 			publicKey: (await source.load()).publicKeyHex,
 		};
 	}
@@ -259,6 +374,65 @@ describe("importing a key", { timeout: 30_000 }, () => {
 		expect(
 			await screen.findByText(/not a signing-key file/),
 		).toBeInTheDocument();
+	});
+
+	it("still imports a key file from the previous release", async () => {
+		renderSection();
+		await shownPublicKey();
+
+		chooseFile(
+			new File([goldenV1], "old-key.json", { type: "application/json" }),
+		);
+		type("Import passphrase", GOLDEN_PASSPHRASE);
+		fireEvent.click(screen.getByRole("button", { name: "Import key" }));
+
+		await screen.findByText(/Key imported/, undefined, CRYPTO_WAIT);
+		expect(await shownPublicKey()).toBe(GOLDEN_PUBLIC_KEY);
+	});
+
+	it.each([
+		[
+			"out-of-memory",
+			/ran out of memory while unlocking.*passphrase was not checked/,
+		],
+		["unavailable", /didn't load.*passphrase was not checked/],
+		["timed-out", /took too long.*passphrase was not checked.*try again/],
+		["unsupported", /encryption settings this app can't open/],
+	] as const)("explains a %s refusal honestly", async (reason, text) => {
+		const { file } = await exportFile();
+		renderSection(
+			withOverride({
+				importEncrypted: () =>
+					Promise.reject(new InstallKeyImportError(reason, reason)),
+			}),
+		);
+		const before = await shownPublicKey();
+
+		chooseFile(file);
+		type("Import passphrase", PASSPHRASE);
+		fireEvent.click(screen.getByRole("button", { name: "Import key" }));
+
+		expect(await screen.findByText(text)).toBeInTheDocument();
+		expect((await keys.load()).publicKeyHex).toBe(before);
+	});
+
+	it("says how much memory a too-costly file asks for", async () => {
+		const { file } = await exportFile();
+		renderSection(
+			withOverride({
+				importEncrypted: () =>
+					Promise.reject(
+						new InstallKeyImportError("too-costly", "too costly", 20),
+					),
+			}),
+		);
+		await shownPublicKey();
+
+		chooseFile(file);
+		type("Import passphrase", PASSPHRASE);
+		fireEvent.click(screen.getByRole("button", { name: "Import key" }));
+
+		expect(await screen.findByText(/1024 MiB/)).toBeInTheDocument();
 	});
 
 	it("asks for a file first", async () => {

@@ -415,14 +415,18 @@ key is reported unavailable rather than a second key being invented.
 
 **Export, import and reset (`/settings` → Receipt signing key).**
 
-- **Export** writes the key to a JSON file encrypted under a passphrase you choose
-  (12+ characters): PBKDF2-SHA-256 with 600,000 iterations derives an AES-256-GCM key;
-  the 32-byte seed is the ciphertext; the header (format, version, public key, KDF and
-  cipher parameters) is bound as AES-GCM additional data. The public key is readable in
-  the file so a reviewer can pin it. Format: `engine/installKeyExport.ts`.
-- **Import** decrypts such a file and replaces this browser's key. A wrong passphrase,
-  an edited header, an unknown version or a key that doesn't match its public key is
-  rejected and nothing changes.
+- **Export** writes the key to a standard [age](https://age-encryption.org/v1) file
+  encrypted under a passphrase you choose (12+ characters, typed twice): scrypt at work
+  factor 17 (128 MiB) in a short-lived Web Worker, so the tab never freezes. The
+  encrypted payload is `{ format, version: 2, public_key_hex, seed_hex }`; `age -d`
+  opens it without this app. Encryption goes through `@gainratio/browser/seal`, and
+  `engine/installKeySeal.ts` is the only file that imports it.
+- **Import** decrypts such a file and replaces this browser's key. Files from earlier
+  releases (version 1: PBKDF2-SHA-256, 600,000 iterations, AES-256-GCM JSON) still
+  import, read-only. A wrong passphrase, an edited file, an unknown version or a key
+  that doesn't match its public key is rejected and nothing changes. A device that runs
+  out of memory, or a decryption chunk that fails to load, is reported as that, not as
+  a wrong passphrase.
 - **Reset** deletes the key (and any leftover `localStorage` copy) behind a warning:
   receipts signed before the reset can then only be verified with the public key you
   exported or wrote down. Every tab is told (BroadcastChannel); receipts already on

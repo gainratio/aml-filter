@@ -198,6 +198,17 @@
 	box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
+.form-input[aria-invalid="true"] {
+	border-color: var(--color-danger);
+}
+
+/* An inline problem with one field, linked to it by aria-describedby. */
+.form-error {
+	margin: var(--spacing-xs, 0.25rem) 0 0;
+	color: var(--color-alert-error-text);
+	font-size: 0.9em;
+}
+
 .form-select {
 	width: 100%;
 	padding: var(--spacing-sm);

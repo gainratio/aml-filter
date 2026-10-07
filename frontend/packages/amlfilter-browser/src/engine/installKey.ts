@@ -31,6 +31,7 @@ import {
 	parseJsonOrUndefined,
 	sealInstallKeyExport,
 } from "./installKeyExport";
+import type { SealRunner } from "./installKeySealRunner";
 import {
 	type InstallKeyDb,
 	type InstallKeyPersistence,
@@ -89,6 +90,8 @@ export interface InstallKeysDeps {
 	readonly openSql: InstallKeySqlOpener;
 	readonly legacy: LegacyKeyStorage | null;
 	readonly channel: InstallKeyChannel | null;
+	/** Where scrypt runs for export/import. Defaults to a short-lived Worker. */
+	readonly sealRunner?: SealRunner;
 }
 
 const SEED_HEX = /^[0-9a-f]{64}$/;
@@ -300,15 +303,27 @@ export class InstallKeys implements InstallKeySource {
 		this.announce();
 	}
 
-	/** The key, encrypted under a passphrase, as the export file's text. */
-	async exportEncrypted(passphrase: string): Promise<string> {
+	/** The key, encrypted under a passphrase, as the export file's bytes (age). */
+	async exportEncrypted(passphrase: string): Promise<Uint8Array<ArrayBuffer>> {
 		const key = await this.load();
-		return sealInstallKeyExport(key.seedHex, key.publicKeyHex, passphrase);
+		return sealInstallKeyExport(
+			key.seedHex,
+			key.publicKeyHex,
+			passphrase,
+			this.deps.sealRunner,
+		);
 	}
 
-	/** Decrypt an export file and make it this install's key. */
-	async importEncrypted(text: string, passphrase: string): Promise<InstallKey> {
-		const opened = await openInstallKeyExport(text, passphrase);
+	/** Decrypt an export file (age, or the old v1 JSON) and make it this install's key. */
+	async importEncrypted(
+		file: Uint8Array | string,
+		passphrase: string,
+	): Promise<InstallKey> {
+		const opened = await openInstallKeyExport(
+			file,
+			passphrase,
+			this.deps.sealRunner,
+		);
 		await this.session(async (db) => {
 			await db.replace(opened.seedHex, opened.publicKeyHex, "imported");
 			retireLegacy(this.deps.legacy, INSTALL_SEED_KEY);
