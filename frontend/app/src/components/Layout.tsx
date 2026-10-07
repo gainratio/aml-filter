@@ -79,7 +79,7 @@ export function Layout({ children }: LayoutProps) {
 				<small>
 					<a
 						className="page-footer__source"
-						href="https://github.com/hseshadr/aml-filter"
+						href="https://github.com/gainratio/aml-filter"
 						rel="noopener noreferrer"
 						target="_blank"
 					>

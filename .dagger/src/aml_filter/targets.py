@@ -6,11 +6,14 @@ import json
 from dataclasses import dataclass
 from typing import Final, Self, cast
 
-# The repository may move from the hseshadr user to the gainratio org. A run reports its own
+# The repository moved from the hseshadr user to the gainratio org. A run reports its own
 # identity (``$GITHUB_REPOSITORY``); only these exact two names may deploy, publish, or alert.
+# There is deliberately no default: a caller that drops the identity must fail, not gate as a
+# stale owner. hseshadr leaves the allow-list in the org-migration plan's step 8.
 ALLOWED_REPOSITORIES: Final = ("hseshadr/aml-filter", "gainratio/aml-filter")
-DEFAULT_REPOSITORY: Final = ALLOWED_REPOSITORIES[0]
-_PLACEMENT: Final = ("aml-filter", "main", "aml-filter.com")
+PRODUCTION_PROJECT: Final = "aml-filter"
+PRODUCTION_DOMAIN: Final = "aml-filter.com"
+_PLACEMENT: Final = (PRODUCTION_PROJECT, "main", PRODUCTION_DOMAIN)
 _SHA_LENGTH: Final = 40
 _MALFORMED_EVIDENCE: Final = "serialized green-main evidence is malformed"
 
@@ -43,7 +46,7 @@ class AmlTarget:
             raise ValueError("AML delivery target must use the validated production values")
 
     @classmethod
-    def production(cls, repository: str = DEFAULT_REPOSITORY) -> Self:
+    def production(cls, repository: str) -> Self:
         """Return the immutable production delivery target for the run's repository."""
         return cls(validated_repository(repository), *_PLACEMENT)
 
@@ -65,7 +68,7 @@ class ProviderIdentity:
     deployment_url: str
 
 
-def parse_green_main(serialization: str, repository: str = DEFAULT_REPOSITORY) -> GreenMainEvidence:
+def parse_green_main(serialization: str, repository: str) -> GreenMainEvidence:
     """Parse only exact AML production evidence for the run's repository from Foundation."""
     expected = validated_repository(repository)
     values = _evidence_values(serialization)

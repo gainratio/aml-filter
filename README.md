@@ -104,7 +104,7 @@ matching is, in **Settings**.
 You need [Node 22.13](frontend/.nvmrc) and pnpm (which `corepack` provides).
 
 ```bash
-git clone https://github.com/hseshadr/aml-filter
+git clone https://github.com/gainratio/aml-filter
 cd aml-filter/frontend
 corepack enable
 pnpm install

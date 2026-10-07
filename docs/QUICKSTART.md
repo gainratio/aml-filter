@@ -10,7 +10,7 @@ Clone → install → run → screen a name → work it in the review board. Abo
 minutes**, most of it the first run fetching the ~23 MB embedding-model weights.
 
 The repository is public and MIT-licensed:
-<https://github.com/hseshadr/aml-filter>. No account, key, or collaborator access is
+<https://github.com/gainratio/aml-filter>. No account, key, or collaborator access is
 needed to clone it and run everything below.
 
 > Reminder: aml-filter is a portfolio demo, **not** a compliance product. See
@@ -39,7 +39,7 @@ That's the whole list. There is no backend, database, API key, or account to set
 All commands run from `frontend/` — there is no root `package.json`.
 
 ```bash
-git clone https://github.com/hseshadr/aml-filter.git
+git clone https://github.com/gainratio/aml-filter.git
 cd aml-filter/frontend
 corepack enable                       # provides the pnpm version pinned in package.json
 pnpm install

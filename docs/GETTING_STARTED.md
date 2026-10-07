@@ -36,7 +36,7 @@ Traps we hit on a real machine:
 All commands run from `frontend/`. There is no `package.json` at the repo root.
 
 ```bash
-git clone https://github.com/hseshadr/aml-filter
+git clone https://github.com/gainratio/aml-filter
 cd aml-filter/frontend
 corepack enable
 pnpm install                          # 17 s here, with a warm pnpm store

@@ -16,7 +16,7 @@ from enum import StrEnum
 from http.client import HTTPException, HTTPSConnection
 from typing import Final
 
-from .targets import ALLOWED_REPOSITORIES, DEFAULT_REPOSITORY, validated_repository
+from .targets import ALLOWED_REPOSITORIES, validated_repository
 
 ISSUE_TITLE: Final = "Production deploy/publish failed"
 ALERT_LABEL: Final = "production-alert"
@@ -60,7 +60,7 @@ class AlertReport:
     workflow: str
     run_url: str
     outcome: Outcome
-    repository: str = DEFAULT_REPOSITORY
+    repository: str
 
 
 @dataclass(frozen=True)
@@ -78,9 +78,7 @@ class AlertPlan:
     close: bool = False
 
 
-def alert_report(
-    workflow: str, run_id: str, outcome: str, repository: str = DEFAULT_REPOSITORY
-) -> AlertReport:
+def alert_report(workflow: str, run_id: str, outcome: str, repository: str) -> AlertReport:
     """Validate the caller's inputs; the run URL is built here, never passed in."""
     validated_repository(repository)
     if workflow not in WATCHED_WORKFLOWS:

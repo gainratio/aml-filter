@@ -30,10 +30,9 @@ from aml_filter.main import (
 )
 from aml_filter.policy import ReleaseKind, release_identity
 from aml_filter.smoke import SMOKE_LISTS, LiveSmokeFailedError, SmokeRun
-from aml_filter.targets import DEFAULT_REPOSITORY
 
-REPOSITORY: Final = DEFAULT_REPOSITORY
-GAINRATIO_REPOSITORY: Final = "gainratio/aml-filter"
+REPOSITORY: Final = "gainratio/aml-filter"
+GAINRATIO_REPOSITORY: Final = REPOSITORY
 REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
 # The run's own identity reaches Dagger as a quoted bash variable, never a literal owner.
 REPOSITORY_ARGUMENT: Final = '--repository="$GITHUB_REPOSITORY"'
@@ -221,7 +220,7 @@ REAL_PROVIDER_DEPENDENCIES: Final = (
     ("foundation", FOUNDATION_MODULE),
     ("cloudflare-pages", CLOUDFLARE_MODULE),
 )
-# A Git-linked Pages project stays bound to the hseshadr source until the post-transfer PR.
+# Cloudflare never rewrites a Git-linked Pages project's source owner on a GitHub transfer.
 PAGES_GIT_SOURCE_OWNER: Final = "hseshadr"
 RECORDED_SHA: Final = "0123456789abcdef0123456789abcdef01234567"
 RECORDED_RUN_ID: Final = "123456"
@@ -242,7 +241,7 @@ from dagger import dag, function, object_type
 
 SHA = "363be0b98c753c027353f35db0f6cc5b24402f78"
 COMMIT = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-REPOSITORY = "hseshadr/aml-filter"
+REPOSITORY = "gainratio/aml-filter"
 
 
 @object_type
@@ -386,7 +385,7 @@ class CiProductRecorder:
     def dev_tool_audit(self) -> Container:
         return cast(Container, CiContainerRecorder("dev-tool-audit", self.events, self.failure))
 
-    def secret_scan(self, commit_sha: str, repository: str = REPOSITORY) -> Container:
+    def secret_scan(self, commit_sha: str, repository: str) -> Container:
         assert commit_sha == RECORDED_SHA
         self.events.append(f"scan-repository:{repository}")
         return cast(Container, CiContainerRecorder("secret-scan", self.events, self.failure))
@@ -1934,9 +1933,9 @@ def test_should_bind_the_only_production_pages_target() -> None:
         pytest.fail("AML delivery target is missing", pytrace=False)
 
     # Then
-    production = targets.AmlTarget.production()
+    production = targets.AmlTarget.production(REPOSITORY)
     assert production == targets.AmlTarget(
-        "hseshadr/aml-filter", "aml-filter", "main", "aml-filter.com"
+        "gainratio/aml-filter", "aml-filter", "main", "aml-filter.com"
     )
 
 
@@ -1944,9 +1943,9 @@ def test_should_bind_the_only_production_pages_target() -> None:
     "values",
     [
         ("other/aml-filter", "aml-filter", "main", "aml-filter.com"),
-        ("hseshadr/aml-filter", "other", "main", "aml-filter.com"),
-        ("hseshadr/aml-filter", "aml-filter", "release", "aml-filter.com"),
-        ("hseshadr/aml-filter", "aml-filter", "main", "other.example"),
+        ("gainratio/aml-filter", "other", "main", "aml-filter.com"),
+        ("gainratio/aml-filter", "aml-filter", "release", "aml-filter.com"),
+        ("gainratio/aml-filter", "aml-filter", "main", "other.example"),
     ],
 )
 def test_should_reject_target_when_any_production_value_differs(
@@ -1965,7 +1964,7 @@ def test_should_parse_exact_green_main_evidence() -> None:
     targets = importlib.import_module("aml_filter.targets")
 
     # When
-    evidence = targets.parse_green_main(green_main_json())
+    evidence = targets.parse_green_main(green_main_json(), REPOSITORY)
 
     # Then
     assert evidence.commit_sha == RECORDED_SHA
@@ -1980,7 +1979,7 @@ def test_should_reject_green_main_when_serialization_is_malformed(serialization:
 
     # When / Then
     with pytest.raises(ValueError, match="green-main evidence is malformed"):
-        targets.parse_green_main(serialization)
+        targets.parse_green_main(serialization, REPOSITORY)
 
 
 @pytest.mark.parametrize(
@@ -2007,7 +2006,7 @@ def test_should_reject_green_main_when_identity_or_attempt_is_not_exact(
 
     # When / Then
     with pytest.raises(ValueError, match="green-main evidence is malformed"):
-        targets.parse_green_main(serialization)
+        targets.parse_green_main(serialization, REPOSITORY)
 
 
 def test_should_bind_edgeproc_directory_when_release_base_is_built(
@@ -2090,6 +2089,7 @@ async def test_should_materialize_one_provider_deploy_before_live_verification(
         context.account_id,
         context.github_token,
         f"{RECORDED_SHA}:9999",
+        REPOSITORY,
     )
 
     # When
@@ -2119,6 +2119,7 @@ async def test_should_bind_exact_source_and_identities_when_provider_deploys(
         context.account_id,
         context.github_token,
         f"{RECORDED_SHA}:9999",
+        REPOSITORY,
     )
 
     # When
@@ -2174,6 +2175,7 @@ async def test_should_reject_release_when_product_sha_differs_from_green_main(
         context.account_id,
         context.github_token,
         f"{'a' * 40}:9999",
+        REPOSITORY,
     )
 
     # When / Then
@@ -2198,6 +2200,7 @@ async def test_should_stop_before_provider_when_envelope_fails(
         context.account_id,
         context.github_token,
         f"{RECORDED_SHA}:9999",
+        REPOSITORY,
     )
 
     # When / Then
@@ -2222,6 +2225,7 @@ async def test_should_stop_before_live_when_provider_materialization_fails(
         context.account_id,
         context.github_token,
         f"{RECORDED_SHA}:9999",
+        REPOSITORY,
     )
 
     # When / Then
@@ -2272,6 +2276,7 @@ def recorded_request(context: RecordedDelivery, kind: ReleaseKind) -> PublishReq
         context.account_id,
         context.github_token,
         f"{RECORDED_SHA}:9999",
+        REPOSITORY,
     )
 
 
@@ -2645,7 +2650,7 @@ def test_should_materialize_exact_foundation_guard_when_secret_scan_runs(
     context = recorded_secret_scan(monkeypatch)
 
     # When
-    actual = context.subject.secret_scan(RECORDED_SHA)
+    actual = context.subject.secret_scan(RECORDED_SHA, REPOSITORY)
 
     # Then
     assert actual is context.result and context.caller_source is not context.canonical_source
@@ -2670,7 +2675,7 @@ def test_should_guard_under_the_runs_repository_after_transfer(
     )
 
 
-@pytest.mark.parametrize("repository", ["attacker/aml-filter", "hseshadr/aml-filter-evil"])
+@pytest.mark.parametrize("repository", ["attacker/aml-filter", "gainratio/aml-filter-evil"])
 def test_should_refuse_guard_for_another_repository(
     monkeypatch: pytest.MonkeyPatch, repository: str
 ) -> None:
@@ -2692,7 +2697,7 @@ async def test_should_orchestrate_ci_through_public_snapshot_scan(
     assert context.caller_source is not context.canonical_source
 
     # When
-    await cast(Awaitable[str], context.subject.ci(RECORDED_SHA))
+    await cast(Awaitable[str], context.subject.ci(RECORDED_SHA, REPOSITORY))
 
     # Then
     assert context.events == [
@@ -2740,7 +2745,7 @@ async def test_should_propagate_ci_failure_from_every_stage(
 
     # When / Then
     with pytest.raises(RuntimeError, match=f"{failure} failed"):
-        await cast(Awaitable[str], context.subject.ci(RECORDED_SHA))
+        await cast(Awaitable[str], context.subject.ci(RECORDED_SHA, REPOSITORY))
     assert failure in context.events
 
 
@@ -2802,7 +2807,7 @@ async def test_should_keep_the_dev_tool_audit_out_of_the_authorizing_dagger_chec
     context = recorded_ci(monkeypatch, "dev-tool-audit")
 
     # When
-    await cast(Awaitable[str], context.subject.ci(RECORDED_SHA))
+    await cast(Awaitable[str], context.subject.ci(RECORDED_SHA, REPOSITORY))
 
     # Then
     assert "dev-tool-audit" not in context.events

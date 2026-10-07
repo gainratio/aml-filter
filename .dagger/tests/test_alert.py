@@ -24,13 +24,14 @@ from aml_filter.alert import (
     render_body,
 )
 
-RUN_URL: Final = "https://github.com/hseshadr/aml-filter/actions/runs/"
+REPOSITORY: Final = "gainratio/aml-filter"
+RUN_URL: Final = f"https://github.com/{REPOSITORY}/actions/runs/"
 PUBLISH: Final = "Publish watchlist"
 DEPLOY: Final = "Deploy aml-filter.com"
 
 
 def report(workflow: str, run_id: int, outcome: Outcome) -> AlertReport:
-    return alert_report(workflow, str(run_id), outcome.value)
+    return alert_report(workflow, str(run_id), outcome.value, REPOSITORY)
 
 
 # --- parsing the caller's inputs -------------------------------------------------------
@@ -52,12 +53,12 @@ def test_should_reject_alert_inputs_outside_the_watched_contract(
 ) -> None:
     # Given / When / Then: only the four production workflows may write the issue.
     with pytest.raises(InvalidAlertError, match=message):
-        alert_report(workflow, run_id, outcome)
+        alert_report(workflow, run_id, outcome, REPOSITORY)
 
 
 def test_should_build_the_run_url_from_the_repository_not_the_caller() -> None:
     # Given / When
-    parsed = alert_report(PUBLISH, "42", "failure")
+    parsed = alert_report(PUBLISH, "42", "failure", REPOSITORY)
 
     # Then
     assert parsed.run_url == f"{RUN_URL}42"
@@ -174,7 +175,7 @@ def test_should_create_the_labelled_issue_when_a_production_run_fails() -> None:
     # Then
     method, path, query = github.requests[0]
     assert (method, query) == ("GET", None)
-    assert path.startswith("/repos/hseshadr/aml-filter/issues?") and ALERT_LABEL in path
+    assert path.startswith("/repos/gainratio/aml-filter/issues?") and ALERT_LABEL in path
     created = [r for r in github.requests if r[1].endswith("/issues") and r[0] == "POST"]
     assert len(created) == 1
     payload = created[0][2]
@@ -200,9 +201,9 @@ def test_should_comment_on_and_update_the_open_issue_instead_of_duplicating() ->
 
     # Then
     writes = [(m, p) for m, p, _ in github.requests if m != "GET"]
-    assert ("POST", "/repos/hseshadr/aml-filter/issues") not in writes
-    assert ("PATCH", "/repos/hseshadr/aml-filter/issues/5") in writes
-    assert ("POST", "/repos/hseshadr/aml-filter/issues/5/comments") in writes
+    assert ("POST", "/repos/gainratio/aml-filter/issues") not in writes
+    assert ("PATCH", "/repos/gainratio/aml-filter/issues/5") in writes
+    assert ("POST", "/repos/gainratio/aml-filter/issues/5/comments") in writes
 
 
 def test_should_close_the_issue_on_the_next_green_run() -> None:
@@ -214,7 +215,7 @@ def test_should_close_the_issue_on_the_next_green_run() -> None:
 
     # Then
     patch = [r for r in github.requests if r[0] == "PATCH"][-1]
-    assert patch[1] == "/repos/hseshadr/aml-filter/issues/5"
+    assert patch[1] == "/repos/gainratio/aml-filter/issues/5"
     assert isinstance(patch[2], dict) and patch[2]["state"] == "closed"
     assert "closed" in result
 
@@ -322,14 +323,14 @@ def test_should_send_json_with_the_token_only_in_the_authorization_header(
     transport = alert_module.https_transport("secret-token")
 
     # When
-    status, body = transport("POST", "/repos/hseshadr/aml-filter/issues", {"title": "t"})
+    status, body = transport("POST", "/repos/gainratio/aml-filter/issues", {"title": "t"})
 
     # Then
     assert (status, body) == (201, '{"number": 1}')
     method, path, sent_body, headers = FakeConnection.sent[0]
     assert (method, path, sent_body) == (
         "POST",
-        "/repos/hseshadr/aml-filter/issues",
+        "/repos/gainratio/aml-filter/issues",
         '{"title": "t"}',
     )
     assert headers["Authorization"] == "Bearer secret-token"
@@ -343,6 +344,6 @@ def test_should_hide_the_token_when_the_network_fails(monkeypatch: pytest.Monkey
 
     # When / Then
     with pytest.raises(AlertDeliveryError) as error:
-        transport("GET", "/repos/hseshadr/aml-filter/issues", None)
+        transport("GET", "/repos/gainratio/aml-filter/issues", None)
     assert "secret-token" not in str(error.value)
     assert error.value.__cause__ is None
