@@ -13,6 +13,11 @@ import {
 	workerSealRunner,
 } from "./installKeySealRunner";
 
+// These tests seal and open at the production scrypt work factor (128 MiB): about 4 s per
+// operation under coverage on a laptop and 2-3x that on the shared CI runner, so two
+// operations can pass Vitest's 30 s limit there. Strength is not lowered; time is raised.
+vi.setConfig({ testTimeout: 120_000 });
+
 const PASSPHRASE = "correct horse battery staple";
 const PAYLOAD = new TextEncoder().encode("payload");
 

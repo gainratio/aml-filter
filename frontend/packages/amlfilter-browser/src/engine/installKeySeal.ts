@@ -51,12 +51,21 @@ export function isAgeFile(bytes: Uint8Array): boolean {
 	return isSealed(bytes);
 }
 
-/** Seal bytes as an age file. Blocks its thread: run it in a Worker. */
+/**
+ * Seal bytes as an age file. Blocks its thread: run it in a Worker.
+ * `workFactor` is for tests only (the library allows 10–15 below its default for that);
+ * production callers omit it and get the library default.
+ */
 export function sealBytes(
 	plaintext: Uint8Array,
 	passphrase: string,
+	workFactor?: number,
 ): Promise<SealResult> {
-	return sealWithPassphrase(plaintext, passphrase);
+	return sealWithPassphrase(
+		plaintext,
+		passphrase,
+		workFactor === undefined ? undefined : { workFactor },
+	);
 }
 
 /** Open an age file. Blocks its thread: run it in a Worker. */

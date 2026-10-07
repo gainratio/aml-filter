@@ -6,7 +6,7 @@
 // PBKDF2-SHA-256 + AES-256-GCM JSON) still import, read-only.
 
 import { publicKeyHex } from "@gainratio/avow";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import goldenV1 from "./__fixtures__/install-key-export-v1.golden.json?raw";
 import {
 	INSTALL_KEY_EXPORT_FORMAT,
@@ -19,6 +19,11 @@ import {
 } from "./installKeyExport";
 import { sealBytes } from "./installKeySeal";
 import { inlineSealRunner, type SealRunner } from "./installKeySealRunner";
+
+// These tests seal and open at the production scrypt work factor (128 MiB): about 4 s per
+// operation under coverage on a laptop and 2-3x that on the shared CI runner, so two
+// operations can pass Vitest's 30 s limit there. Strength is not lowered; time is raised.
+vi.setConfig({ testTimeout: 120_000 });
 
 const SEED = "5a".repeat(32);
 const PASSPHRASE = "correct horse battery staple";
@@ -58,10 +63,16 @@ async function reasonOf(promise: Promise<unknown>): Promise<string> {
 }
 
 /** An age file whose payload is whatever JSON the test wants. */
+const TEST_WORK_FACTOR = 10;
+
 async function ageWith(payload: unknown): Promise<Uint8Array> {
+	// Lowest work factor: these tests check payload handling, not scrypt strength (the
+	// round-trip tests seal at the production default). Full strength under coverage
+	// took over 30 s per test on the CI runner.
 	const sealed = await sealBytes(
 		new TextEncoder().encode(JSON.stringify(payload)),
 		PASSPHRASE,
+		TEST_WORK_FACTOR,
 	);
 	if (!sealed.ok) {
 		throw new Error(sealed.reason);
