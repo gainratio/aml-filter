@@ -63,13 +63,15 @@ UV_IMAGE: Final = (
 )
 EDGEPROC_REPO: Final = "https://github.com/hseshadr/edge-proc"
 EDGEPROC_COMMIT: Final = "e3bfb570feb8619c823df63b6c012fd8c8c6a9b6"
-# hseshadr/ci main: merge of ci#64 (includes ci#61 bounded clock skew).
-CENTRAL_MODULE_SHA: Final = "4d48302e30d3a54ec71364d43aada5c0d4b1f9bf"
+# hseshadr/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
+CENTRAL_MODULE_SHA: Final = "a88866232e679b6353d2b75bceb01969be739f67"
 # Project, branch, and domain are fixed; the repository comes from each run (see targets.py).
 TARGET: Final = AmlTarget.production()
 LIVE_ORIGIN: Final = f"https://{TARGET.domain}"
 DEPLOY_ROOT: Final = "dist"
 PAGES_DOMAINS: Final = ()
+# Keeps a Git-linked Pages project bound to the hseshadr source until the post-transfer PR.
+PAGES_GIT_SOURCE_OWNER: Final = "hseshadr"
 PUBLIC_KEY: Final = "/src/frontend/app/public/public.key"
 SOURCE_EXCLUDES: Final = split(
     ".git .venv **/.venv **/node_modules **/dist **/.decision-out "
@@ -585,7 +587,8 @@ class AmlFilter:
         return provider.deploy(
             r.envelope, github_token, token, account, r.workflow_run_id, r.run_attempt,
             target.repository, target.project, target.branch, target.domain, DEPLOY_ROOT, domains,
-            r.consumer_identity, r.producing_identity, [DEPLOY_ROOT])  # fmt: skip
+            r.consumer_identity, r.producing_identity, [DEPLOY_ROOT],
+            git_source_owner=PAGES_GIT_SOURCE_OWNER)  # fmt: skip
 
     @staticmethod
     async def _provider_identity(

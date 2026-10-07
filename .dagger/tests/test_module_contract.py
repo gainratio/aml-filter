@@ -213,14 +213,16 @@ PROVIDER_MARKERS: Final = (
     "--cloudflare",
 )
 YAML_DEPENDENCY: Final = "ruamel-yaml>=0.18.16,<0.19.0"
-# hseshadr/ci main: merge of ci#64 (includes ci#61 bounded clock skew).
-CENTRAL_SHA: Final = "4d48302e30d3a54ec71364d43aada5c0d4b1f9bf"
+# hseshadr/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
+CENTRAL_SHA: Final = "a88866232e679b6353d2b75bceb01969be739f67"
 FOUNDATION_MODULE: Final = f"github.com/hseshadr/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
 CLOUDFLARE_MODULE: Final = f"github.com/hseshadr/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
 REAL_PROVIDER_DEPENDENCIES: Final = (
     ("foundation", FOUNDATION_MODULE),
     ("cloudflare-pages", CLOUDFLARE_MODULE),
 )
+# A Git-linked Pages project stays bound to the hseshadr source until the post-transfer PR.
+PAGES_GIT_SOURCE_OWNER: Final = "hseshadr"
 RECORDED_SHA: Final = "0123456789abcdef0123456789abcdef01234567"
 RECORDED_RUN_ID: Final = "123456"
 RECORDED_ATTEMPT: Final = 2
@@ -701,7 +703,7 @@ class ProviderRecorder:
         self.context.events.append(f"construct:rollback:{deployment_id}")
         return RollbackRecorder(self.context)
 
-    def deploy(self, *arguments: object) -> ProviderEvidenceRecorder:
+    def deploy(self, *arguments: object, **options: object) -> ProviderEvidenceRecorder:
         assert arguments[1:4] == (
             self.context.github_token,
             self.context.api_token,
@@ -709,6 +711,7 @@ class ProviderRecorder:
         )
         self.context.events.append("construct:deploy")
         self.context.provider_call = ProviderCall(arguments)
+        self.context.provider_options = options
         return ProviderEvidenceRecorder(self.context)
 
 
@@ -730,6 +733,7 @@ class RecordedDelivery:
     fail_materialization: bool = False
     envelope_values: tuple[object, str, str, tuple[str, ...]] | None = None
     provider_call: ProviderCall | None = None
+    provider_options: Mapping[str, object] | None = None
     profile: Directory = field(default_factory=lambda: cast(Directory, object()))
     prime_exit: int = 0
     smoke_exit: int = 0
@@ -2152,6 +2156,7 @@ async def test_should_bind_exact_source_and_identities_when_provider_deploys(
             ["dist"],
         )
     )
+    assert context.provider_options == {"git_source_owner": PAGES_GIT_SOURCE_OWNER}
     assert f"stamp:{RECORDED_SHA}:9999" in context.events
 
 
@@ -2254,6 +2259,7 @@ async def test_should_deliver_under_the_runs_repository_after_transfer(
     arguments = context.provider_call.arguments
     assert arguments[6] == GAINRATIO_REPOSITORY
     assert arguments[12] == f"{GAINRATIO_REPOSITORY}@{RECORDED_SHA}"
+    assert context.provider_options == {"git_source_owner": PAGES_GIT_SOURCE_OWNER}
     assert context.asked_events == ["9999"]
 
 
