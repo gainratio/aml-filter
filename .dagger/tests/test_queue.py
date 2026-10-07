@@ -26,6 +26,7 @@ from aml_filter.queue import (
     runs_path,
     wait_for_turn,
 )
+from aml_filter.targets import DEFAULT_REPOSITORY
 
 OWN_RUN: Final = 500
 LARGE_RUN_ID: Final = 18123456789
@@ -279,7 +280,7 @@ async def test_should_grant_release_turn_after_older_writes_complete(
 
     # Then
     assert result == "release turn granted to run 42 after waiting on runs [41]"
-    assert {call[0] for call in calls} == {main_module.REPOSITORY}
+    assert {call[0] for call in calls} == {DEFAULT_REPOSITORY}
     assert [call[2] for call in calls] == list(DELIVERY_WORKFLOW_FILES) * 2
 
 
@@ -359,4 +360,4 @@ async def test_should_ask_github_for_this_repositorys_run_when_resolving_the_tri
     event = await main_module.release_event(cast(Secret, FakeSecret()), "42")
 
     # Then
-    assert (event, calls) == ("schedule", [(main_module.REPOSITORY, "sekrit-token", 42)])
+    assert (event, calls) == ("schedule", [(DEFAULT_REPOSITORY, "sekrit-token", 42)])

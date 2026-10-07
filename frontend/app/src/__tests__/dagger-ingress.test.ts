@@ -67,6 +67,9 @@ const DEPLOY_CHECKOUT_INPUTS = [
 	"persist-credentials: false",
 	`ref: ${DEPLOY_SOURCE}`,
 ].join(" ");
+// The run's own repository (hseshadr or, after the org move, gainratio) reaches Dagger as a
+// quoted bash variable; the module checks it against an exact two-item allow-list.
+const REPOSITORY_ARGUMENT = '--repository="$GITHUB_REPOSITORY"';
 const DEPLOY_DAGGER_INPUTS = [
 	'version: "0.21.8"',
 	"call: >-",
@@ -76,6 +79,7 @@ const DEPLOY_DAGGER_INPUTS = [
 	"--cloudflare-account-id=env://CLOUDFLARE_ACCOUNT_ID",
 	"--github-token=env://GITHUB_TOKEN",
 	'--release-id="$RELEASE_SHA:$GITHUB_RUN_ID"',
+	REPOSITORY_ARGUMENT,
 ].join(" ");
 const PUBLISH_AUTHORIZATION = `${DEPLOY_AUTHORIZATION} || github.event_name == 'schedule'`;
 const PUBLISH_TRIGGERS = [
@@ -85,14 +89,14 @@ const PUBLISH_TRIGGERS = [
 	"workflow_dispatch:",
 ].join(" ");
 const PUBLISH_CHECKOUT_INPUTS = `persist-credentials: false ref: ${DEPLOY_SOURCE}`;
-const CI_DAGGER_INPUTS = `version: "0.21.8" call: ci --commit-sha=\${{ github.sha }}`;
+const CI_DAGGER_INPUTS = `version: "0.21.8" call: ci --commit-sha=\${{ github.sha }} ${REPOSITORY_ARGUMENT}`;
 const CI_CHECKOUT_INPUTS = `fetch-depth: 0 persist-credentials: false ref: \${{ github.sha }}`;
 const AUTHORIZER_TRIGGERS = "push: branches: [main] pull_request:";
 const SECURITY_AUDIT_TRIGGERS =
 	'schedule: - cron: "0 9 * * 1" workflow_dispatch:';
 const READ_ONLY_PERMISSIONS = "contents: read";
 const ALERT_MARKER = "\n  alert:\n";
-const ALERT_CALL = `production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"`;
+const ALERT_CALL = `production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME" ${REPOSITORY_ARGUMENT}`;
 const ALERTED_WORKFLOWS = [
 	"deploy.yml",
 	"live-smoke.yml",
@@ -246,7 +250,7 @@ describe("thin Dagger ingress", () => {
 			PUBLISH_CHECKOUT_INPUTS,
 		);
 		expect(actionInputs(yaml, "dagger/dagger-for-github")).toContain(
-			'--release-id="$RELEASE_SHA:$GITHUB_RUN_ID"',
+			`--release-id="$RELEASE_SHA:$GITHUB_RUN_ID" ${REPOSITORY_ARGUMENT}`,
 		);
 		expect(yaml).toContain(`RELEASE_SHA: ${DEPLOY_SOURCE}`);
 	});
@@ -310,7 +314,7 @@ describe("thin Dagger ingress", () => {
 	});
 
 	it("queues every production upload behind a credential-free turnstile", () => {
-		const turnstile = `version: "0.21.8" call: release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID"`;
+		const turnstile = `version: "0.21.8" call: release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID" ${REPOSITORY_ARGUMENT}`;
 		for (const file of ["deploy.yml", "publish-watchlist.yml"]) {
 			const yaml = read(file);
 			const marker = "\n  queue:\n";

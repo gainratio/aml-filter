@@ -16,7 +16,8 @@ from enum import StrEnum
 from http.client import HTTPException, HTTPSConnection
 from typing import Final
 
-REPOSITORY: Final = "hseshadr/aml-filter"
+from .targets import ALLOWED_REPOSITORIES, DEFAULT_REPOSITORY, validated_repository
+
 ISSUE_TITLE: Final = "Production deploy/publish failed"
 ALERT_LABEL: Final = "production-alert"
 LABEL_COLOR: Final = "b60205"
@@ -24,9 +25,13 @@ WATCHED_WORKFLOWS: Final = frozenset(
     {"Deploy aml-filter.com", "Publish watchlist", "Live smoke", "Watchlist freshness"}
 )
 RUN_ID: Final = re.compile(r"^[1-9][0-9]*$")
-RUN_URL: Final = f"https://github.com/{REPOSITORY}/actions/runs/"
+# An issue opened before the repository moved still links the old owner's runs.
+RUN_URLS: Final = "|".join(
+    re.escape(f"https://github.com/{repository}/actions/runs/")
+    for repository in ALLOWED_REPOSITORIES
+)
 FAILING_LINE: Final = re.compile(
-    rf"^- (?P<workflow>[^\n:]+) failed: (?P<url>{re.escape(RUN_URL)}[1-9][0-9]*)$", re.M
+    rf"^- (?P<workflow>[^\n:]+) failed: (?P<url>(?:{RUN_URLS})[1-9][0-9]*)$", re.M
 )
 API_HOST: Final = "api.github.com"
 API_VERSION: Final = "2022-11-28"
@@ -55,6 +60,7 @@ class AlertReport:
     workflow: str
     run_url: str
     outcome: Outcome
+    repository: str = DEFAULT_REPOSITORY
 
 
 @dataclass(frozen=True)
@@ -72,15 +78,19 @@ class AlertPlan:
     close: bool = False
 
 
-def alert_report(workflow: str, run_id: str, outcome: str) -> AlertReport:
+def alert_report(
+    workflow: str, run_id: str, outcome: str, repository: str = DEFAULT_REPOSITORY
+) -> AlertReport:
     """Validate the caller's inputs; the run URL is built here, never passed in."""
+    validated_repository(repository)
     if workflow not in WATCHED_WORKFLOWS:
         raise InvalidAlertError("workflow is not a watched production workflow")
     if RUN_ID.fullmatch(run_id) is None:
         raise InvalidAlertError("run id must be a positive integer")
     if outcome not in {item.value for item in Outcome}:
         raise InvalidAlertError("outcome must be success or failure")
-    return AlertReport(workflow, f"{RUN_URL}{run_id}", Outcome(outcome))
+    run_url = f"https://github.com/{repository}/actions/runs/{run_id}"
+    return AlertReport(workflow, run_url, Outcome(outcome), repository)
 
 
 def failing_workflows(body: str) -> dict[str, str]:
@@ -128,17 +138,19 @@ def _recovery_comment(report: AlertReport, failing: Mapping[str, str]) -> str:
 
 def raise_or_clear_alert(transport: Transport, report: AlertReport) -> str:
     """Apply this run's plan to the one open alert issue over the GitHub REST API."""
-    issue = _open_issue(transport)
+    # POSTs do not follow a transfer redirect: every path names the run's own repository.
+    repo = f"/repos/{validated_repository(report.repository)}"
+    issue = _open_issue(transport, repo)
     plan = plan_alert(issue, report)
     if plan.body is None:
         return f"{report.workflow}: {report.outcome.value}; no open alert to update"
     if issue is None:
-        return _create(transport, plan.body)
-    return _update(transport, issue.number, plan)
+        return _create(transport, repo, plan.body)
+    return _update(transport, repo, issue.number, plan)
 
 
-def _open_issue(transport: Transport) -> OpenIssue | None:
-    path = f"/repos/{REPOSITORY}/issues?state=open&labels={ALERT_LABEL}&per_page=100"
+def _open_issue(transport: Transport, repo: str) -> OpenIssue | None:
+    path = f"{repo}/issues?state=open&labels={ALERT_LABEL}&per_page=100"
     candidates = [
         issue
         for issue in _issue_list(_expect(transport("GET", path, None), path))
@@ -164,19 +176,19 @@ def _issue(entry: Mapping[str, object]) -> OpenIssue:
     return OpenIssue(number, body)
 
 
-def _create(transport: Transport, body: str) -> str:
+def _create(transport: Transport, repo: str, body: str) -> str:
     label = {"name": ALERT_LABEL, "color": LABEL_COLOR, "description": ISSUE_TITLE}
-    label_path = f"/repos/{REPOSITORY}/labels"
+    label_path = f"{repo}/labels"
     status, text = transport("POST", label_path, label)
     if status != UNPROCESSABLE:
         _expect((status, text), label_path)
     issue = {"title": ISSUE_TITLE, "body": body, "labels": [ALERT_LABEL]}
-    _expect(transport("POST", f"/repos/{REPOSITORY}/issues", issue), "create issue")
+    _expect(transport("POST", f"{repo}/issues", issue), "create issue")
     return f"opened '{ISSUE_TITLE}'"
 
 
-def _update(transport: Transport, number: int, plan: AlertPlan) -> str:
-    path = f"/repos/{REPOSITORY}/issues/{number}"
+def _update(transport: Transport, repo: str, number: int, plan: AlertPlan) -> str:
+    path = f"{repo}/issues/{number}"
     if plan.comment is not None:
         _expect(transport("POST", f"{path}/comments", {"body": plan.comment}), "comment")
     change: dict[str, object] = {"body": plan.body}

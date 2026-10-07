@@ -45,7 +45,14 @@ from .smoke import (
     smoke_passes,
     smoke_verdict,
 )
-from .targets import AmlTarget, GreenMainEvidence, ProviderIdentity, parse_green_main
+from .targets import (
+    DEFAULT_REPOSITORY,
+    AmlTarget,
+    GreenMainEvidence,
+    ProviderIdentity,
+    parse_green_main,
+    validated_repository,
+)
 
 NODE_IMAGE: Final = (
     "node:22.13.0-bookworm@sha256:fa54405993eaa6bab6b6e460f5f3e945a2e2f07942ba31c0e297a7d9c2041f62"
@@ -58,9 +65,8 @@ EDGEPROC_REPO: Final = "https://github.com/hseshadr/edge-proc"
 EDGEPROC_COMMIT: Final = "e3bfb570feb8619c823df63b6c012fd8c8c6a9b6"
 # hseshadr/ci main: merge of ci#64 (includes ci#61 bounded clock skew).
 CENTRAL_MODULE_SHA: Final = "4d48302e30d3a54ec71364d43aada5c0d4b1f9bf"
+# Project, branch, and domain are fixed; the repository comes from each run (see targets.py).
 TARGET: Final = AmlTarget.production()
-REPOSITORY: Final = TARGET.repository
-REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
 LIVE_ORIGIN: Final = f"https://{TARGET.domain}"
 DEPLOY_ROOT: Final = "dist"
 PAGES_DOMAINS: Final = ()
@@ -205,6 +211,10 @@ class PublishRequest:
     account_id: Secret
     github_token: Secret
     release_id: str
+    repository: str = DEFAULT_REPOSITORY
+
+    def __post_init__(self) -> None:
+        validated_repository(self.repository)
 
 
 @dataclass(frozen=True)
@@ -213,6 +223,7 @@ class ReleaseContext:
 
     source: Directory
     evidence: GreenMainEvidence
+    target: AmlTarget
 
 
 @dataclass(frozen=True)
@@ -224,6 +235,7 @@ class ProviderRequest:
     producing_identity: str
     workflow_run_id: str
     run_attempt: int
+    target: AmlTarget
 
 
 @dataclass(frozen=True)
@@ -263,22 +275,28 @@ async def smoke_run(container: Container) -> SmokeRun:
     return SmokeRun(await ran.exit_code(), output)
 
 
-async def grant_release_turn(github_token: Secret, run_id: str, policy: TurnPolicy) -> str:
+async def grant_release_turn(
+    github_token: Secret, run_id: str, policy: TurnPolicy, repository: str = DEFAULT_REPOSITORY
+) -> str:
     """Block until no older deploy/publish run of this repository is still alive."""
+    repo = validated_repository(repository)
     own = parse_run_id(run_id)
     token = await github_token.plaintext()
 
     async def fetch(workflow_file: str) -> str:
-        return await asyncio.to_thread(fetch_runs, REPOSITORY, token, workflow_file)
+        return await asyncio.to_thread(fetch_runs, repo, token, workflow_file)
 
     waited = await wait_for_turn(fetch, own, policy, asyncio.sleep)
     return f"release turn granted to run {own} after waiting on runs {list(waited)}"
 
 
-async def release_event(github_token: Secret, run_id: str) -> str:
+async def release_event(
+    github_token: Secret, run_id: str, repository: str = DEFAULT_REPOSITORY
+) -> str:
     """Ask GitHub which event started this run; a caller cannot claim the exemption."""
+    repo = validated_repository(repository)
     token = await github_token.plaintext()
-    return await asyncio.to_thread(fetch_run_event, REPOSITORY, token, parse_run_id(run_id))
+    return await asyncio.to_thread(fetch_run_event, repo, token, parse_run_id(run_id))
 
 
 @object_type
@@ -485,11 +503,11 @@ class AmlFilter:
         deployment = f"{provider.deployment_id} ({provider.deployment_url})"
         raise recovery_failure(smoke, deployment, rollback, recovery)
 
-    def _shared_guard(self, source: Directory, commit_sha: str) -> Container:
+    def _shared_guard(self, source: Directory, commit_sha: str, repository: str) -> Container:
         """Build the exact-SHA Foundation repository guard."""
         return dag.foundation().guard(
             source=source,
-            repository=REPOSITORY,
+            repository=validated_repository(repository),
             commit_sha=commit_sha,
         )
 
@@ -501,7 +519,11 @@ class AmlFilter:
     ) -> None:
         """Code only ships from a fully green main; only the nightly data refresh is exempt."""
         code = request.kind is ReleaseKind.CODE
-        event = "" if code else await release_event(request.github_token, identity.run_id)
+        event = (
+            ""
+            if code
+            else await release_event(request.github_token, identity.run_id, request.repository)
+        )
         if not requires_full_green(request.kind, event):
             return
         try:
@@ -510,15 +532,15 @@ class AmlFilter:
             message = "code releases need a fully green main: the dev-tool audit is red"
             raise FullGreenRequiredError(message) from error
 
-    async def _release_context(self, github_token: Secret) -> ReleaseContext:
+    async def _release_context(self, github_token: Secret, repository: str) -> ReleaseContext:
+        target = AmlTarget.production(repository)
         shared = dag.foundation()
-        raw = shared.green_main(github_token=github_token, repository=TARGET.repository)
-        evidence = parse_green_main(await raw.serialization())
-        source = (
-            dag.git(REPOSITORY_URL).commit(evidence.commit_sha).tree(depth=0, include_tags=True)
-        )
-        bound = shared.source(source, TARGET.repository, evidence.commit_sha)
-        return ReleaseContext(bound, evidence)
+        raw = shared.green_main(github_token=github_token, repository=target.repository)
+        evidence = parse_green_main(await raw.serialization(), target.repository)
+        url = f"https://github.com/{target.repository}.git"
+        source = dag.git(url).commit(evidence.commit_sha).tree(depth=0, include_tags=True)
+        bound = shared.source(source, target.repository, evidence.commit_sha)
+        return ReleaseContext(bound, evidence, target)
 
     async def _build_publication(
         self, request: PublishRequest, context: ReleaseContext, identity: ReleaseIdentity
@@ -539,7 +561,7 @@ class AmlFilter:
 
     @staticmethod
     def _provider_request(app: Directory, context: ReleaseContext) -> ProviderRequest:
-        consumer = f"{TARGET.repository}@{context.evidence.commit_sha}"
+        consumer = f"{context.target.repository}@{context.evidence.commit_sha}"
         producing = f"{CENTRAL_MODULE_SHA}:{context.evidence.workflow_run_id}"
         artifact = dag.directory().with_directory(DEPLOY_ROOT, app)
         envelope = dag.foundation().envelope(artifact, consumer, producing, [DEPLOY_ROOT])
@@ -549,6 +571,7 @@ class AmlFilter:
             producing,
             context.evidence.workflow_run_id,
             context.evidence.run_attempt,
+            context.target,
         )
 
     @staticmethod
@@ -557,7 +580,7 @@ class AmlFilter:
     ) -> dagger.CloudflarePagesDeploymentEvidence:
         provider = dag.cloudflare_pages()
         r = request
-        target = TARGET
+        target = r.target
         domains: list[str] = list(PAGES_DOMAINS)
         return provider.deploy(
             r.envelope, github_token, token, account, r.workflow_run_id, r.run_attempt,
@@ -589,7 +612,7 @@ class AmlFilter:
 
     async def _publish(self, request: PublishRequest) -> str:
         identity = parse_release_identity(request.release_id)
-        context = await self._release_context(request.github_token)
+        context = await self._release_context(request.github_token, request.repository)
         self._require_matching_source(identity, context)
         await self._require_full_green(request, identity, context.source)
         release, app = await self._build_publication(request, context, identity)
@@ -604,17 +627,18 @@ class AmlFilter:
         return self._deployment_result(provider, proof)
 
     @function
-    async def ci(self, commit_sha: str) -> str:
+    async def ci(self, commit_sha: str, repository: str = DEFAULT_REPOSITORY) -> str:
         """Run all CI stages against the caller's exact source snapshot."""
+        validated_repository(repository)
         await cast(Container, self.quality()).sync()
         await cast(Container, self.dependency_audit()).sync()
-        await cast(Container, self.secret_scan(commit_sha)).sync()
+        await cast(Container, self.secret_scan(commit_sha, repository)).sync()
         return "caller snapshot CI passed"
 
     @function
-    def secret_scan(self, commit_sha: str) -> Container:
+    def secret_scan(self, commit_sha: str, repository: str = DEFAULT_REPOSITORY) -> Container:
         """Guard the caller's exact source and commit through Foundation."""
-        return self._shared_guard(self.source, commit_sha)
+        return self._shared_guard(self.source, commit_sha, repository)
 
     @function
     @check
@@ -675,17 +699,20 @@ class AmlFilter:
         return self._live_verify(self.source, release, identity)
 
     @function
-    async def deploy(
+    # Each argument is one typed CLI flag; the run's repository is the sixth.
+    async def deploy(  # noqa: PLR0913, PLR0917
         self,
         signing_key: Secret,
         cloudflare_api_token: Secret,
         cloudflare_account_id: Secret,
         github_token: Secret,
         release_id: str,
+        repository: str = DEFAULT_REPOSITORY,
     ) -> str:
         """Build, verify, upload, and live-verify an exact code release."""
         secrets = signing_key, cloudflare_api_token, cloudflare_account_id, github_token
-        return await self._publish(PublishRequest(ReleaseKind.CODE, *secrets, release_id))
+        request = PublishRequest(ReleaseKind.CODE, *secrets, release_id, repository)
+        return await self._publish(request)
 
     @function
     async def release_turn(
@@ -694,30 +721,38 @@ class AmlFilter:
         run_id: str,
         poll_seconds: int = 20,
         max_wait_seconds: int = 10800,
+        repository: str = DEFAULT_REPOSITORY,
     ) -> str:
         """Wait, outside the production mutex, until every older production write finished."""
-        return await grant_release_turn(
-            github_token, run_id, TurnPolicy(poll_seconds, max_wait_seconds)
-        )
+        policy = TurnPolicy(poll_seconds, max_wait_seconds)
+        return await grant_release_turn(github_token, run_id, policy, repository)
 
     @function
-    async def publish_watchlist(
+    # Each argument is one typed CLI flag; the run's repository is the sixth.
+    async def publish_watchlist(  # noqa: PLR0913, PLR0917
         self,
         signing_key: Secret,
         cloudflare_api_token: Secret,
         cloudflare_account_id: Secret,
         github_token: Secret,
         release_id: str,
+        repository: str = DEFAULT_REPOSITORY,
     ) -> str:
         """Refresh the signed lists; only a scheduled run may skip the dev-tool audit."""
         secrets = signing_key, cloudflare_api_token, cloudflare_account_id, github_token
-        return await self._publish(PublishRequest(ReleaseKind.WATCHLIST, *secrets, release_id))
+        request = PublishRequest(ReleaseKind.WATCHLIST, *secrets, release_id, repository)
+        return await self._publish(request)
 
     @function
     async def production_alert(
-        self, github_token: Secret, workflow: str, run_id: str, outcome: str
+        self,
+        github_token: Secret,
+        workflow: str,
+        run_id: str,
+        outcome: str,
+        repository: str = DEFAULT_REPOSITORY,
     ) -> str:
         """Open, update, or close the one 'Production deploy/publish failed' issue."""
-        report = alert_report(workflow, run_id, outcome)
+        report = alert_report(workflow, run_id, outcome, repository)
         transport = https_transport(await github_token.plaintext())
         return await asyncio.to_thread(raise_or_clear_alert, transport, report)

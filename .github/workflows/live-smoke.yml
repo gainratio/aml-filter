@@ -53,4 +53,4 @@ jobs:
           OUTCOME: ${{ needs.smoke.result == 'success' && 'success' || 'failure' }}
         with:
           version: "0.21.8"
-          call: production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"
+          call: production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME" --repository="$GITHUB_REPOSITORY"

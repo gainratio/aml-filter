@@ -60,6 +60,7 @@ jobs:
             --cloudflare-account-id=env://CLOUDFLARE_ACCOUNT_ID
             --github-token=env://GITHUB_TOKEN
             --release-id="$RELEASE_SHA:$GITHUB_RUN_ID"
+            --repository="$GITHUB_REPOSITORY"
 
   queue:
     name: Wait for earlier production writes
@@ -84,7 +85,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           version: "0.21.8"
-          call: release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID"
+          call: release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID" --repository="$GITHUB_REPOSITORY"
 
   alert:
     name: Report production failure
@@ -108,4 +109,4 @@ jobs:
           OUTCOME: ${{ needs.publish.result == 'success' && 'success' || 'failure' }}
         with:
           version: "0.21.8"
-          call: production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"
+          call: production-alert --github-token=env://GITHUB_TOKEN --workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME" --repository="$GITHUB_REPOSITORY"
