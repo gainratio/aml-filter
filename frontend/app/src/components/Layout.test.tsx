@@ -44,7 +44,7 @@ describe("Layout", () => {
 
 		expect(
 			screen.getByRole("link", { name: "Source code on GitHub (MIT)" }),
-		).toHaveAttribute("href", "https://github.com/hseshadr/aml-filter");
+		).toHaveAttribute("href", "https://github.com/gainratio/aml-filter");
 	});
 
 	it("marks the current workspace route and exposes named primary navigation", () => {

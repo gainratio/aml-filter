@@ -26,8 +26,8 @@ from aml_filter.queue import (
     runs_path,
     wait_for_turn,
 )
-from aml_filter.targets import DEFAULT_REPOSITORY
 
+REPOSITORY: Final = "gainratio/aml-filter"
 OWN_RUN: Final = 500
 LARGE_RUN_ID: Final = 18123456789
 FAST: Final = TurnPolicy(poll_seconds=1, max_wait_seconds=3)
@@ -129,8 +129,8 @@ def test_should_parse_positive_run_id() -> None:
 
 
 def test_should_build_exact_repository_workflow_runs_path() -> None:
-    assert runs_path("hseshadr/aml-filter", "deploy.yml") == (
-        "/repos/hseshadr/aml-filter/actions/workflows/deploy.yml/runs?per_page=100"
+    assert runs_path("gainratio/aml-filter", "deploy.yml") == (
+        "/repos/gainratio/aml-filter/actions/workflows/deploy.yml/runs?per_page=100"
     )
 
 
@@ -227,13 +227,13 @@ def test_should_request_runs_over_https_with_bearer_token_and_api_version(
     serve(monkeypatch, FakeResponse(200, b"{}"))
 
     # When
-    body = fetch_runs("hseshadr/aml-filter", "sekrit-token", "publish-watchlist.yml")
+    body = fetch_runs("gainratio/aml-filter", "sekrit-token", "publish-watchlist.yml")
 
     # Then
     host, timeout, method, path, headers = FakeConnection.seen[0]
     assert body == "{}"
     assert (host, timeout, method) == ("api.github.com", queue_module.HTTP_TIMEOUT_SECONDS, "GET")
-    assert path == runs_path("hseshadr/aml-filter", "publish-watchlist.yml")
+    assert path == runs_path("gainratio/aml-filter", "publish-watchlist.yml")
     assert headers["Authorization"] == "Bearer sekrit-token"
     assert headers["X-GitHub-Api-Version"] == "2022-11-28"
 
@@ -250,7 +250,7 @@ def test_should_fail_closed_without_echoing_token_when_github_is_unreadable(
 
     # When / Then
     with pytest.raises(RunListUnavailableError) as caught:
-        fetch_runs("hseshadr/aml-filter", "sekrit-token", "deploy.yml")
+        fetch_runs("gainratio/aml-filter", "sekrit-token", "deploy.yml")
     assert "sekrit-token" not in str(caught.value)
     assert caught.value.__cause__ is None
 
@@ -276,18 +276,18 @@ async def test_should_grant_release_turn_after_older_writes_complete(
     token = cast(Secret, FakeSecret())
 
     # When
-    result = await main_module.grant_release_turn(token, "42", TurnPolicy(1, 5))
+    result = await main_module.grant_release_turn(token, "42", TurnPolicy(1, 5), REPOSITORY)
 
     # Then
     assert result == "release turn granted to run 42 after waiting on runs [41]"
-    assert {call[0] for call in calls} == {DEFAULT_REPOSITORY}
+    assert {call[0] for call in calls} == {REPOSITORY}
     assert [call[2] for call in calls] == list(DELIVERY_WORKFLOW_FILES) * 2
 
 
 @pytest.mark.anyio
 async def test_should_refuse_release_turn_for_malformed_run_id() -> None:
     with pytest.raises(MalformedRunListError):
-        await main_module.grant_release_turn(cast(Secret, FakeSecret()), "42; rm", FAST)
+        await main_module.grant_release_turn(cast(Secret, FakeSecret()), "42; rm", FAST, REPOSITORY)
 
 
 # --- which event started a run: GitHub's record, never the caller's claim ---------------
@@ -300,11 +300,11 @@ def test_should_read_the_trigger_from_githubs_record_of_the_run(
     serve(monkeypatch, FakeResponse(200, json.dumps({"id": 42, "event": "schedule"}).encode()))
 
     # When
-    event = queue_module.fetch_run_event("hseshadr/aml-filter", "sekrit-token", 42)
+    event = queue_module.fetch_run_event("gainratio/aml-filter", "sekrit-token", 42)
 
     # Then
     _, _, method, path, headers = FakeConnection.seen[0]
-    assert (method, path) == ("GET", "/repos/hseshadr/aml-filter/actions/runs/42")
+    assert (method, path) == ("GET", "/repos/gainratio/aml-filter/actions/runs/42")
     assert headers["Authorization"] == "Bearer sekrit-token"
     assert event == "schedule"
 
@@ -327,7 +327,7 @@ def test_should_refuse_a_run_record_that_is_not_exactly_this_run(
 
     # When / Then
     with pytest.raises(MalformedRunListError):
-        queue_module.fetch_run_event("hseshadr/aml-filter", "sekrit-token", 42)
+        queue_module.fetch_run_event("gainratio/aml-filter", "sekrit-token", 42)
 
 
 @pytest.mark.parametrize("response", [OSError("Bearer sekrit-token"), FakeResponse(404, b"{}")])
@@ -339,7 +339,7 @@ def test_should_fail_closed_when_the_run_record_is_unreadable(
 
     # When / Then
     with pytest.raises(RunListUnavailableError) as caught:
-        queue_module.fetch_run_event("hseshadr/aml-filter", "sekrit-token", 42)
+        queue_module.fetch_run_event("gainratio/aml-filter", "sekrit-token", 42)
     assert "sekrit-token" not in str(caught.value)
 
 
@@ -357,7 +357,7 @@ async def test_should_ask_github_for_this_repositorys_run_when_resolving_the_tri
     monkeypatch.setattr(main_module, "fetch_run_event", fetch)
 
     # When
-    event = await main_module.release_event(cast(Secret, FakeSecret()), "42")
+    event = await main_module.release_event(cast(Secret, FakeSecret()), "42", REPOSITORY)
 
     # Then
-    assert (event, calls) == ("schedule", [(DEFAULT_REPOSITORY, "sekrit-token", 42)])
+    assert (event, calls) == ("schedule", [(REPOSITORY, "sekrit-token", 42)])

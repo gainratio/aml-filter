@@ -4,7 +4,7 @@ import { join } from "node:path";
 const APP_ROOT = join(import.meta.dirname, "..");
 const PUBLIC_ROOT = join(APP_ROOT, "public");
 const ORIGIN = "https://aml-filter.com";
-const REPO_URL = "https://github.com/hseshadr/aml-filter";
+const REPO_URL = "https://github.com/gainratio/aml-filter";
 
 function readAppFile(relativePath: string): string {
 	return readFileSync(join(APP_ROOT, relativePath), "utf8");
@@ -79,7 +79,7 @@ describe("static discovery artifacts", () => {
 		expect(structured.codeRepository).toBeUndefined();
 		expect(structured.license).toBeUndefined();
 		expect(readAppFile("index.html")).not.toContain(
-			"github.com/hseshadr/aml-filter",
+			"github.com/gainratio/aml-filter",
 		);
 	});
 

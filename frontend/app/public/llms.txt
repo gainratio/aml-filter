@@ -4,11 +4,11 @@
 
 AML-Filter runs its screening and local review workflow in the browser. It has no account system or application backend. It is not legal advice and not a compliance product; do not use it to satisfy legal or regulatory obligations.
 
-Source repository: open source under the MIT license at https://github.com/hseshadr/aml-filter. Anyone can clone it and run the whole app locally with no backend.
+Source repository: open source under the MIT license at https://github.com/gainratio/aml-filter. Anyone can clone it and run the whole app locally with no backend.
 
 ## Primary links
 
 - [AML-Filter](https://aml-filter.com/): Product overview and scope.
 - [Screen a name](https://aml-filter.com/screen): Interactive in-browser sanctions screening.
-- [Source code](https://github.com/hseshadr/aml-filter): MIT-licensed repository, including the quickstart.
+- [Source code](https://github.com/gainratio/aml-filter): MIT-licensed repository, including the quickstart.
 - [Sitemap](https://aml-filter.com/sitemap.xml): Canonical public pages.

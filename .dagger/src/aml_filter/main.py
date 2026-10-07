@@ -46,7 +46,8 @@ from .smoke import (
     smoke_verdict,
 )
 from .targets import (
-    DEFAULT_REPOSITORY,
+    PRODUCTION_DOMAIN,
+    PRODUCTION_PROJECT,
     AmlTarget,
     GreenMainEvidence,
     ProviderIdentity,
@@ -66,11 +67,11 @@ EDGEPROC_COMMIT: Final = "e3bfb570feb8619c823df63b6c012fd8c8c6a9b6"
 # hseshadr/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
 CENTRAL_MODULE_SHA: Final = "a88866232e679b6353d2b75bceb01969be739f67"
 # Project, branch, and domain are fixed; the repository comes from each run (see targets.py).
-TARGET: Final = AmlTarget.production()
-LIVE_ORIGIN: Final = f"https://{TARGET.domain}"
+LIVE_ORIGIN: Final = f"https://{PRODUCTION_DOMAIN}"
 DEPLOY_ROOT: Final = "dist"
 PAGES_DOMAINS: Final = ()
-# Keeps a Git-linked Pages project bound to the hseshadr source until the post-transfer PR.
+# Cloudflare never rewrites a Git-linked Pages project's source owner on a GitHub transfer, so
+# the guard compares against the declared owner (ci accepts hseshadr or gainratio).
 PAGES_GIT_SOURCE_OWNER: Final = "hseshadr"
 PUBLIC_KEY: Final = "/src/frontend/app/public/public.key"
 SOURCE_EXCLUDES: Final = split(
@@ -213,7 +214,7 @@ class PublishRequest:
     account_id: Secret
     github_token: Secret
     release_id: str
-    repository: str = DEFAULT_REPOSITORY
+    repository: str
 
     def __post_init__(self) -> None:
         validated_repository(self.repository)
@@ -278,7 +279,7 @@ async def smoke_run(container: Container) -> SmokeRun:
 
 
 async def grant_release_turn(
-    github_token: Secret, run_id: str, policy: TurnPolicy, repository: str = DEFAULT_REPOSITORY
+    github_token: Secret, run_id: str, policy: TurnPolicy, repository: str
 ) -> str:
     """Block until no older deploy/publish run of this repository is still alive."""
     repo = validated_repository(repository)
@@ -292,9 +293,7 @@ async def grant_release_turn(
     return f"release turn granted to run {own} after waiting on runs {list(waited)}"
 
 
-async def release_event(
-    github_token: Secret, run_id: str, repository: str = DEFAULT_REPOSITORY
-) -> str:
+async def release_event(github_token: Secret, run_id: str, repository: str) -> str:
     """Ask GitHub which event started this run; a caller cannot claim the exemption."""
     repo = validated_repository(repository)
     token = await github_token.plaintext()
@@ -466,7 +465,7 @@ class AmlFilter:
         """Read-only, BEFORE upload: the deployment a failed smoke restores."""
         pages = dag.cloudflare_pages()
         before = pages.previous_production_deployment(
-            request.api_token, request.account_id, TARGET.project
+            request.api_token, request.account_id, PRODUCTION_PROJECT
         )
         return await before.deployment_id()
 
@@ -480,7 +479,7 @@ class AmlFilter:
         """
         request = plan.request
         rolled = dag.cloudflare_pages().rollback(
-            request.api_token, request.account_id, TARGET.project, deployment_id=plan.target
+            request.api_token, request.account_id, PRODUCTION_PROJECT, deployment_id=plan.target
         )
         try:
             object_id = dagger.CloudflarePagesProductionRollbackEvidenceID(await rolled.id())
@@ -630,7 +629,7 @@ class AmlFilter:
         return self._deployment_result(provider, proof)
 
     @function
-    async def ci(self, commit_sha: str, repository: str = DEFAULT_REPOSITORY) -> str:
+    async def ci(self, commit_sha: str, repository: str) -> str:
         """Run all CI stages against the caller's exact source snapshot."""
         validated_repository(repository)
         await cast(Container, self.quality()).sync()
@@ -639,7 +638,7 @@ class AmlFilter:
         return "caller snapshot CI passed"
 
     @function
-    def secret_scan(self, commit_sha: str, repository: str = DEFAULT_REPOSITORY) -> Container:
+    def secret_scan(self, commit_sha: str, repository: str) -> Container:
         """Guard the caller's exact source and commit through Foundation."""
         return self._shared_guard(self.source, commit_sha, repository)
 
@@ -710,7 +709,7 @@ class AmlFilter:
         cloudflare_account_id: Secret,
         github_token: Secret,
         release_id: str,
-        repository: str = DEFAULT_REPOSITORY,
+        repository: str,
     ) -> str:
         """Build, verify, upload, and live-verify an exact code release."""
         secrets = signing_key, cloudflare_api_token, cloudflare_account_id, github_token
@@ -722,9 +721,9 @@ class AmlFilter:
         self,
         github_token: Secret,
         run_id: str,
+        repository: str,
         poll_seconds: int = 20,
         max_wait_seconds: int = 10800,
-        repository: str = DEFAULT_REPOSITORY,
     ) -> str:
         """Wait, outside the production mutex, until every older production write finished."""
         policy = TurnPolicy(poll_seconds, max_wait_seconds)
@@ -739,7 +738,7 @@ class AmlFilter:
         cloudflare_account_id: Secret,
         github_token: Secret,
         release_id: str,
-        repository: str = DEFAULT_REPOSITORY,
+        repository: str,
     ) -> str:
         """Refresh the signed lists; only a scheduled run may skip the dev-tool audit."""
         secrets = signing_key, cloudflare_api_token, cloudflare_account_id, github_token
@@ -753,7 +752,7 @@ class AmlFilter:
         workflow: str,
         run_id: str,
         outcome: str,
-        repository: str = DEFAULT_REPOSITORY,
+        repository: str,
     ) -> str:
         """Open, update, or close the one 'Production deploy/publish failed' issue."""
         report = alert_report(workflow, run_id, outcome, repository)

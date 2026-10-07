@@ -1,12 +1,14 @@
-"""Production runs only for this repository, owned by hseshadr or (after transfer) gainratio.
+"""Production runs only for this repository: gainratio/aml-filter (hseshadr until plan step 8).
 
 The identity comes from the run itself (``$GITHUB_REPOSITORY``) and is checked by exact
-membership in a two-item allow-list. A fork, another owner, or a look-alike name is
-refused before any GitHub or Foundation call is made.
+membership in a two-item allow-list. There is no default: a caller that drops the identity
+fails loudly instead of gating as a stale owner. A fork, another owner, or a look-alike name
+is refused before any GitHub or Foundation call is made.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Awaitable
 from typing import Final, cast
@@ -14,7 +16,9 @@ from typing import Final, cast
 import pytest
 from dagger import Secret
 
+import aml_filter.alert as alert_module
 import aml_filter.main as main_module
+import aml_filter.targets as targets_module
 from aml_filter.alert import (
     AlertReport,
     Outcome,
@@ -28,7 +32,6 @@ from aml_filter.policy import ReleaseKind
 from aml_filter.queue import TurnPolicy
 from aml_filter.targets import (
     ALLOWED_REPOSITORIES,
-    DEFAULT_REPOSITORY,
     AmlTarget,
     UnknownRepositoryError,
     parse_green_main,
@@ -86,7 +89,37 @@ class FakeGitHub:
 
 def test_should_pin_the_exact_two_owner_allow_list() -> None:
     assert ALLOWED_REPOSITORIES == (HSESHADR, GAINRATIO)
-    assert DEFAULT_REPOSITORY == HSESHADR
+
+
+def test_should_expose_no_default_repository_identity() -> None:
+    for module in (targets_module, alert_module, main_module):
+        assert not hasattr(module, "DEFAULT_REPOSITORY"), module.__name__
+
+
+REPOSITORY_TAKERS: Final[tuple[object, ...]] = (
+    AmlTarget.production,
+    parse_green_main,
+    alert_report,
+    AlertReport,
+    PublishRequest,
+    main_module.grant_release_turn,
+    main_module.release_event,
+    AmlFilter.ci,
+    AmlFilter.secret_scan,
+    AmlFilter.deploy,
+    AmlFilter.release_turn,
+    AmlFilter.publish_watchlist,
+    AmlFilter.production_alert,
+)
+
+
+@pytest.mark.parametrize(
+    "subject", REPOSITORY_TAKERS, ids=lambda item: str(getattr(item, "__qualname__", item))
+)
+def test_should_require_the_runs_repository_on_every_gate(subject: object) -> None:
+    assert callable(subject)
+    parameter = inspect.signature(subject).parameters["repository"]
+    assert parameter.default is inspect.Parameter.empty
 
 
 @pytest.mark.parametrize("repository", ACCEPTED)
@@ -109,8 +142,9 @@ def test_should_build_production_target_for_either_owner(repository: str) -> Non
     assert target == AmlTarget(repository, "aml-filter", "main", "aml-filter.com")
 
 
-def test_should_keep_hseshadr_as_the_default_production_target() -> None:
-    assert AmlTarget.production().repository == HSESHADR
+def test_should_refuse_a_production_target_without_the_runs_repository() -> None:
+    with pytest.raises(TypeError):
+        AmlTarget.production()  # type: ignore[call-arg]
 
 
 @pytest.mark.parametrize("repository", REFUSED)
@@ -205,11 +239,16 @@ def test_should_refuse_alerts_for_other_repositories(repository: str) -> None:
         alert_report(PUBLISH, "7", "failure", repository)
 
 
-def test_should_keep_hseshadr_as_the_default_alert_repository() -> None:
-    report = alert_report(PUBLISH, "7", "failure")
+def test_should_post_the_gainratio_alert_to_the_gainratio_api() -> None:
+    report = alert_report(PUBLISH, "7", "failure", GAINRATIO)
     assert report == AlertReport(
-        PUBLISH, f"https://github.com/{HSESHADR}/actions/runs/7", Outcome.FAILURE, HSESHADR
+        PUBLISH, f"https://github.com/{GAINRATIO}/actions/runs/7", Outcome.FAILURE, GAINRATIO
     )
+
+
+def test_should_refuse_an_alert_without_the_runs_repository() -> None:
+    with pytest.raises(TypeError):
+        alert_report(PUBLISH, "7", "failure")  # type: ignore[call-arg]
 
 
 @pytest.mark.anyio
