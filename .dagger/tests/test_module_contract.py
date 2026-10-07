@@ -25,13 +25,18 @@ from ruamel.yaml.error import YAMLError
 import aml_filter.main as main_module
 from aml_filter.main import (
     FRESHNESS_CHECK,
-    REPOSITORY,
-    REPOSITORY_URL,
     AmlFilter,
     PublishRequest,
 )
 from aml_filter.policy import ReleaseKind, release_identity
 from aml_filter.smoke import SMOKE_LISTS, LiveSmokeFailedError, SmokeRun
+from aml_filter.targets import DEFAULT_REPOSITORY
+
+REPOSITORY: Final = DEFAULT_REPOSITORY
+GAINRATIO_REPOSITORY: Final = "gainratio/aml-filter"
+REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
+# The run's own identity reaches Dagger as a quoted bash variable, never a literal owner.
+REPOSITORY_ARGUMENT: Final = '--repository="$GITHUB_REPOSITORY"'
 
 ROOT: Final = Path(__file__).resolve().parents[2]
 WORKFLOW_DIRECTORY: Final = ROOT / ".github" / "workflows"
@@ -65,7 +70,7 @@ CI_CHECKOUT_INPUTS: Final = {
 }
 CI_DAGGER_INPUTS: Final = {
     "version": "0.21.8",
-    "call": "ci --commit-sha=${{ github.sha }}",
+    "call": f"ci --commit-sha=${{{{ github.sha }}}} {REPOSITORY_ARGUMENT}",
 }
 AUTHORIZER_TRIGGERS: Final = {
     "push": {"branches": ["main"]},
@@ -109,7 +114,10 @@ QUEUE_TIMEOUT_MINUTES: Final = 180
 QUEUE_ENVIRONMENT: Final = {"GITHUB_TOKEN": "${{ github.token }}"}
 QUEUE_INPUTS: Final = {
     "version": "0.21.8",
-    "call": 'release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID"',
+    "call": (
+        'release-turn --github-token=env://GITHUB_TOKEN --run-id="$GITHUB_RUN_ID" '
+        f"{REPOSITORY_ARGUMENT}"
+    ),
 }
 EXPECTED_WORKFLOW_NAMES: Final = {
     "dagger.yml": "Dagger",
@@ -151,7 +159,8 @@ ALERT_PERMISSIONS: Final = {"contents": "read", "issues": "write"}
 ALERT_TIMEOUT_MINUTES: Final = 10
 ALERT_CALL: Final = (
     "production-alert --github-token=env://GITHUB_TOKEN "
-    '--workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME"'
+    '--workflow="$GITHUB_WORKFLOW" --run-id="$GITHUB_RUN_ID" --outcome="$OUTCOME" '
+    f"{REPOSITORY_ARGUMENT}"
 )
 ALERT_WATCHES: Final = {
     "deploy.yml": ("queue", "deploy"),
@@ -204,14 +213,16 @@ PROVIDER_MARKERS: Final = (
     "--cloudflare",
 )
 YAML_DEPENDENCY: Final = "ruamel-yaml>=0.18.16,<0.19.0"
-# hseshadr/ci main: merge of ci#64 (includes ci#61 bounded clock skew).
-CENTRAL_SHA: Final = "4d48302e30d3a54ec71364d43aada5c0d4b1f9bf"
+# hseshadr/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
+CENTRAL_SHA: Final = "a88866232e679b6353d2b75bceb01969be739f67"
 FOUNDATION_MODULE: Final = f"github.com/hseshadr/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
 CLOUDFLARE_MODULE: Final = f"github.com/hseshadr/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
 REAL_PROVIDER_DEPENDENCIES: Final = (
     ("foundation", FOUNDATION_MODULE),
     ("cloudflare-pages", CLOUDFLARE_MODULE),
 )
+# A Git-linked Pages project stays bound to the hseshadr source until the post-transfer PR.
+PAGES_GIT_SOURCE_OWNER: Final = "hseshadr"
 RECORDED_SHA: Final = "0123456789abcdef0123456789abcdef01234567"
 RECORDED_RUN_ID: Final = "123456"
 RECORDED_ATTEMPT: Final = 2
@@ -375,8 +386,9 @@ class CiProductRecorder:
     def dev_tool_audit(self) -> Container:
         return cast(Container, CiContainerRecorder("dev-tool-audit", self.events, self.failure))
 
-    def secret_scan(self, commit_sha: str) -> Container:
+    def secret_scan(self, commit_sha: str, repository: str = REPOSITORY) -> Container:
         assert commit_sha == RECORDED_SHA
+        self.events.append(f"scan-repository:{repository}")
         return cast(Container, CiContainerRecorder("secret-scan", self.events, self.failure))
 
 
@@ -495,12 +507,13 @@ class DeliveryDirectoryRecorder:
 class GreenMainRecorder:
     """Materialize the canonical Foundation evidence once."""
 
-    def __init__(self, events: list[str]) -> None:
+    def __init__(self, events: list[str], repository: str) -> None:
         self.events = events
+        self.repository = repository
 
     async def serialization(self) -> str:
         self.events.append("materialize:green-main")
-        return green_main_json()
+        return green_main_json(repository=self.repository)
 
 
 class DeliveryGitRefRecorder:
@@ -535,13 +548,13 @@ class DeliveryFoundationRecorder:
 
     def green_main(self, github_token: Secret, repository: str) -> GreenMainRecorder:
         assert github_token is self.context.github_token
-        assert repository == REPOSITORY
+        assert repository == self.context.repository
         self.context.events.append("construct:green-main")
-        return GreenMainRecorder(self.context.events)
+        return GreenMainRecorder(self.context.events, repository)
 
     def source(self, source: Directory, repository: str, commit_sha: str) -> Directory:
         assert source is self.context.fetched_source
-        assert (repository, commit_sha) == (REPOSITORY, RECORDED_SHA)
+        assert (repository, commit_sha) == (self.context.repository, RECORDED_SHA)
         self.context.events.append("foundation:source")
         return self.context.bound_source
 
@@ -690,7 +703,7 @@ class ProviderRecorder:
         self.context.events.append(f"construct:rollback:{deployment_id}")
         return RollbackRecorder(self.context)
 
-    def deploy(self, *arguments: object) -> ProviderEvidenceRecorder:
+    def deploy(self, *arguments: object, **options: object) -> ProviderEvidenceRecorder:
         assert arguments[1:4] == (
             self.context.github_token,
             self.context.api_token,
@@ -698,6 +711,7 @@ class ProviderRecorder:
         )
         self.context.events.append("construct:deploy")
         self.context.provider_call = ProviderCall(arguments)
+        self.context.provider_options = options
         return ProviderEvidenceRecorder(self.context)
 
 
@@ -719,6 +733,7 @@ class RecordedDelivery:
     fail_materialization: bool = False
     envelope_values: tuple[object, str, str, tuple[str, ...]] | None = None
     provider_call: ProviderCall | None = None
+    provider_options: Mapping[str, object] | None = None
     profile: Directory = field(default_factory=lambda: cast(Directory, object()))
     prime_exit: int = 0
     smoke_exit: int = 0
@@ -729,6 +744,7 @@ class RecordedDelivery:
     fail_dev_audit: bool = False
     run_event: str = "workflow_run"
     asked_events: list[str] = field(default_factory=list)
+    repository: str = REPOSITORY
 
 
 class DeliveryDagRecorder:
@@ -741,7 +757,7 @@ class DeliveryDagRecorder:
         return DeliveryFoundationRecorder(self.context)
 
     def git(self, url: str) -> DeliveryGitRecorder:
-        assert url == REPOSITORY_URL
+        assert url == f"https://github.com/{self.context.repository}.git"
         self.context.events.append(f"git:{url}")
         return DeliveryGitRecorder(self.context.events, self.context.fetched_source)
 
@@ -912,8 +928,9 @@ def install_product_recorders(
     monkeypatch.setattr(AmlFilter, "_release_app", recorder.release_app)
     monkeypatch.setattr(AmlFilter, "_dev_tool_audit_of", recorder.dev_tool_audit_of)
 
-    async def release_event(github_token: Secret, run_id: str) -> str:
+    async def release_event(github_token: Secret, run_id: str, repository: str) -> str:
         assert github_token is context.github_token
+        assert repository == context.repository
         context.asked_events.append(run_id)
         return context.run_event
 
@@ -1096,7 +1113,7 @@ def expected_delivery_arguments(filename: str, function_name: str) -> list[str]:
         "--cloudflare-api-token=env://CLOUDFLARE_API_TOKEN "
         "--cloudflare-account-id=env://CLOUDFLARE_ACCOUNT_ID "
         "--github-token=env://GITHUB_TOKEN "
-        f"{RELEASE_ID_ARGUMENT}"
+        f"{RELEASE_ID_ARGUMENT} {REPOSITORY_ARGUMENT}"
     )
     assert source == RELEASE_SHA_SOURCE
     return call.split()
@@ -2139,6 +2156,7 @@ async def test_should_bind_exact_source_and_identities_when_provider_deploys(
             ["dist"],
         )
     )
+    assert context.provider_options == {"git_source_owner": PAGES_GIT_SOURCE_OWNER}
     assert f"stamp:{RECORDED_SHA}:9999" in context.events
 
 
@@ -2212,6 +2230,37 @@ async def test_should_stop_before_live_when_provider_materialization_fails(
     assert context.events.count("construct:deploy") == 1
     assert context.events.count("materialize:deploy") == 1
     assert "live" not in context.events
+
+
+@pytest.mark.anyio
+async def test_should_deliver_under_the_runs_repository_after_transfer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_delivery()
+    context.repository = GAINRATIO_REPOSITORY
+    subject = install_product_recorders(monkeypatch, context)
+    request = PublishRequest(
+        ReleaseKind.WATCHLIST,
+        context.signing_key,
+        context.api_token,
+        context.account_id,
+        context.github_token,
+        f"{RECORDED_SHA}:9999",
+        GAINRATIO_REPOSITORY,
+    )
+
+    # When
+    await subject._publish(request)
+
+    # Then: green-main, source fetch, Foundation binding, and provider all use gainratio.
+    assert f"git:https://github.com/{GAINRATIO_REPOSITORY}.git" in context.events
+    assert context.provider_call is not None
+    arguments = context.provider_call.arguments
+    assert arguments[6] == GAINRATIO_REPOSITORY
+    assert arguments[12] == f"{GAINRATIO_REPOSITORY}@{RECORDED_SHA}"
+    assert context.provider_options == {"git_source_owner": PAGES_GIT_SOURCE_OWNER}
+    assert context.asked_events == ["9999"]
 
 
 def recorded_request(context: RecordedDelivery, kind: ReleaseKind) -> PublishRequest:
@@ -2606,6 +2655,34 @@ def test_should_materialize_exact_foundation_guard_when_secret_scan_runs(
     )
 
 
+def test_should_guard_under_the_runs_repository_after_transfer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_secret_scan(monkeypatch)
+
+    # When
+    context.subject.secret_scan(RECORDED_SHA, GAINRATIO_REPOSITORY)
+
+    # Then: Foundation checks the canonical identity, which is gainratio after transfer.
+    assert context.recorder.shared.call == GuardCall(
+        context.caller_source, GAINRATIO_REPOSITORY, RECORDED_SHA
+    )
+
+
+@pytest.mark.parametrize("repository", ["attacker/aml-filter", "hseshadr/aml-filter-evil"])
+def test_should_refuse_guard_for_another_repository(
+    monkeypatch: pytest.MonkeyPatch, repository: str
+) -> None:
+    # Given
+    context = recorded_secret_scan(monkeypatch)
+
+    # When / Then
+    with pytest.raises(ValueError, match="not an allowed aml-filter repository"):
+        context.subject.secret_scan(RECORDED_SHA, repository)
+    assert context.recorder.shared.call is None
+
+
 @pytest.mark.anyio
 async def test_should_orchestrate_ci_through_public_snapshot_scan(
     monkeypatch: pytest.MonkeyPatch,
@@ -2618,9 +2695,39 @@ async def test_should_orchestrate_ci_through_public_snapshot_scan(
     await cast(Awaitable[str], context.subject.ci(RECORDED_SHA))
 
     # Then
-    assert context.events == ["quality", "audit", "secret-scan"]
+    assert context.events == [
+        "quality", "audit", f"scan-repository:{REPOSITORY}", "secret-scan"
+    ]  # fmt: skip
     assert context.recorder.events == []
     assert context.recorder.shared.call is None
+
+
+@pytest.mark.anyio
+async def test_should_scan_under_the_runs_repository_after_transfer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given
+    context = recorded_ci(monkeypatch)
+
+    # When
+    await cast(Awaitable[str], context.subject.ci(RECORDED_SHA, GAINRATIO_REPOSITORY))
+
+    # Then
+    assert f"scan-repository:{GAINRATIO_REPOSITORY}" in context.events
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("repository", ["attacker/aml-filter", "gainratio-evil/aml-filter", ""])
+async def test_should_refuse_ci_for_another_repository_before_any_stage(
+    monkeypatch: pytest.MonkeyPatch, repository: str
+) -> None:
+    # Given
+    context = recorded_ci(monkeypatch)
+
+    # When / Then
+    with pytest.raises(ValueError, match="not an allowed aml-filter repository"):
+        await cast(Awaitable[str], context.subject.ci(RECORDED_SHA, repository))
+    assert context.events == []
 
 
 @pytest.mark.anyio

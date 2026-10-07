@@ -6,9 +6,26 @@ import json
 from dataclasses import dataclass
 from typing import Final, Self, cast
 
-_PRODUCTION_VALUES: Final = ("hseshadr/aml-filter", "aml-filter", "main", "aml-filter.com")
+# The repository may move from the hseshadr user to the gainratio org. A run reports its own
+# identity (``$GITHUB_REPOSITORY``); only these exact two names may deploy, publish, or alert.
+ALLOWED_REPOSITORIES: Final = ("hseshadr/aml-filter", "gainratio/aml-filter")
+DEFAULT_REPOSITORY: Final = ALLOWED_REPOSITORIES[0]
+_PLACEMENT: Final = ("aml-filter", "main", "aml-filter.com")
 _SHA_LENGTH: Final = 40
 _MALFORMED_EVIDENCE: Final = "serialized green-main evidence is malformed"
+
+
+class UnknownRepositoryError(ValueError):
+    """The run's repository is not this project under an allowed owner."""
+
+
+def validated_repository(repository: str) -> str:
+    """Return ``repository`` only when it exactly names an allowed aml-filter repository."""
+    if repository not in ALLOWED_REPOSITORIES:
+        raise UnknownRepositoryError(
+            f"{repository!r} is not an allowed aml-filter repository: {ALLOWED_REPOSITORIES}"
+        )
+    return repository
 
 
 @dataclass(frozen=True)
@@ -21,13 +38,14 @@ class AmlTarget:
     domain: str
 
     def __post_init__(self) -> None:
-        if (self.repository, self.project, self.branch, self.domain) != _PRODUCTION_VALUES:
+        allowed = self.repository in ALLOWED_REPOSITORIES
+        if not allowed or (self.project, self.branch, self.domain) != _PLACEMENT:
             raise ValueError("AML delivery target must use the validated production values")
 
     @classmethod
-    def production(cls) -> Self:
-        """Return the immutable production delivery target."""
-        return cls(*_PRODUCTION_VALUES)
+    def production(cls, repository: str = DEFAULT_REPOSITORY) -> Self:
+        """Return the immutable production delivery target for the run's repository."""
+        return cls(validated_repository(repository), *_PLACEMENT)
 
 
 @dataclass(frozen=True)
@@ -47,10 +65,11 @@ class ProviderIdentity:
     deployment_url: str
 
 
-def parse_green_main(serialization: str) -> GreenMainEvidence:
-    """Parse only exact AML production evidence from Foundation."""
+def parse_green_main(serialization: str, repository: str = DEFAULT_REPOSITORY) -> GreenMainEvidence:
+    """Parse only exact AML production evidence for the run's repository from Foundation."""
+    expected = validated_repository(repository)
     values = _evidence_values(serialization)
-    if not _valid_evidence(values):
+    if not _valid_evidence(values, expected):
         raise ValueError(_MALFORMED_EVIDENCE)
     commit_sha, workflow_run_id, run_attempt, _, _ = values
     return GreenMainEvidence(
@@ -75,20 +94,17 @@ def _evidence_values(serialization: str) -> tuple[object, object, object, object
     )
 
 
-def _valid_evidence(values: tuple[object, object, object, object, object]) -> bool:
+def _valid_evidence(values: tuple[object, object, object, object, object], expected: str) -> bool:
     commit_sha, workflow_run_id, run_attempt, repository, branch = values
-    return _valid_source(commit_sha, repository, branch) and _valid_attempt(
-        workflow_run_id, run_attempt
-    )
-
-
-def _valid_source(commit_sha: object, repository: object, branch: object) -> bool:
     return (
-        isinstance(commit_sha, str)
-        and _is_sha(commit_sha)
-        and repository == _PRODUCTION_VALUES[0]
-        and branch == _PRODUCTION_VALUES[2]
+        _valid_source(commit_sha, branch)
+        and repository == expected
+        and _valid_attempt(workflow_run_id, run_attempt)
     )
+
+
+def _valid_source(commit_sha: object, branch: object) -> bool:
+    return isinstance(commit_sha, str) and _is_sha(commit_sha) and branch == _PLACEMENT[1]
 
 
 def _valid_attempt(workflow_run_id: object, run_attempt: object) -> bool:
