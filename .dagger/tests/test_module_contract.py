@@ -80,7 +80,7 @@ SECURITY_AUDIT_TRIGGERS: Final = {
     "workflow_dispatch": None,
 }
 # Event values reach dagger-for-github's bash only through env as quoted variables
-# (fleet rule dagger-args-expression, hseshadr/ci#50): the action pastes `call` raw
+# (fleet rule dagger-args-expression, gainratio/ci#50): the action pastes `call` raw
 # into a bash script, so no `${{ github.event.* }}` may appear in it.
 RELEASE_SHA_SOURCE: Final = (
     "${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
@@ -212,10 +212,10 @@ PROVIDER_MARKERS: Final = (
     "--cloudflare",
 )
 YAML_DEPENDENCY: Final = "ruamel-yaml>=0.18.16,<0.19.0"
-# hseshadr/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
+# gainratio/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
 CENTRAL_SHA: Final = "a88866232e679b6353d2b75bceb01969be739f67"
-FOUNDATION_MODULE: Final = f"github.com/hseshadr/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
-CLOUDFLARE_MODULE: Final = f"github.com/hseshadr/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
+FOUNDATION_MODULE: Final = f"github.com/gainratio/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
+CLOUDFLARE_MODULE: Final = f"github.com/gainratio/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
 REAL_PROVIDER_DEPENDENCIES: Final = (
     ("foundation", FOUNDATION_MODULE),
     ("cloudflare-pages", CLOUDFLARE_MODULE),
@@ -2637,9 +2637,8 @@ def test_should_pin_both_shared_modules_to_exact_central_main() -> None:
         ("foundation", "portfolio-foundation"),
         ("cloudflare-pages", "cloudflare-pages"),
     ):
-        assert (
-            dependencies[name]["source"] == f"github.com/hseshadr/ci/modules/{module}@{CENTRAL_SHA}"
-        )
+        expected = f"github.com/gainratio/ci/modules/{module}@{CENTRAL_SHA}"
+        assert dependencies[name]["source"] == expected
         assert dependencies[name]["pin"] == CENTRAL_SHA
 
 

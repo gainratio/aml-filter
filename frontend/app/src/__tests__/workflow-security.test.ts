@@ -170,8 +170,8 @@ describe("the pin rule itself", () => {
 		["an uppercase SHA", `actions/checkout@${"A".repeat(40)}`],
 		["no ref at all", "actions/checkout"],
 		[
-			"a first-party moving tag (NO hseshadr carve-out)",
-			"hseshadr/ci/.github/workflows/ts-publish.yml@ci-v2",
+			"a first-party moving tag (NO first-party carve-out)",
+			"gainratio/ci/.github/workflows/ts-publish.yml@ci-v2",
 		],
 	])("rejects %s", (_label, ref) => {
 		expect(isImmutable(ref)).toBe(false);
@@ -184,7 +184,7 @@ describe("the pin rule itself", () => {
 		],
 		[
 			"a pinned first-party reusable workflow",
-			`hseshadr/ci/.github/workflows/ts-publish.yml@${"b".repeat(40)}`,
+			`gainratio/ci/.github/workflows/ts-publish.yml@${"b".repeat(40)}`,
 		],
 		["a local action", "./.github/actions/setup"],
 		["a docker image ref", "docker://alpine:3.20"],

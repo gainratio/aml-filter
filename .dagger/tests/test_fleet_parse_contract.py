@@ -1,7 +1,7 @@
-"""The hseshadr/ci fleet policy must be able to parse every authored module.
+"""The gainratio/ci fleet policy must be able to parse every authored module.
 
 The fleet scanner reads this repo's `.dagger` Python and parses it with Python 3.13
-(`python:3.13` in hseshadr/ci). Syntax newer than 3.13 crashes the whole fleet scan,
+(`python:3.13` in gainratio/ci). Syntax newer than 3.13 crashes the whole fleet scan,
 so authored modules must stay parseable at that grammar even though this module runs
 on 3.14.
 """
