@@ -41,7 +41,7 @@ importers:
         version: 0.2.1
       '@gainratio/receipt-ui':
         specifier: ^0.3.0
-        version: 0.3.0(@gainratio/avow@0.5.2)(react@19.3.0)
+        version: 0.3.0(@gainratio/avow@0.5.3)(react@19.3.0)
       '@huggingface/transformers':
         specifier: ^4.3.0
         version: 4.3.0(@types/node@26.6.4)
@@ -110,8 +110,8 @@ importers:
         specifier: 0.5.0-dev.6
         version: 0.5.0-dev.6
       '@gainratio/avow':
-        specifier: ^0.5.2
-        version: 0.5.2
+        specifier: ^0.5.3
+        version: 0.5.3
       '@gainratio/browser':
         specifier: ^0.4.1
         version: 0.4.1
@@ -576,8 +576,8 @@ packages:
     resolution: {integrity: sha512-VOH1brU6gHHOZ1jRO4DXRPseSCnOLAlKewlfuzYumG3Kswb9KvrngoN5mPv7rdw61O3EuqGQO+WFPON8AV3NzQ==}
     engines: {node: '>=22.13'}
 
-  '@gainratio/avow@0.5.2':
-    resolution: {integrity: sha512-a4vtiKx9Dbb5HNFKvwWNOzuZk6EY7pq6vFPKM/vwTSaVmEQ4Ym+GJSJ3u6vnLbsAxZJgBfr0JWpGUmdB5Oqkww==}
+  '@gainratio/avow@0.5.3':
+    resolution: {integrity: sha512-EeIvZ2xkXDiLpJRhVyODbTNscURy0Xqnzxucbkn9UfZSUIuSqwDfG/EvfSl0AcOLnJQ8PNMM2s2Oq41ACC8uqQ==}
     engines: {node: '>=22.13'}
 
   '@gainratio/browser@0.4.1':
@@ -2177,7 +2177,7 @@ snapshots:
 
   '@gainratio/assay@0.5.0-dev.6': {}
 
-  '@gainratio/avow@0.5.2':
+  '@gainratio/avow@0.5.3':
     dependencies:
       '@noble/ed25519': 3.2.0
       canonicalize: 3.0.0
@@ -2190,9 +2190,9 @@ snapshots:
 
   '@gainratio/errors@0.2.1': {}
 
-  '@gainratio/receipt-ui@0.3.0(@gainratio/avow@0.5.2)(react@19.3.0)':
+  '@gainratio/receipt-ui@0.3.0(@gainratio/avow@0.5.3)(react@19.3.0)':
     dependencies:
-      '@gainratio/avow': 0.5.2
+      '@gainratio/avow': 0.5.3
       react: 19.3.0
 
   '@hpcc-js/wasm-zstd@1.16.2': {}
