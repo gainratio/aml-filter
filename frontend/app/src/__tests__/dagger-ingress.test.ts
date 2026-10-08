@@ -292,7 +292,7 @@ describe("thin Dagger ingress", () => {
 	});
 
 	it("keeps event expressions out of every Dagger input pasted into bash", () => {
-		// Fleet rule dagger-args-expression (hseshadr/ci#50): dagger-for-github
+		// Fleet rule dagger-args-expression (gainratio/ci#50): dagger-for-github
 		// pastes args/call/shell/... into a bash script, so event values must
 		// arrive through env: and be referenced as quoted shell variables.
 		const forbidden =
