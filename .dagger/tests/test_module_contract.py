@@ -213,7 +213,7 @@ PROVIDER_MARKERS: Final = (
 )
 YAML_DEPENDENCY: Final = "ruamel-yaml>=0.18.16,<0.19.0"
 # gainratio/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
-CENTRAL_SHA: Final = "a88866232e679b6353d2b75bceb01969be739f67"
+CENTRAL_SHA: Final = "528eaec76121b75810c58bab610d9f2064b95227"
 FOUNDATION_MODULE: Final = f"github.com/gainratio/ci/modules/portfolio-foundation@{CENTRAL_SHA}"
 CLOUDFLARE_MODULE: Final = f"github.com/gainratio/ci/modules/cloudflare-pages@{CENTRAL_SHA}"
 REAL_PROVIDER_DEPENDENCIES: Final = (
