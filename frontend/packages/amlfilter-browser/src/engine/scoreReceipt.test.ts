@@ -189,8 +189,10 @@ describe("signMatchReceipt + verifyMatchReceipt", () => {
 	});
 
 	// avow 0.5 versions the envelope: every receipt carries
-	// `schema: "avow.receipt/v1"`, and verification refuses one that does not,
-	// before it looks at the hash, signer or signature.
+	// `schema: "avow.receipt/v1"`. Since avow 0.5.3 the library accepts a
+	// receipt with no `schema` key as the legacy (<= 0.4.x) form; this app has
+	// no legacy receipts, so the seam (requireV1Envelope) still refuses one
+	// without the label, before it looks at the hash, signer or signature.
 	it("seals the avow.receipt/v1 envelope and REJECTS a receipt without it", async () => {
 		const seed = generateSeedHex();
 		const pinned = await publicKeyHex(seed);

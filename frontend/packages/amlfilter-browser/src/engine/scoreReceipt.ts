@@ -34,6 +34,8 @@ import {
 } from "@gainratio/assay";
 import {
 	type JsonValue,
+	RECEIPT_SCHEMA,
+	ReceiptSchemaMismatch,
 	type SignedReceipt,
 	signPayload,
 	verifySignature,
@@ -391,11 +393,34 @@ export function signMatchReceipt(
 	return signPayload(parseMatchScoreSubject(subject), seedHex);
 }
 
+/**
+ * Refuse any receipt that does not carry exactly the `avow.receipt/v1` label.
+ *
+ * avow 0.5.3 accepts a receipt with NO `schema` key as the legacy (<= 0.4.x)
+ * form, so old ledgers keep verifying. This app has no legacy receipts to
+ * honour: score receipts are sealed per screening, held only in memory, and
+ * every one is sealed by `signMatchReceipt` here, which always stamps v1. A
+ * receipt without the label was therefore not produced by this app's current
+ * seal path, and verification refuses it before any hash or signature check.
+ *
+ * The label is not covered by the signature, so this is a strictness guard on
+ * the envelope, not a cryptographic one: the payload hash, pinned signer and
+ * Ed25519 signature checks in `verifySignature` still carry the tamper proof.
+ */
+function requireV1Envelope(receipt: SignedReceipt<MatchScoreSubject>): void {
+	if (receipt.schema !== RECEIPT_SCHEMA) {
+		throw new ReceiptSchemaMismatch(
+			`score receipt: envelope must declare schema "${RECEIPT_SCHEMA}"`,
+		);
+	}
+}
+
 /** Fail-closed verify of a score receipt against a pinned signer key. */
 export async function verifyMatchReceipt(
 	receipt: SignedReceipt<MatchScoreSubject>,
 	expectedPublicKey: string,
 ): Promise<void> {
+	requireV1Envelope(receipt);
 	parseMatchScoreSubject(receipt.payload);
 	return verifySignature(receipt, expectedPublicKey);
 }
