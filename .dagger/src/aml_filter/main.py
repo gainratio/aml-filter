@@ -65,7 +65,7 @@ UV_IMAGE: Final = (
 EDGEPROC_REPO: Final = "https://github.com/hseshadr/edge-proc"
 EDGEPROC_COMMIT: Final = "e3bfb570feb8619c823df63b6c012fd8c8c6a9b6"
 # gainratio/ci main: merge of ci#70 (Pages git_source_owner; includes ci#61 clock skew).
-CENTRAL_MODULE_SHA: Final = "fbc02232928fbca80da1013e9e1676a3e41424a6"
+CENTRAL_MODULE_SHA: Final = "8420264d5560b0817579d9c5323ae3a69ce4558d"
 # Project, branch, and domain are fixed; the repository comes from each run (see targets.py).
 LIVE_ORIGIN: Final = f"https://{PRODUCTION_DOMAIN}"
 DEPLOY_ROOT: Final = "dist"
