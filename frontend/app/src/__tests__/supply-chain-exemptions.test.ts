@@ -167,7 +167,7 @@ describe("pnpm dependency policy", () => {
 		expect(publisher.dependencies?.["@gainratio/browser"]).toBe("^0.4.1");
 		expect(app.dependencies?.["@gainratio/errors"]).toBe("^0.2.1");
 		expect(app.dependencies?.["@gainratio/receipt-ui"]).toBe("^0.3.0");
-		expect(browser.dependencies?.["@gainratio/avow"]).toBe("^0.5.2");
+		expect(browser.dependencies?.["@gainratio/avow"]).toBe("^0.5.3");
 		// The workstation never imports avow; it reaches the app through @amlfilter/browser.
 		expect(workstation.dependencies?.["@gainratio/avow"]).toBeUndefined();
 	});
