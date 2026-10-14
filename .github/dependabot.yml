@@ -1,34 +1,36 @@
 # Keep dependencies current across every ecosystem this repo ships.
 #   - npm            : the pnpm frontend workspace (frontend/, pnpm-lock.yaml)
 #   - github-actions : the workflows under .github/workflows/
-# Weekly, except our own @gainratio/* libraries: they get their own daily entry
+# Monthly, with a 7-day cooldown, minor + patch grouped into one PR per ecosystem.
+# Semver-major updates are ignored: majors are migrated by hand in their own PR.
+# The exception is our own @gainratio/* libraries: they get their own daily entry
 # so the bump PR opens the day after each release (apps track our latest).
 # aml-filter is frontend-only — there is no Python / pip ecosystem.
-# Dependabot's "npm" ecosystem natively understands pnpm-lock.yaml.
-# Each ecosystem is GROUPED into a single consolidated PR per run, so updates
-# arrive as one reviewable PR instead of a flood of one-per-dependency PRs.
+# The npm directory is the workspace root (/frontend) that owns pnpm-lock.yaml,
+# never a package under frontend/packages/: a per-package update bumps that
+# package.json without relocking the workspace (#157).
 version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-    # transformers.js >=4.3.0 pulls onnxruntime-web 1.31.0-dev, whose
-    # ort-wasm-simd-threaded.asyncify.wasm (26,861,777 B) exceeds the Cloudflare
-    # Pages 25 MiB per-file limit the self-hosted runtime must fit
-    # (app/scripts/stage-ort-wasm.test.ts). Held at exactly 4.2.0 in #131.
-    # Drop this entry once a release's asyncify wasm is < 26,214,400 B.
+      interval: "monthly"
+    cooldown:
+      default-days: 7
     ignore:
       # Owned by the daily @gainratio entry below; keep them out of this PR.
       - dependency-name: "@gainratio/*"
+      # Majors are migrated by hand. This also covers undici 8, which requires
+      # Node >=22.19.0 and rejects Node 22's built-in fetch handler (#172).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # transformers.js >=4.3.0 pulls onnxruntime-web 1.31.0-dev, whose
+      # ort-wasm-simd-threaded.asyncify.wasm (26,861,777 B) exceeds the Cloudflare
+      # Pages 25 MiB per-file limit the self-hosted runtime must fit
+      # (app/scripts/stage-ort-wasm.test.ts). Held at exactly 4.2.0 in #131.
+      # Drop this entry once a release's asyncify wasm is < 26,214,400 B.
       - dependency-name: "@huggingface/transformers"
         versions: [">=4.3.0"]
-      # undici 8 requires Node >=22.19.0 and rejects Node 22's built-in fetch
-      # handler (InvalidArgumentError: invalid onRequestStart method,
-      # feedDispatcher.test.ts). Remove once frontend/.nvmrc moves to >=22.19
-      # and fetchWithTimeout.ts imports fetch from undici. Supersedes #172.
-      - dependency-name: "undici"
-        update-types: ["version-update:semver-major"]
     groups:
       frontend-npm:
         patterns: ["*"]
@@ -36,7 +38,7 @@ updates:
 
   # Our own libraries, daily and in their own PR, all update types (no caps).
   # Dependabot needs a unique (ecosystem, directory, target-branch) per entry,
-  # so this one names target-branch explicitly to sit beside the weekly entry.
+  # so this one names target-branch explicitly to sit beside the monthly entry.
   - package-ecosystem: "npm"
     directory: "/frontend"
     target-branch: "main"
@@ -51,7 +53,13 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    ignore:
+      # Majors are migrated by hand.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       github-actions:
         patterns: ["*"]

@@ -32,9 +32,21 @@ const publisherPackageFile = resolve(
 	"amlfilter-publisher",
 	"package.json",
 );
-const ASSAY_VERSION = "0.5.0-dev.6";
-const ASSAY_SRI =
-	"sha512-VOH1brU6gHHOZ1jRO4DXRPseSCnOLAlKewlfuzYumG3Kswb9KvrngoN5mPv7rdw61O3EuqGQO+WFPON8AV3NzQ==";
+// The version and integrity live in package.json and pnpm-lock.yaml (Dependabot
+// bumps both). The test reads them there and asserts the property: an exact
+// version, locked with a sha512 registry integrity. It holds no copy of either.
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const SHA512_SRI = /^sha512-[A-Za-z0-9+/]{86}==$/;
+
+/** The registry integrity pnpm locked for one exact `name@version`, if any. */
+function lockedIntegrity(lock: string, spec: string): string | undefined {
+	const escaped = spec.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const entry = new RegExp(
+		`^ {2}'${escaped}':\\n {4}resolution: \\{integrity: (\\S+)\\}`,
+		"m",
+	);
+	return lock.match(entry)?.[1];
+}
 
 type Manifest = Record<string, unknown>;
 const DEPENDENCY_FIELDS = [
@@ -92,12 +104,27 @@ describe("pnpm dependency policy", () => {
 		).toBe(0);
 	});
 
-	it("pins the reviewed Assay npm artifact and registry integrity", () => {
+	it("pins the Assay npm artifact exactly, with a sha512 registry integrity", () => {
 		const manifest = JSON.parse(readFileSync(browserPackageFile, "utf8"));
 		const lock = readFileSync(lockFile, "utf8");
-		expect(manifest.dependencies?.["@gainratio/assay"]).toBe(ASSAY_VERSION);
-		expect(lock).toContain(`'@gainratio/assay@${ASSAY_VERSION}':`);
-		expect(lock).toContain(`resolution: {integrity: ${ASSAY_SRI}}`);
+		const version = manifest.dependencies?.["@gainratio/assay"];
+		expect(version).toMatch(EXACT_VERSION);
+		expect(lockedIntegrity(lock, `@gainratio/assay@${version}`)).toMatch(
+			SHA512_SRI,
+		);
+	});
+
+	it("reads the locked integrity of one exact entry only", () => {
+		const sri = `sha512-${"A".repeat(86)}==`;
+		const lock = [
+			"  '@gainratio/assay@1.0.0':",
+			`    resolution: {integrity: ${sri}}`,
+			"  '@gainratio/assay@1.0.1':",
+			"    resolution: {tarball: https://example.test/assay.tgz}",
+		].join("\n");
+		expect(lockedIntegrity(lock, "@gainratio/assay@1.0.0")).toBe(sri);
+		expect(lockedIntegrity(lock, "@gainratio/assay@1.0.1")).toBeUndefined();
+		expect(lockedIntegrity(lock, "@gainratio/assay@1.0.2")).toBeUndefined();
 	});
 
 	// The owner's npm libraries moved from @edgeproc/* to @gainratio/*; the old
