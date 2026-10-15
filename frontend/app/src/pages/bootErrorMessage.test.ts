@@ -241,7 +241,7 @@ describe("@gainratio/errors adoption (canonical-errors standard)", () => {
 
 	it("resolves the unsupported-device base copy through the registry's describe()", () => {
 		// The base sentence is the app's existing errors:device.unsupported string,
-		// now rendered via the vendored registry (bundle.device_unsupported) — same
+		// now rendered via the npm registry (bundle.device_unsupported) — same
 		// bytes, so behavior is identical.
 		// Pinned literal: the app's catalog copy, which differs from the library's
 		// default English, so a broken translation path (describe falling back to
