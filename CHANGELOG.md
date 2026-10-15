@@ -8,6 +8,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The post-deploy live smoke no longer rolls production back over a pointer
+  request the browser reports as aborted.** Chromium logs `net::ERR_ABORTED` for the
+  sync worker's fully read `/bundle/origin/latest` on most page loads, and the smoke's
+  proof that the body arrived whole could never hold on production: the pointer is
+  served brotli-compressed with no Content-Length, and Playwright reports its body as
+  0 bytes. It failed Publish/Deploy runs on 10-12, 10-13, 10-14 and 10-15 and rolled
+  back #212. An in-worker probe showed each abort land the same millisecond the app
+  read the whole signed pointer. Now a content-encoded (br/gzip/zstd/deflate) 2xx
+  pointer abort is excused only when the page's next bundle request is the manifest,
+  which the app fetches only after the pointer's signature verified; a pointer
+  request a later page navigation abandoned is excused too. Every other URL still
+  fails, and a new c1 spec proves an aborted, 500 or tampered pointer still fails
+  the smoke. `@fresh` against production: 3/3 red before, 3/3 green after.
+
 - **The receipt signing key now lives in SQLite, and can be exported, imported and
   reset.** The Ed25519 seed that signs every score receipt was kept in `localStorage`:
   no reset cleared it, no export carried it, and clearing browser data silently broke
@@ -39,6 +53,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`@gainratio/errors` bumped to `^0.3.1`** (0.3.1 makes a namespaced key with no
+  translation fall back to English, not the raw key).
 - **`@gainratio/errors` bumped `^0.2.1` → `^0.3.0`.** 0.3.0 widens `describe`'s
   translate parameter, so the unsupported-device copy now passes i18next's own `i18n.t`
   straight in and the one-line adapter is gone. The new es/pt locale files are not
