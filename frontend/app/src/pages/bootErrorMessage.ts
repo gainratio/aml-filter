@@ -4,7 +4,6 @@ import {
 	defineErrors,
 	httpStatusOf,
 	starterPack,
-	type TFunction,
 } from "@gainratio/errors";
 import { i18n } from "../i18n";
 
@@ -197,11 +196,6 @@ export function classifyBundleError(error: unknown): BundleErrorKind {
 	return CODE_TO_KIND[bundleErrorRegistry.classify(error)] ?? "unknown";
 }
 
-/** i18next adapter passed to the registry's `describe()`, so a canonical code
- * resolves through the app's offline `errors` catalog (localized), falling back
- * to the library's default English when a key is absent. */
-const translate: TFunction = (key, params) => i18n.t(key, params ?? {});
-
 /**
  * The /screen unsupported-device string. Shown when the up-front capability
  * preflight (engineSupport) finds this browser can't run the local engine —
@@ -218,10 +212,13 @@ const translate: TFunction = (key, params) => i18n.t(key, params ?? {});
 export function deviceUnsupportedMessage(
 	missing: ReadonlyArray<string>,
 ): string {
+	// i18next's own `t` goes straight in (@gainratio/errors >=0.3.0), so the code
+	// resolves through the app's `errors` catalog, falling back to the library's
+	// default English only when a key is absent.
 	const base = bundleErrorRegistry.describe(
 		"bundle.device_unsupported",
 		{},
-		translate,
+		i18n.t,
 	);
 	if (missing.length === 0) {
 		return base;

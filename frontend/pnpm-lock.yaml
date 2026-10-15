@@ -37,8 +37,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/amlfilter-workstation
       '@gainratio/errors':
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: ^0.3.0
+        version: 0.3.0
       '@gainratio/receipt-ui':
         specifier: ^0.3.0
         version: 0.3.0(@gainratio/avow@0.5.3)(react@19.3.0)
@@ -588,8 +588,8 @@ packages:
     resolution: {integrity: sha512-swPrWgzWicZv0CHI3CB1WuQsV8xN2IdBIYeowqH0RZR/5SuQidyXKNzAYKRe7gaNT0Wc8FK/TnpkgReDwJFB5w==}
     engines: {node: '>=22.13'}
 
-  '@gainratio/errors@0.2.1':
-    resolution: {integrity: sha512-f1XOpswhbypRe2u8sJ2rRuh8BADbddkSSRONO5DRk3u5g7M+s8aaQ4vuPdk813GkLuvkQo1HMEwTj92TjT1ySQ==}
+  '@gainratio/errors@0.3.0':
+    resolution: {integrity: sha512-+nwsrjb9uVHbKqrmygqkGpr5/WVYgXqKO4DkRy4wBdkCR996+d1+3BwjAPSsLNpKlSbFXx+OZpMUsFVtHPa1sQ==}
     engines: {node: '>=22.13'}
 
   '@gainratio/receipt-ui@0.3.0':
@@ -2147,7 +2147,7 @@ snapshots:
       '@noble/ed25519': 3.2.0
       age-encryption: 0.3.1
 
-  '@gainratio/errors@0.2.1': {}
+  '@gainratio/errors@0.3.0': {}
 
   '@gainratio/receipt-ui@0.3.0(@gainratio/avow@0.5.3)(react@19.3.0)':
     dependencies:

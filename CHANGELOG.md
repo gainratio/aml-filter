@@ -39,6 +39,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`@gainratio/errors` bumped `^0.2.1` → `^0.3.0`.** 0.3.0 widens `describe`'s
+  translate parameter, so the unsupported-device copy now passes i18next's own `i18n.t`
+  straight in and the one-line adapter is gone. The new es/pt locale files are not
+  loaded: the app is English-only. Same rendered text; the test now pins it as a literal.
 - **The owner's libraries move to their newest releases and new `@gainratio` names.**
   `@edgeproc/avow ^0.4.1` -> `@gainratio/avow ^0.5.2`, `@edgeproc/receipt-ui 0.2.0` ->
   `@gainratio/receipt-ui ^0.3.0`, `@edgeproc/errors ^0.1.2` -> `@gainratio/errors ^0.2.1`,
