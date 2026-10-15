@@ -243,16 +243,17 @@ describe("@gainratio/errors adoption (canonical-errors standard)", () => {
 		// The base sentence is the app's existing errors:device.unsupported string,
 		// now rendered via the vendored registry (bundle.device_unsupported) — same
 		// bytes, so behavior is identical.
-		expect(deviceUnsupportedMessage([])).toBe(
-			i18n.t("errors:device.unsupported"),
-		);
+		// Pinned literal: the app's catalog copy, which differs from the library's
+		// default English, so a broken translation path (describe falling back to
+		// its own English, or i18n returning the bare key) turns this red.
+		const appCopy =
+			"This device or browser can’t run the local engine. Everything runs in your browser, so it needs a recent desktop browser — try Chrome, Edge, Firefox, or Safari 17+.";
+		expect(i18n.t("errors:device.unsupported")).toBe(appCopy);
+		expect(deviceUnsupportedMessage([])).toBe(appCopy);
+		// @gainratio/errors >=0.3.0 accepts i18next's own `t` as-is, no adapter.
 		expect(
-			bundleErrorRegistry.describe(
-				"bundle.device_unsupported",
-				{},
-				(key, params) => i18n.t(key, params ?? {}),
-			),
-		).toBe(i18n.t("errors:device.unsupported"));
+			bundleErrorRegistry.describe("bundle.device_unsupported", {}, i18n.t),
+		).toBe(appCopy);
 	});
 
 	it("serializes a canonical code to an RFC 9457 Problem Details shape", () => {

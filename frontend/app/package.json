@@ -42,7 +42,7 @@
 	"dependencies": {
 		"@amlfilter/browser": "workspace:*",
 		"@amlfilter/workstation": "workspace:*",
-		"@gainratio/errors": "^0.2.1",
+		"@gainratio/errors": "^0.3.0",
 		"@gainratio/receipt-ui": "^0.3.0",
 		"@huggingface/transformers": "^4.3.0",
 		"i18next": "^26.4.2",
