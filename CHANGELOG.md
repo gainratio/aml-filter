@@ -14,10 +14,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   proof that the body arrived whole could never hold on production: the pointer is
   served brotli-compressed with no Content-Length, and Playwright reports its body as
   0 bytes. It failed Publish/Deploy runs on 10-12, 10-13, 10-14 and 10-15 and rolled
-  back #212. A content-encoded 2xx pointer is now excused (the app verifies the signed
-  pointer fail-closed, and the smoke still requires the whole journey), as is a
-  pointer request a later page navigation abandoned. Every other URL still fails.
-  `@fresh` against production: 3/3 red before, 3/3 green after.
+  back #212. An in-worker probe showed each abort land the same millisecond the app
+  read the whole signed pointer. Now a content-encoded (br/gzip/zstd/deflate) 2xx
+  pointer abort is excused only when the page's next bundle request is the manifest,
+  which the app fetches only after the pointer's signature verified; a pointer
+  request a later page navigation abandoned is excused too. Every other URL still
+  fails, and a new c1 spec proves an aborted, 500 or tampered pointer still fails
+  the smoke. `@fresh` against production: 3/3 red before, 3/3 green after.
 
 - **The receipt signing key now lives in SQLite, and can be exported, imported and
   reset.** The Ed25519 seed that signs every score receipt was kept in `localStorage`:

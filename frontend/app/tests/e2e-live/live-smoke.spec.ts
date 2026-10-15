@@ -104,6 +104,7 @@ async function persistentPage(
 
 async function expectCleanConsole(watch: ConsoleWatch): Promise<void> {
 	await watch.settled();
+	for (const line of watch.excused) console.log(`[live-smoke excused] ${line}`);
 	expect(watch.problems, "the console must stay clean").toEqual([]);
 }
 

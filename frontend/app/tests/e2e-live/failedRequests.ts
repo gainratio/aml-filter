@@ -24,12 +24,16 @@
  *
  * Production serves the pointer content-encoded (brotli) with no Content-Length,
  * and Playwright then reports a body size of 0 and cannot return the body, so
- * neither proof above can ever hold there — while Chromium keeps reporting the
+ * neither proof above can ever hold there, while Chromium keeps reporting the
  * worker's fully read pointer as `net::ERR_ABORTED` (3 of 3 @fresh runs,
- * 2026-10-15). For a content-encoded 2xx pointer the app is the proof: it
- * verifies the signed pointer fail-closed (a truncated body is an
- * IntegrityError, never served from cache), and the smoke separately requires
- * the whole journey to succeed.
+ * 2026-10-15). An in-worker probe on the app's own stream reader showed every
+ * such abort land in the same millisecond the app read the whole signed pointer
+ * to end-of-stream: Chromium's reporting, not a cancel by the app (its only
+ * abort is a 30 s stall watchdog). So a 2xx pointer with an allowlisted
+ * Content-Encoding is excused only when the page's NEXT bundle request is the
+ * manifest. The app requests `/manifest/<hash>` only after the pointer parsed
+ * and its Ed25519 signature verified; a pointer it did not accept (stalled,
+ * truncated, tampered) is never followed by one.
  */
 
 /** What Playwright knows about a failed request, reduced to plain values. */
@@ -48,9 +52,20 @@ export interface FailedRequestFacts {
 	readonly contentEncoding: string | null;
 	/** True when a main-frame navigation started after this request did. */
 	readonly abandonedByNavigation: boolean;
+	/** True when the page's next bundle request after this one was a manifest. */
+	readonly manifestFollowed: boolean;
 }
 
+/** Encodings Chromium decodes and then cannot size for Playwright. */
+const DECODED_ENCODINGS: ReadonlySet<string> = new Set([
+	"br",
+	"gzip",
+	"zstd",
+	"deflate",
+]);
+
 const POINTER_PATH = "/bundle/origin/latest";
+const MANIFEST_PREFIX = "/bundle/origin/manifest/";
 const ERR_ABORTED = "net::ERR_ABORTED";
 
 /** A Content-Length header as a byte count; anything but plain digits is `null`. */
@@ -74,24 +89,91 @@ function isSuccess(status: number | null): boolean {
 	return status !== null && status >= 200 && status < 300;
 }
 
-/** A compressed body Chromium cannot measure: no length to compare against. */
-function unmeasurableEncodedBody(facts: FailedRequestFacts): boolean {
-	return facts.contentEncoding !== null && facts.contentEncoding !== "identity";
+function isDecodedEncoding(encoding: string | null): boolean {
+	return (
+		encoding !== null && DECODED_ENCODINGS.has(encoding.trim().toLowerCase())
+	);
+}
+
+/** A compressed pointer Chromium cannot size, which the app then accepted. */
+function acceptedEncodedBody(facts: FailedRequestFacts): boolean {
+	return isDecodedEncoding(facts.contentEncoding) && facts.manifestFollowed;
 }
 
 function completedBeforeAbort(facts: FailedRequestFacts): boolean {
 	return (
 		isSuccess(facts.status) &&
-		(bodyArrivedWhole(facts) || unmeasurableEncodedBody(facts))
+		(bodyArrivedWhole(facts) || acceptedEncodedBody(facts))
 	);
 }
 
 /** True only for the pointer request aborted after a whole (or, compressed,
- * app-verified) 2xx body, or abandoned by a later page navigation. */
+ * app-accepted) 2xx body, or abandoned by a later page navigation. */
 export function isExcusedFailedRequest(facts: FailedRequestFacts): boolean {
 	return (
 		isPointer(facts.url) &&
 		facts.errorText === ERR_ABORTED &&
 		(facts.abandonedByNavigation || completedBeforeAbort(facts))
 	);
+}
+
+/** For the run log: which proof an excused request relied on. */
+export function excuseEvidence(facts: FailedRequestFacts): string {
+	if (facts.abandonedByNavigation) return "abandoned by a later navigation";
+	if (facts.finished) return "requestfinished fired";
+	if (acceptedEncodedBody(facts)) {
+		return `${facts.status} ${facts.contentEncoding}, manifest requested next`;
+	}
+	return `body ${facts.receivedBodyBytes} B == Content-Length`;
+}
+
+type BundleKind = "pointer" | "manifest";
+
+function bundleKind(url: string): BundleKind | null {
+	const path = new URL(url).pathname;
+	if (path === POINTER_PATH) return "pointer";
+	return path.startsWith(MANIFEST_PREFIX) &&
+		path.length > MANIFEST_PREFIX.length
+		? "manifest"
+		: null;
+}
+
+interface Started {
+	readonly navigations: number;
+	readonly bundleIndex: number | null;
+}
+
+/**
+ * The order the page issued requests in, kept free of Playwright (keys are the
+ * caller's request objects). It answers two questions about a failed request:
+ * did a later main-frame navigation abandon it, and was the next bundle request
+ * after a pointer the manifest (the app accepted that pointer).
+ */
+export class RequestLedger<K extends object> {
+	#navigations = 0;
+	readonly #bundle: BundleKind[] = [];
+	readonly #started = new WeakMap<K, Started>();
+
+	/** Record a request as it starts. */
+	public note(key: K, url: string, isMainFrameNavigation: boolean): void {
+		if (isMainFrameNavigation) this.#navigations += 1;
+		const kind = bundleKind(url);
+		if (kind !== null) this.#bundle.push(kind);
+		this.#started.set(key, {
+			navigations: this.#navigations,
+			bundleIndex: kind === null ? null : this.#bundle.length - 1,
+		});
+	}
+
+	/** True when a main-frame navigation began after this request started. */
+	public abandoned(key: K): boolean {
+		const started = this.#started.get(key);
+		return started !== undefined && started.navigations < this.#navigations;
+	}
+
+	/** True when the next bundle request after this one was a manifest. */
+	public manifestFollowed(key: K): boolean {
+		const index = this.#started.get(key)?.bundleIndex;
+		return index != null && this.#bundle[index + 1] === "manifest";
+	}
 }

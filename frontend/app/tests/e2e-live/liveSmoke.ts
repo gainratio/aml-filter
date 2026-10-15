@@ -21,9 +21,11 @@ import { expect, type Page, type Request } from "@playwright/test";
 
 import { isExcusedConsoleError } from "./consoleNoise";
 import {
+	excuseEvidence,
 	type FailedRequestFacts,
 	isExcusedFailedRequest,
 	parseContentLength,
+	RequestLedger,
 } from "./failedRequests";
 import { LIST_PROBES, type ListProbe, reviewBadgePattern } from "./probes";
 
@@ -49,6 +51,8 @@ const SEARCH_PLACEHOLDER = "Search a name, e.g. Ivan Fakovich";
 /** Everything the console said that a clean run must not contain. */
 export interface ConsoleWatch {
 	readonly problems: string[];
+	/** Failed requests the smoke excused, each with the proof it relied on. */
+	readonly excused: string[];
 	/** Resolves once every failed request seen so far has been classified. */
 	settled(): Promise<void>;
 }
@@ -59,11 +63,13 @@ async function receivedBodyBytes(request: Request): Promise<number | null> {
 	return sizes?.responseBodySize ?? null;
 }
 
-/** Read what Playwright knows about a failed request. */
+/** Read what Playwright knows about a failed request. `manifestFollowed` is
+ * read at settle time, once the app has had its chance to request the manifest. */
 async function failedRequestFacts(
 	request: Request,
 	finished: ReadonlySet<Request>,
 	abandonedByNavigation: boolean,
+	ledger: RequestLedger<Request>,
 ): Promise<FailedRequestFacts> {
 	const response = await request.response().catch(() => null);
 	return {
@@ -76,24 +82,38 @@ async function failedRequestFacts(
 		contentLength: parseContentLength(response?.headers()["content-length"]),
 		contentEncoding: response?.headers()["content-encoding"] ?? null,
 		abandonedByNavigation,
+		manifestFollowed: ledger.manifestFollowed(request),
 	};
 }
 
-/** Add a failed request to `problems` unless it is the pointer request the
- * browser cancelled after its whole body arrived (see failedRequests.ts). */
-async function recordFailedRequest(
-	request: Request,
+/** A failed same-origin request, held until the watch settles. */
+interface FailedRequest {
+	readonly request: Request;
+	/** Captured when it failed, so a later navigation can never excuse it. */
+	readonly abandonedByNavigation: boolean;
+}
+
+/** Add each failed request to `problems` unless it is the excused pointer
+ * request (see failedRequests.ts). */
+async function recordFailedRequests(
+	failed: ReadonlyArray<FailedRequest>,
 	finished: ReadonlySet<Request>,
-	abandonedByNavigation: boolean,
-	problems: string[],
+	ledger: RequestLedger<Request>,
+	watch: ConsoleWatch,
 ): Promise<void> {
-	const facts = await failedRequestFacts(
-		request,
-		finished,
-		abandonedByNavigation,
-	);
-	if (!isExcusedFailedRequest(facts)) {
-		problems.push(`requestfailed: ${request.url()} (${facts.errorText})`);
+	for (const { request, abandonedByNavigation } of failed) {
+		const facts = await failedRequestFacts(
+			request,
+			finished,
+			abandonedByNavigation,
+			ledger,
+		);
+		const line = `${request.url()} (${facts.errorText})`;
+		if (isExcusedFailedRequest(facts)) {
+			watch.excused.push(`${line}: ${excuseEvidence(facts)}`);
+		} else {
+			watch.problems.push(`requestfailed: ${line}`);
+		}
 	}
 }
 
@@ -125,17 +145,13 @@ function isMainFrameNavigation(page: Page, request: Request): boolean {
 	return request.isNavigationRequest() && request.frame() === page.mainFrame();
 }
 
-/** Which requests a later main-frame navigation abandoned: each request is
- * stamped with the navigation count when it starts, so one that fails after a
- * newer navigation began belonged to a document the page was leaving. */
-function trackAbandonment(page: Page): (request: Request) => boolean {
-	let navigations = 0;
-	const startedAt = new WeakMap<Request, number>();
+/** Every request the page starts, in order (see RequestLedger). */
+function trackRequests(page: Page): RequestLedger<Request> {
+	const ledger = new RequestLedger<Request>();
 	page.on("request", (request) => {
-		if (isMainFrameNavigation(page, request)) navigations += 1;
-		startedAt.set(request, navigations);
+		ledger.note(request, request.url(), isMainFrameNavigation(page, request));
 	});
-	return (request) => (startedAt.get(request) ?? navigations) < navigations;
+	return ledger;
 }
 
 /** Record every console error, uncaught exception, and failed same-origin
@@ -144,7 +160,7 @@ function trackAbandonment(page: Page): (request: Request) => boolean {
 export function watchConsole(page: Page): ConsoleWatch {
 	const problems: string[] = [];
 	const duringNavigation = trackNavigation(page);
-	const abandoned = trackAbandonment(page);
+	const ledger = trackRequests(page);
 	page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
 	page.on("console", (message) => {
 		if (message.type() !== "error") return;
@@ -157,18 +173,27 @@ export function watchConsole(page: Page): ConsoleWatch {
 			problems.push(`console.error: ${facts.text}`);
 		}
 	});
-	const pending: Promise<void>[] = [];
+	const failed: FailedRequest[] = [];
 	const finished = new Set<Request>();
 	page.on("requestfinished", (request) => finished.add(request));
 	page.on("requestfailed", (request) => {
 		const origin = new URL(page.url() || request.url()).origin;
 		if (request.url().startsWith(origin)) {
-			pending.push(
-				recordFailedRequest(request, finished, abandoned(request), problems),
-			);
+			failed.push({
+				request,
+				abandonedByNavigation: ledger.abandoned(request),
+			});
 		}
 	});
-	return { problems, settled: async () => void (await Promise.all(pending)) };
+	const watch: ConsoleWatch = {
+		problems,
+		excused: [],
+		settled: async () => {
+			const settling = failed.splice(0);
+			await recordFailedRequests(settling, finished, ledger, watch);
+		},
+	};
+	return watch;
 }
 
 /** A first visit to the workstation asks for an analyst name (stored only in
