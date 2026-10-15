@@ -22,6 +22,7 @@ import {
 	clearBundleStore,
 	openBundleSource,
 } from "./bundleSource";
+import type { ScreenQuery, ScreenResponse } from "./domain";
 import {
 	createEmbedder,
 	type Embedder,
@@ -38,6 +39,7 @@ import {
 	type StreamingListSource,
 } from "./multiEngine";
 import { PRESETS } from "./scoring";
+import type { ScreenOptions } from "./screeningEngine";
 import { compositeVersion } from "./version";
 import type {
 	LoadedWatchlist,
@@ -295,6 +297,29 @@ export interface RuntimeSelection {
 	readonly residency?: "eager" | "streaming";
 }
 
+/** Default timeout (150ms) for queued screen() calls during a watchlist hot-swap. */
+export const DEFAULT_SWAP_TIMEOUT_MS = 150;
+
+export interface RuntimeScreenOptions extends ScreenOptions {
+	readonly swapTimeoutMs?: number;
+}
+
+export interface SyncUpdateResult {
+	readonly updated: boolean;
+	readonly version: string;
+}
+
+export class SqlSwapTimeoutError extends Error {
+	readonly code = "sql.swap_timeout" as const;
+	readonly timeoutMs: number;
+
+	public constructor(timeoutMs: number) {
+		super(`Watchlist database swap exceeded ${timeoutMs}ms timeout.`);
+		this.name = "SqlSwapTimeoutError";
+		this.timeoutMs = timeoutMs;
+	}
+}
+
 /**
  * A selectable catalog list, surfaced to the settings UI for toggling.
  *
@@ -488,6 +513,67 @@ export class EngineRuntime {
 	 * bootstrap — for the rescan path to compare against a cheap manifest poll. */
 	public version(): string | null {
 		return this.#version;
+	}
+
+	/**
+	 * Screen a query against the active watchlist engine, gating behind an
+	 * in-flight reload up to `swapTimeoutMs` (default 150ms). Strictly
+	 * LOCAL_ONLY: if a hot-swap exceeds `swapTimeoutMs`, rejects fail-closed with
+	 * {@link SqlSwapTimeoutError} rather than sending customer queries to any
+	 * remote origin.
+	 */
+	public async screen(
+		query: ScreenQuery,
+		options: RuntimeScreenOptions = {},
+	): Promise<ScreenResponse> {
+		if (this.#reloadPromise !== null) {
+			const timeoutMs = options.swapTimeoutMs ?? DEFAULT_SWAP_TIMEOUT_MS;
+			const engine = await this.#waitForReload(this.#reloadPromise, timeoutMs);
+			return engine.screen(query, options);
+		}
+		if (this.#ready === null) {
+			throw new Error("screen() requires a successful bootstrap first");
+		}
+		return this.#ready.screen(query, options);
+	}
+
+	async #waitForReload(
+		reload: Promise<MultiListScreeningEngine>,
+		timeoutMs: number,
+	): Promise<MultiListScreeningEngine> {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timeout = new Promise<never>((_resolve, reject) => {
+			timer = setTimeout(() => {
+				reject(new SqlSwapTimeoutError(timeoutMs));
+			}, timeoutMs);
+		});
+		try {
+			return await Promise.race([reload, timeout]);
+		} finally {
+			if (timer !== undefined) {
+				clearTimeout(timer);
+			}
+		}
+	}
+
+	/**
+	 * Background delta-sync + conditional hot-swap: polls the signed published
+	 * composite version and reloads over the warm embedder only when the
+	 * published version differs from the currently loaded version.
+	 */
+	public async syncUpdate(
+		selection?: RuntimeSelection,
+	): Promise<SyncUpdateResult> {
+		const current = this.version();
+		if (current === null) {
+			throw new Error("syncUpdate() requires a successful bootstrap first");
+		}
+		const published = await this.fetchPublishedVersion();
+		if (published === current) {
+			return { updated: false, version: current };
+		}
+		await this.reload(selection);
+		return { updated: true, version: this.version() ?? published };
 	}
 
 	/**
