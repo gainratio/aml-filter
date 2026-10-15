@@ -63,6 +63,7 @@ async function receivedBodyBytes(request: Request): Promise<number | null> {
 async function failedRequestFacts(
 	request: Request,
 	finished: ReadonlySet<Request>,
+	abandonedByNavigation: boolean,
 ): Promise<FailedRequestFacts> {
 	const response = await request.response().catch(() => null);
 	return {
@@ -73,6 +74,8 @@ async function failedRequestFacts(
 		receivedBodyBytes:
 			response === null ? null : await receivedBodyBytes(request),
 		contentLength: parseContentLength(response?.headers()["content-length"]),
+		contentEncoding: response?.headers()["content-encoding"] ?? null,
+		abandonedByNavigation,
 	};
 }
 
@@ -81,9 +84,14 @@ async function failedRequestFacts(
 async function recordFailedRequest(
 	request: Request,
 	finished: ReadonlySet<Request>,
+	abandonedByNavigation: boolean,
 	problems: string[],
 ): Promise<void> {
-	const facts = await failedRequestFacts(request, finished);
+	const facts = await failedRequestFacts(
+		request,
+		finished,
+		abandonedByNavigation,
+	);
 	if (!isExcusedFailedRequest(facts)) {
 		problems.push(`requestfailed: ${request.url()} (${facts.errorText})`);
 	}
@@ -113,12 +121,30 @@ function trackNavigation(page: Page): () => boolean {
 	return () => navigating;
 }
 
+function isMainFrameNavigation(page: Page, request: Request): boolean {
+	return request.isNavigationRequest() && request.frame() === page.mainFrame();
+}
+
+/** Which requests a later main-frame navigation abandoned: each request is
+ * stamped with the navigation count when it starts, so one that fails after a
+ * newer navigation began belonged to a document the page was leaving. */
+function trackAbandonment(page: Page): (request: Request) => boolean {
+	let navigations = 0;
+	const startedAt = new WeakMap<Request, number>();
+	page.on("request", (request) => {
+		if (isMainFrameNavigation(page, request)) navigations += 1;
+		startedAt.set(request, navigations);
+	});
+	return (request) => (startedAt.get(request) ?? navigations) < navigations;
+}
+
 /** Record every console error, uncaught exception, and failed same-origin
  * request for the lifetime of the page (see consoleNoise.ts for the one
  * excused WebKit line). */
 export function watchConsole(page: Page): ConsoleWatch {
 	const problems: string[] = [];
 	const duringNavigation = trackNavigation(page);
+	const abandoned = trackAbandonment(page);
 	page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
 	page.on("console", (message) => {
 		if (message.type() !== "error") return;
@@ -137,7 +163,9 @@ export function watchConsole(page: Page): ConsoleWatch {
 	page.on("requestfailed", (request) => {
 		const origin = new URL(page.url() || request.url()).origin;
 		if (request.url().startsWith(origin)) {
-			pending.push(recordFailedRequest(request, finished, problems));
+			pending.push(
+				recordFailedRequest(request, finished, abandoned(request), problems),
+			);
 		}
 	});
 	return { problems, settled: async () => void (await Promise.all(pending)) };

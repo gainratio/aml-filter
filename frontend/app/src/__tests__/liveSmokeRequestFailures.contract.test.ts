@@ -19,6 +19,24 @@ import {
 // Contract now: the ONLY excusable failure is the signed pointer request, and
 // only with proof the body arrived whole: Playwright saw `requestfinished`, or
 // the received body is exactly as long as Content-Length says.
+//
+// The one other case (2026-10-15): the smoke itself navigates away from /screen
+// (to /settings) while the boot is still fetching the pointer, and Chromium
+// cancels the departing document's request with net::ERR_ABORTED before any
+// body arrives. That aborted Publish runs on 10-12, 10-13, 10-14 (twice) and
+// 10-15 and rolled production back. Reproduced by navigating the instant the
+// pointer is requested. A pointer request a later main-frame navigation
+// abandoned is not a broken asset; every other URL still fails.
+//
+// And the 2026-10-04 case never stopped: Chromium still reports the WORKER's
+// fully read pointer as net::ERR_ABORTED on most page loads (no navigation, no
+// worker termination; 3 of 3 @fresh runs against production). The proofs above
+// cannot see it there: production serves the pointer brotli-compressed with no
+// Content-Length, and Playwright reports body size 0 and "No data found" for the
+// body. For that one URL the app is the proof: it verifies the signed pointer
+// fail-closed (a truncated pointer is an IntegrityError, never served from
+// cache), and the smoke separately requires the whole journey to succeed. So a
+// content-encoded 2xx pointer response is excused; nothing else is.
 
 const POINTER = "http://127.0.0.1:5273/bundle/origin/latest";
 
@@ -29,6 +47,8 @@ const finishedPointer: FailedRequestFacts = {
 	finished: true,
 	receivedBodyBytes: null,
 	contentLength: null,
+	contentEncoding: null,
+	abandonedByNavigation: false,
 };
 
 const wholeBodyPointer: FailedRequestFacts = {
@@ -51,6 +71,92 @@ describe("the pointer request, cancelled after a provably complete body", () => 
 		expect(
 			isExcusedFailedRequest({ ...finishedPointer, url: `${POINTER}?t=1` }),
 		).toBe(true);
+	});
+});
+
+describe("the pointer request a later page navigation abandoned", () => {
+	const abandonedPointer: FailedRequestFacts = {
+		url: POINTER,
+		errorText: "net::ERR_ABORTED",
+		status: null,
+		finished: false,
+		receivedBodyBytes: null,
+		contentLength: null,
+		contentEncoding: null,
+		abandonedByNavigation: true,
+	};
+
+	it("is excused with no response at all", () => {
+		expect(isExcusedFailedRequest(abandonedPointer)).toBe(true);
+	});
+
+	it.each([
+		"net::ERR_CONNECTION_RESET",
+		"net::ERR_FAILED",
+		"net::ERR_INTERNET_DISCONNECTED",
+	])("is NOT excused when it failed with %s", (errorText) => {
+		expect(isExcusedFailedRequest({ ...abandonedPointer, errorText })).toBe(
+			false,
+		);
+	});
+
+	it.each([
+		"http://127.0.0.1:5273/bundle/origin/manifest/abc.json",
+		"http://127.0.0.1:5273/bundle/origin/chunk/def.bin",
+		"http://127.0.0.1:5273/assets/index-123.js",
+	])("does not excuse %s, abandoned or not", (url) => {
+		expect(isExcusedFailedRequest({ ...abandonedPointer, url })).toBe(false);
+	});
+});
+
+describe("a compressed 2xx pointer response Chromium cannot measure", () => {
+	const brotliPointer: FailedRequestFacts = {
+		...finishedPointer,
+		finished: false,
+		receivedBodyBytes: 0,
+		contentLength: null,
+		contentEncoding: "br",
+	};
+
+	it("is excused (production: br, no Content-Length, size 0)", () => {
+		expect(isExcusedFailedRequest(brotliPointer)).toBe(true);
+	});
+
+	it.each(["gzip", "zstd", "deflate"])("is excused for %s too", (encoding) => {
+		expect(
+			isExcusedFailedRequest({ ...brotliPointer, contentEncoding: encoding }),
+		).toBe(true);
+	});
+
+	it("is NOT excused for identity encoding (Content-Length is the proof then)", () => {
+		expect(
+			isExcusedFailedRequest({ ...brotliPointer, contentEncoding: "identity" }),
+		).toBe(false);
+	});
+
+	it.each([
+		["no response", null],
+		["a 404", 404],
+		["a 500", 500],
+	])("is NOT excused with %s", (_label, status) => {
+		expect(isExcusedFailedRequest({ ...brotliPointer, status })).toBe(false);
+	});
+
+	it("is NOT excused for another error than net::ERR_ABORTED", () => {
+		expect(
+			isExcusedFailedRequest({
+				...brotliPointer,
+				errorText: "net::ERR_CONNECTION_RESET",
+			}),
+		).toBe(false);
+	});
+
+	it.each([
+		"http://127.0.0.1:5273/bundle/origin/manifest/abc.json",
+		"http://127.0.0.1:5273/bundle/origin/chunk/def.bin",
+		"http://127.0.0.1:5273/assets/index-123.js",
+	])("does not excuse a compressed %s", (url) => {
+		expect(isExcusedFailedRequest({ ...brotliPointer, url })).toBe(false);
 	});
 });
 
