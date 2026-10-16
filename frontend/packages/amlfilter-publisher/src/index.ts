@@ -66,6 +66,19 @@ export {
 } from "./sources/source.ts";
 export { ukSource } from "./sources/ukSource.ts";
 export { unSource } from "./sources/unSource.ts";
-export { type StagedList, stageBundle } from "./stageBundle.ts";
+export {
+	buildWatchlistSqlite,
+	type DecodedWatchlistSqlite,
+	readWatchlistSqlite,
+	WATCHLIST_SQLITE_APP_ID,
+	WATCHLIST_SQLITE_NAME,
+	WATCHLIST_SQLITE_USER_VERSION,
+	type WatchlistSqliteMeta,
+} from "./sqliteBundle.ts";
+export {
+	type StageBundleOptions,
+	type StagedList,
+	stageBundle,
+} from "./stageBundle.ts";
 export type { Watchlist, WatchlistEntity, WatchlistManifest } from "./types.ts";
 export { packVectors, vectorsToBase64, vectorsToBytes } from "./vectors.ts";
