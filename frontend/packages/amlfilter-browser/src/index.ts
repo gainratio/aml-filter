@@ -130,13 +130,17 @@ export {
 	compositeVersion,
 	configFromEnv,
 	createEmbedder,
+	DEFAULT_SWAP_TIMEOUT_MS,
 	defaultRuntimeDeps,
 	EngineRuntime,
 	MODEL_LOAD_IDLE_TIMEOUT_MS,
 	type OnStage,
 	type RuntimeConfig,
 	type RuntimeDeps,
+	type RuntimeScreenOptions,
 	type RuntimeSelection,
+	SqlSwapTimeoutError,
+	type SyncUpdateResult,
 } from "./engine/runtime";
 // --- the Avow score receipt: seal a score into an offline-verifiable envelope ---
 export {

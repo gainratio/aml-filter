@@ -20,6 +20,7 @@ import {
 	type RuntimeConfig,
 	type RuntimeDeps,
 	SLOWEST_HEALTHY_COLD_SYNC_MS,
+	SqlSwapTimeoutError,
 	throttleModelProgress,
 	withTimeout,
 } from "./runtime";
@@ -633,6 +634,98 @@ describe("EngineRuntime.reload", () => {
 		const { deps } = depsForCatalogs([catalogOf([["OFAC_SDN", "demo-1"]])]);
 		const runtime = new EngineRuntime(deps);
 		await expect(runtime.reload()).rejects.toThrow();
+	});
+
+	it("runtime.screen() queues behind a fast reload and resolves against the updated watchlist", async () => {
+		let opens = 0;
+		let releaseSecondOpen: (() => void) | undefined;
+		const runtime = new EngineRuntime({
+			makeEmbedder: () => instantEmbedder(),
+			clearCache: () => Promise.resolve(),
+			openBundleSource: () => {
+				opens += 1;
+				const currentOpen = opens;
+				const source = fakeBundleSource(
+					catalogOf([["OFAC_SDN", `demo-${currentOpen}`]]),
+					(entry) => loadedAt(entry.version, `OFAC_SDN:${currentOpen}`),
+				);
+				if (currentOpen === 1) {
+					return Promise.resolve(source);
+				}
+				return new Promise<BundleSource>((resolve) => {
+					releaseSecondOpen = () => resolve(source);
+				});
+			},
+		});
+
+		await runtime.bootstrap(CONFIG);
+		const reloadPromise = runtime.reload();
+		const screenPromise = runtime.screen(
+			{ name: "OFAC_SDN:2", threshold: 0 },
+			{ swapTimeoutMs: 200 },
+		);
+
+		setTimeout(() => {
+			releaseSecondOpen?.();
+		}, 15);
+
+		const [reloaded, screenResult] = await Promise.all([
+			reloadPromise,
+			screenPromise,
+		]);
+		expect(reloaded.listVersions()).toEqual({ OFAC_SDN: "demo-2" });
+		expect(screenResult.list_versions_used).toEqual({ OFAC_SDN: "demo-2" });
+	});
+
+	it("runtime.screen() rejects fail-closed with SqlSwapTimeoutError when reload exceeds swapTimeoutMs", async () => {
+		let opens = 0;
+		let releaseSecondOpen: (() => void) | undefined;
+		const runtime = new EngineRuntime({
+			makeEmbedder: () => instantEmbedder(),
+			clearCache: () => Promise.resolve(),
+			openBundleSource: () => {
+				opens += 1;
+				const currentOpen = opens;
+				const source = fakeBundleSource(
+					catalogOf([["OFAC_SDN", `demo-${currentOpen}`]]),
+					(entry) => loadedAt(entry.version, `OFAC_SDN:${currentOpen}`),
+				);
+				if (currentOpen === 1) {
+					return Promise.resolve(source);
+				}
+				return new Promise<BundleSource>((resolve) => {
+					releaseSecondOpen = () => resolve(source);
+				});
+			},
+		});
+
+		await runtime.bootstrap(CONFIG);
+		const reloadPromise = runtime.reload();
+
+		await expect(
+			runtime.screen({ name: "OFAC_SDN:2" }, { swapTimeoutMs: 15 }),
+		).rejects.toBeInstanceOf(SqlSwapTimeoutError);
+
+		releaseSecondOpen?.();
+		await reloadPromise;
+	});
+
+	it("runtime.syncUpdate() reloads only when the published version differs from loaded", async () => {
+		const { deps, makeEmbedder } = depsForCatalogs([
+			catalogOf([["OFAC_SDN", "demo-1"]]),
+			catalogOf([["OFAC_SDN", "demo-1"]]),
+			catalogOf([["OFAC_SDN", "demo-2"]]),
+			catalogOf([["OFAC_SDN", "demo-2"]]),
+		]);
+		const runtime = new EngineRuntime(deps);
+		await runtime.bootstrap(CONFIG);
+
+		const unchanged = await runtime.syncUpdate();
+		expect(unchanged).toEqual({ updated: false, version: "OFAC_SDN@demo-1" });
+
+		const changed = await runtime.syncUpdate();
+		expect(changed).toEqual({ updated: true, version: "OFAC_SDN@demo-2" });
+		expect(makeEmbedder).toHaveBeenCalledTimes(1);
 	});
 
 	it("reads the signed catalog before model bootstrap when settings supplies config", async () => {
