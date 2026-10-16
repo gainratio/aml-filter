@@ -106,7 +106,7 @@ describe("live smoke watch: overlapping pointer fetches", () => {
 		await settled();
 		expect(watch.problems).toEqual([]);
 		expect(watch.excused).toEqual([
-			`${POINTER} (net::ERR_ABORTED): 200 br, manifest requested next`,
+			`${POINTER} (net::ERR_ABORTED): 200 br, sole pointer awaiting its manifest`,
 		]);
 	});
 });

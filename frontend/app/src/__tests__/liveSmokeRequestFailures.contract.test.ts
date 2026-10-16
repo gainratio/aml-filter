@@ -277,7 +277,7 @@ describe("RequestLedger: which documents and bundle requests came first", () => 
 	// REVERSED 2026-10-15 (was: the second pointer counts as accepted). With two
 	// pointers in flight, the manifest may be the FIRST one's, so it vouches for
 	// neither: otherwise a stalled overlapping fetch is excused by another fetch's
-	// manifest (e2e-c1/live-smoke-guard.spec.ts, "overlapping pointer").
+	// manifest (src/__tests__/liveSmokeOverlap.guard.test.ts).
 	it("overlapping pointers: one manifest vouches for neither", () => {
 		const ledger = new RequestLedger<object>();
 		const first = {};
@@ -353,7 +353,7 @@ describe("the run log names the proof each excuse relied on", () => {
 		[
 			"accepted compressed body",
 			{ finished: false, contentEncoding: "br", manifestFollowed: true },
-			"200 br, manifest requested next",
+			"200 br, sole pointer awaiting its manifest",
 		],
 		[
 			"Content-Length",

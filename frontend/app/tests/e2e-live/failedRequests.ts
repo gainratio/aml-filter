@@ -122,7 +122,7 @@ export function excuseEvidence(facts: FailedRequestFacts): string {
 	if (facts.abandonedByNavigation) return "abandoned by a later navigation";
 	if (facts.finished) return "requestfinished fired";
 	if (acceptedEncodedBody(facts)) {
-		return `${facts.status} ${facts.contentEncoding}, manifest requested next`;
+		return `${facts.status} ${facts.contentEncoding}, sole pointer awaiting its manifest`;
 	}
 	return `body ${facts.receivedBodyBytes} B == Content-Length`;
 }
@@ -148,6 +148,12 @@ function bundleKind(url: string): BundleKind | null {
  * still waiting for its manifest. With two pointer fetches in flight the
  * manifest may be either one's, so it vouches for neither (and both keep
  * waiting): a stalled overlapping fetch can never borrow another's manifest.
+ *
+ * The limit: crediting is by request order, not by manifest hash (the pointer
+ * body is unreadable here). A manifest request sent WITHOUT its own pointer
+ * fetch would vouch for whichever single pointer is waiting. The app never does
+ * that today: @gainratio/browser 0.4.1 fetches the manifest once per pointer
+ * and never retries it, and each runtime runs its syncs one at a time.
  */
 export class RequestLedger<K extends object> {
 	#navigations = 0;
