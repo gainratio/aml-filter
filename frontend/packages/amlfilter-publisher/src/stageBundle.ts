@@ -142,6 +142,7 @@ async function stageOne(
 	outDir: string,
 	list: StagedList,
 	generatedAt: string,
+	includeSqlite: boolean,
 ): Promise<void> {
 	const expected = list.entities.length * list.dim;
 	if (list.vectors.length !== expected) {
@@ -160,6 +161,18 @@ async function stageOne(
 		join(listDir, "meta.json"),
 		jsonBytes(listMeta(list, generatedAt)),
 	);
+	if (includeSqlite) {
+		const { buildWatchlistSqlite, WATCHLIST_SQLITE_NAME } = await import(
+			"./sqliteBundle.ts"
+		);
+		const sqliteBytes = await buildWatchlistSqlite(list, generatedAt);
+		await writeFile(join(listDir, WATCHLIST_SQLITE_NAME), sqliteBytes);
+	}
+}
+
+export interface StageBundleOptions {
+	/** When true, also emit a canonical 4 KiB page-aligned `<slug>/watchlist.sqlite`. */
+	readonly includeSqlite?: boolean;
 }
 
 /**
@@ -170,10 +183,12 @@ export async function stageBundle(
 	outDir: string,
 	lists: readonly StagedList[],
 	generatedAt: string,
+	options: StageBundleOptions = {},
 ): Promise<void> {
 	await mkdir(outDir, { recursive: true });
+	const includeSqlite = options.includeSqlite ?? false;
 	for (const list of lists) {
-		await stageOne(outDir, list, generatedAt);
+		await stageOne(outDir, list, generatedAt, includeSqlite);
 	}
 	const catalog: BundleCatalog = {
 		schemaVersion: 1,
