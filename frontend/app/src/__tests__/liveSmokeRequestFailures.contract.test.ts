@@ -37,9 +37,10 @@ import {
 // the app read the whole 257-byte signed pointer to end-of-stream. The proofs
 // above cannot see it: production serves the pointer brotli-compressed with no
 // Content-Length, and Playwright reports body size 0 and "No data found". So a
-// content-encoded 2xx pointer is excused only when the page's NEXT bundle
-// request is the manifest: the app fetches `/manifest/<hash>` only after the
-// pointer parsed and its Ed25519 signature verified.
+// content-encoded 2xx pointer is excused only when the app requested the
+// manifest for THAT fetch (it was the only pointer waiting when the manifest
+// was requested): the app fetches `/manifest/<hash>` only after the pointer
+// parsed and its Ed25519 signature verified.
 
 const POINTER = "http://127.0.0.1:5273/bundle/origin/latest";
 
@@ -264,7 +265,7 @@ describe("RequestLedger: which documents and bundle requests came first", () => 
 		expect(ledger.abandoned({})).toBe(false);
 	});
 
-	it("a pointer whose next bundle request is the manifest was accepted", () => {
+	it("a lone pointer followed by a manifest was accepted", () => {
 		const ledger = new RequestLedger<object>();
 		const pointer = {};
 		ledger.note(pointer, at("/bundle/origin/latest").url, false);
@@ -273,7 +274,11 @@ describe("RequestLedger: which documents and bundle requests came first", () => 
 		expect(ledger.manifestFollowed(pointer)).toBe(true);
 	});
 
-	it("a pointer followed by another pointer first was not", () => {
+	// REVERSED 2026-10-15 (was: the second pointer counts as accepted). With two
+	// pointers in flight, the manifest may be the FIRST one's, so it vouches for
+	// neither: otherwise a stalled overlapping fetch is excused by another fetch's
+	// manifest (src/__tests__/liveSmokeOverlap.guard.test.ts).
+	it("overlapping pointers: one manifest vouches for neither", () => {
 		const ledger = new RequestLedger<object>();
 		const first = {};
 		const second = {};
@@ -281,7 +286,40 @@ describe("RequestLedger: which documents and bundle requests came first", () => 
 		ledger.note(second, at("/bundle/origin/latest").url, false);
 		ledger.note({}, at("/bundle/origin/manifest/ab12").url, false);
 		expect(ledger.manifestFollowed(first)).toBe(false);
+		expect(ledger.manifestFollowed(second)).toBe(false);
+	});
+
+	it("sequential pointers each get their own manifest", () => {
+		const ledger = new RequestLedger<object>();
+		const first = {};
+		const second = {};
+		ledger.note(first, at("/bundle/origin/latest").url, false);
+		ledger.note({}, at("/bundle/origin/manifest/ab12").url, false);
+		ledger.note(second, at("/bundle/origin/latest").url, false);
+		ledger.note({}, at("/bundle/origin/manifest/ab12").url, false);
+		expect(ledger.manifestFollowed(first)).toBe(true);
 		expect(ledger.manifestFollowed(second)).toBe(true);
+	});
+
+	it("a pointer still waiting after an ambiguous manifest blocks the next one", () => {
+		const ledger = new RequestLedger<object>();
+		ledger.note({}, at("/bundle/origin/latest").url, false);
+		ledger.note({}, at("/bundle/origin/latest").url, false);
+		ledger.note({}, at("/bundle/origin/manifest/ab12").url, false);
+		const third = {};
+		ledger.note(third, at("/bundle/origin/latest").url, false);
+		ledger.note({}, at("/bundle/origin/manifest/ab12").url, false);
+		expect(ledger.manifestFollowed(third)).toBe(false);
+	});
+
+	it("a navigation forgets the previous document's waiting pointers", () => {
+		const ledger = new RequestLedger<object>();
+		ledger.note({}, at("/bundle/origin/latest").url, false);
+		ledger.note({}, `${ORIGIN}/settings`, true);
+		const pointer = {};
+		ledger.note(pointer, at("/bundle/origin/latest").url, false);
+		ledger.note({}, at("/bundle/origin/manifest/ab12").url, false);
+		expect(ledger.manifestFollowed(pointer)).toBe(true);
 	});
 
 	it("a pointer with no later manifest, or only an earlier one, was not", () => {
@@ -315,7 +353,7 @@ describe("the run log names the proof each excuse relied on", () => {
 		[
 			"accepted compressed body",
 			{ finished: false, contentEncoding: "br", manifestFollowed: true },
-			"200 br, manifest requested next",
+			"200 br, sole pointer awaiting its manifest",
 		],
 		[
 			"Content-Length",
