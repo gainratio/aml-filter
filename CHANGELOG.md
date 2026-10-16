@@ -8,6 +8,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **An overlapping pointer fetch that stalls can no longer borrow another fetch's
+  manifest to pass the live smoke.** The excuse for a compressed `latest` pointer
+  reported as `ERR_ABORTED` needed "the next bundle request is a manifest"; with two
+  pointer fetches in flight, the first one's manifest vouched for the second, stalled
+  one. A manifest now vouches for a pointer only when it is the one fetch still
+  waiting for its manifest; with two waiting it vouches for neither. The watch moved
+  to `tests/e2e-live/requestWatch.ts` so `liveSmokeOverlap.guard.test.ts` can drive
+  it with that exact event order (red before, green after). `@fresh` against
+  production stays green.
+
 - **The post-deploy live smoke no longer rolls production back over a pointer
   request the browser reports as aborted.** Chromium logs `net::ERR_ABORTED` for the
   sync worker's fully read `/bundle/origin/latest` on most page loads, and the smoke's

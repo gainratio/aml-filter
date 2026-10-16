@@ -1,5 +1,5 @@
 import { createPrivateKey, createPublicKey } from "node:crypto";
-import { expect, type Page, type Request } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /**
  * The post-deploy LIVE smoke — what a real visitor's browser sees on the
@@ -20,14 +20,8 @@ import { expect, type Page, type Request } from "@playwright/test";
  */
 
 import { isExcusedConsoleError } from "./consoleNoise";
-import {
-	excuseEvidence,
-	type FailedRequestFacts,
-	isExcusedFailedRequest,
-	parseContentLength,
-	RequestLedger,
-} from "./failedRequests";
 import { LIST_PROBES, type ListProbe, reviewBadgePattern } from "./probes";
+import { watchFailedRequests } from "./requestWatch";
 
 export { type ListProbe, SCREEN_PROBE } from "./probes";
 
@@ -57,66 +51,6 @@ export interface ConsoleWatch {
 	settled(): Promise<void>;
 }
 
-/** The encoded body size Playwright received, or `null` when it cannot say. */
-async function receivedBodyBytes(request: Request): Promise<number | null> {
-	const sizes = await request.sizes().catch(() => null);
-	return sizes?.responseBodySize ?? null;
-}
-
-/** Read what Playwright knows about a failed request. `manifestFollowed` is
- * read at settle time, once the app has had its chance to request the manifest. */
-async function failedRequestFacts(
-	request: Request,
-	finished: ReadonlySet<Request>,
-	abandonedByNavigation: boolean,
-	ledger: RequestLedger<Request>,
-): Promise<FailedRequestFacts> {
-	const response = await request.response().catch(() => null);
-	return {
-		url: request.url(),
-		errorText: request.failure()?.errorText ?? "unknown",
-		status: response?.status() ?? null,
-		finished: finished.has(request),
-		receivedBodyBytes:
-			response === null ? null : await receivedBodyBytes(request),
-		contentLength: parseContentLength(response?.headers()["content-length"]),
-		contentEncoding: response?.headers()["content-encoding"] ?? null,
-		abandonedByNavigation,
-		manifestFollowed: ledger.manifestFollowed(request),
-	};
-}
-
-/** A failed same-origin request, held until the watch settles. */
-interface FailedRequest {
-	readonly request: Request;
-	/** Captured when it failed, so a later navigation can never excuse it. */
-	readonly abandonedByNavigation: boolean;
-}
-
-/** Add each failed request to `problems` unless it is the excused pointer
- * request (see failedRequests.ts). */
-async function recordFailedRequests(
-	failed: ReadonlyArray<FailedRequest>,
-	finished: ReadonlySet<Request>,
-	ledger: RequestLedger<Request>,
-	watch: ConsoleWatch,
-): Promise<void> {
-	for (const { request, abandonedByNavigation } of failed) {
-		const facts = await failedRequestFacts(
-			request,
-			finished,
-			abandonedByNavigation,
-			ledger,
-		);
-		const line = `${request.url()} (${facts.errorText})`;
-		if (isExcusedFailedRequest(facts)) {
-			watch.excused.push(`${line}: ${excuseEvidence(facts)}`);
-		} else {
-			watch.problems.push(`requestfailed: ${line}`);
-		}
-	}
-}
-
 /** The page's origin, or "null" before it has one (about:blank). */
 function pageOrigin(page: Page): string {
 	try {
@@ -141,26 +75,12 @@ function trackNavigation(page: Page): () => boolean {
 	return () => navigating;
 }
 
-function isMainFrameNavigation(page: Page, request: Request): boolean {
-	return request.isNavigationRequest() && request.frame() === page.mainFrame();
-}
-
-/** Every request the page starts, in order (see RequestLedger). */
-function trackRequests(page: Page): RequestLedger<Request> {
-	const ledger = new RequestLedger<Request>();
-	page.on("request", (request) => {
-		ledger.note(request, request.url(), isMainFrameNavigation(page, request));
-	});
-	return ledger;
-}
-
 /** Record every console error, uncaught exception, and failed same-origin
  * request for the lifetime of the page (see consoleNoise.ts for the one
  * excused WebKit line). */
 export function watchConsole(page: Page): ConsoleWatch {
 	const problems: string[] = [];
 	const duringNavigation = trackNavigation(page);
-	const ledger = trackRequests(page);
 	page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
 	page.on("console", (message) => {
 		if (message.type() !== "error") return;
@@ -173,27 +93,9 @@ export function watchConsole(page: Page): ConsoleWatch {
 			problems.push(`console.error: ${facts.text}`);
 		}
 	});
-	const failed: FailedRequest[] = [];
-	const finished = new Set<Request>();
-	page.on("requestfinished", (request) => finished.add(request));
-	page.on("requestfailed", (request) => {
-		const origin = new URL(page.url() || request.url()).origin;
-		if (request.url().startsWith(origin)) {
-			failed.push({
-				request,
-				abandonedByNavigation: ledger.abandoned(request),
-			});
-		}
-	});
-	const watch: ConsoleWatch = {
-		problems,
-		excused: [],
-		settled: async () => {
-			const settling = failed.splice(0);
-			await recordFailedRequests(settling, finished, ledger, watch);
-		},
-	};
-	return watch;
+	const excused: string[] = [];
+	const settled = watchFailedRequests(page, { problems, excused });
+	return { problems, excused, settled };
 }
 
 /** A first visit to the workstation asks for an analyst name (stored only in

@@ -30,8 +30,8 @@
  * such abort land in the same millisecond the app read the whole signed pointer
  * to end-of-stream: Chromium's reporting, not a cancel by the app (its only
  * abort is a 30 s stall watchdog). So a 2xx pointer with an allowlisted
- * Content-Encoding is excused only when the page's NEXT bundle request is the
- * manifest. The app requests `/manifest/<hash>` only after the pointer parsed
+ * Content-Encoding is excused only when the app requested the manifest for
+ * that very fetch (see RequestLedger). The app requests `/manifest/<hash>` only after the pointer parsed
  * and its Ed25519 signature verified; a pointer it did not accept (stalled,
  * truncated, tampered) is never followed by one.
  */
@@ -52,7 +52,7 @@ export interface FailedRequestFacts {
 	readonly contentEncoding: string | null;
 	/** True when a main-frame navigation started after this request did. */
 	readonly abandonedByNavigation: boolean;
-	/** True when the page's next bundle request after this one was a manifest. */
+	/** True when the app requested the manifest for this very pointer fetch. */
 	readonly manifestFollowed: boolean;
 }
 
@@ -138,42 +138,49 @@ function bundleKind(url: string): BundleKind | null {
 		: null;
 }
 
-interface Started {
-	readonly navigations: number;
-	readonly bundleIndex: number | null;
-}
-
 /**
  * The order the page issued requests in, kept free of Playwright (keys are the
  * caller's request objects). It answers two questions about a failed request:
- * did a later main-frame navigation abandon it, and was the next bundle request
- * after a pointer the manifest (the app accepted that pointer).
+ * did a later main-frame navigation abandon it, and did the app go on to request
+ * the manifest for THAT pointer fetch (the app accepted it).
+ *
+ * A manifest vouches for a pointer only when that pointer is the one fetch
+ * still waiting for its manifest. With two pointer fetches in flight the
+ * manifest may be either one's, so it vouches for neither (and both keep
+ * waiting): a stalled overlapping fetch can never borrow another's manifest.
  */
 export class RequestLedger<K extends object> {
 	#navigations = 0;
-	readonly #bundle: BundleKind[] = [];
-	readonly #started = new WeakMap<K, Started>();
+	readonly #startedAt = new WeakMap<K, number>();
+	readonly #waiting = new Set<K>();
+	readonly #accepted = new WeakSet<K>();
 
 	/** Record a request as it starts. */
 	public note(key: K, url: string, isMainFrameNavigation: boolean): void {
-		if (isMainFrameNavigation) this.#navigations += 1;
+		if (isMainFrameNavigation) {
+			this.#navigations += 1;
+			this.#waiting.clear();
+		}
+		this.#startedAt.set(key, this.#navigations);
 		const kind = bundleKind(url);
-		if (kind !== null) this.#bundle.push(kind);
-		this.#started.set(key, {
-			navigations: this.#navigations,
-			bundleIndex: kind === null ? null : this.#bundle.length - 1,
-		});
+		if (kind === "pointer") this.#waiting.add(key);
+		if (kind === "manifest") this.#creditSoleWaitingPointer();
+	}
+
+	#creditSoleWaitingPointer(): void {
+		if (this.#waiting.size !== 1) return;
+		for (const pointer of this.#waiting) this.#accepted.add(pointer);
+		this.#waiting.clear();
 	}
 
 	/** True when a main-frame navigation began after this request started. */
 	public abandoned(key: K): boolean {
-		const started = this.#started.get(key);
-		return started !== undefined && started.navigations < this.#navigations;
+		const started = this.#startedAt.get(key);
+		return started !== undefined && started < this.#navigations;
 	}
 
-	/** True when the next bundle request after this one was a manifest. */
+	/** True when the app requested the manifest for this pointer fetch. */
 	public manifestFollowed(key: K): boolean {
-		const index = this.#started.get(key)?.bundleIndex;
-		return index != null && this.#bundle[index + 1] === "manifest";
+		return this.#accepted.has(key);
 	}
 }
