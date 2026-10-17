@@ -175,11 +175,15 @@ The boot + screen flow:
    public key), then fetches the content-addressed `manifest/<hash>` and verifies it
    hashes to the signed `manifest_hash`. The signed pointer is the trust anchor:
    verify-before-parse, top to bottom.
-2. **Delta-sync + content-verify the chunks.** It diffs the manifest's chunk set against
-   the durable browser store and fetches only the missing `chunk/<hash>` files,
-   verifying each chunk hashes to its name and each reassembled file hashes to its
+2. **Delta-sync + content-verify the chunks.** It diffs the manifest's Gear-CDC chunk
+   set against the durable browser store and fetches only the missing `chunk/<hash>`
+   files, verifying each chunk hashes to its name and each reassembled file hashes to its
    `file_sha256`. Any signature or hash mismatch aborts the load — there is no fallback
-   to unverified bytes.
+   to unverified bytes. The resulting `SyncResult` (`version`, `manifestHash`,
+   `chunksFetched`, `chunksReused`, `bytesFetched`) is exposed via
+   `ScreeningEngine.syncStats()` and rendered on `/screen` (`Cached (N chunks reused)` or
+   `Patch applied (X new · Y cached)`), with an interactive **Check for watchlist update**
+   trigger (`checkForWatchlistUpdate()`) alongside the 30-minute background poller.
 3. **Materialize + decode.** The verified bundle is materialized into `catalog.json` +
    per-list `{entities.jsonl, vectors.f32, meta.json}` files;
    `buildLoadedFromBundleFiles` (`engine/watchlist.ts`) reconstructs the Float32 vector

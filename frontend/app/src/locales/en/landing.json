@@ -39,7 +39,7 @@
 		},
 		"local": {
 			"title": "Local",
-			"body": "Backend-free and in-tab. The model and the signed bundle download once and are then cached, so screening itself never calls a server. Loading the page does need a network connection — there is no offline mode."
+			"body": "Backend-free and in-tab. The model and the signed bundle download once and are then cached; daily watchlist updates fetch only changed Gear-CDC chunks and reuse cached chunks, so screening itself never calls a server. Loading the page does need a network connection — there is no offline mode."
 		},
 		"verifiable": {
 			"title": "Verifiable",
@@ -50,9 +50,9 @@
 		"ariaLabel": "How it works",
 		"title": "How it works",
 		"steps": {
-			"sync": "sync the signed bundle",
+			"sync": "delta-sync the signed Gear-CDC bundle",
 			"verify": "verify ed25519 + sha-256 in-tab (fail-closed)",
-			"load": "load MiniLM once",
+			"load": "load MiniLM + per-list SQLite",
 			"embed": "normalize + embed the query",
 			"score": "transparent weighted scoring",
 			"rank": "ranked matches with per-signal reasons"
