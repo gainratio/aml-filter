@@ -33,6 +33,7 @@ export {
 	type BundleEngineClient,
 	type BundleSource,
 	type BundleSourceDeps,
+	type BundleSyncStats,
 	CLEAR_BUNDLE_STORE_TIMEOUT_MS,
 	clearBundleStore,
 	openBundleSource,

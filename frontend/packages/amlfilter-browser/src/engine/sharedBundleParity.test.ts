@@ -102,7 +102,12 @@ function committedPointer(): VersionPointer {
 }
 
 const SLUGS = ["ofac", "eu", "un", "uk"] as const;
-const PER_LIST_FILES = ["entities.jsonl", "vectors.f32", "meta.json"] as const;
+const PER_LIST_FILES = [
+	"entities.jsonl",
+	"vectors.f32",
+	"meta.json",
+	"watchlist.sqlite",
+] as const;
 const EXPECTED_FILES = [
 	"catalog.json",
 	...SLUGS.flatMap((slug) => PER_LIST_FILES.map((f) => `${slug}/${f}`)),

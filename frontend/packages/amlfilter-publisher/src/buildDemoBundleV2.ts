@@ -138,6 +138,7 @@ async function main(): Promise<void> {
 		staged.push(await buildStagedList(list));
 	}
 	await stageBundle(STAGING, staged, DEMO_GENERATED_AT);
+	await rm(ORIGIN, { recursive: true, force: true });
 	await publishBundle({
 		srcDir: STAGING,
 		originDir: ORIGIN,

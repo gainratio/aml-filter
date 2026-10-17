@@ -186,7 +186,7 @@ export async function stageBundle(
 	options: StageBundleOptions = {},
 ): Promise<void> {
 	await mkdir(outDir, { recursive: true });
-	const includeSqlite = options.includeSqlite ?? false;
+	const includeSqlite = options.includeSqlite ?? true;
 	for (const list of lists) {
 		await stageOne(outDir, list, generatedAt, includeSqlite);
 	}

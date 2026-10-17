@@ -162,6 +162,9 @@ test("a new bundle version fetches ONLY the changed chunks, reusing the rest fro
 	// --- 1. cold boot on the committed v1 bundle: warm OPFS with the v1 chunks ---
 	await page.goto("/screen", { waitUntil: "domcontentloaded" });
 	await bootToReady(page);
+	await expect(page.getByTestId("screen-sync-status")).toContainText(
+		/Signed watchlist synced/i,
+	);
 
 	const search = page.getByPlaceholder("Search a name, e.g. Ivan Fakovich");
 
@@ -194,6 +197,9 @@ test("a new bundle version fetches ONLY the changed chunks, reusing the rest fro
 	// --- 3. reload → the engine re-syncs against the new signed /latest (demo-2) ---
 	await page.reload({ waitUntil: "domcontentloaded" });
 	await bootToReady(page);
+	await expect(page.getByTestId("screen-sync-status")).toContainText(
+		/Watchlist patch applied/i,
+	);
 
 	// --- 4. ASSERT the delta precisely ---
 	const fetchedSet = new Set(fetchedChunks);

@@ -223,6 +223,12 @@ const observedDobs: Array<string | undefined> = [];
 // copy promises OFAC screening, and loading every signed list on iOS can exceed
 // Safari's tab/WASM memory ceiling before the model is ready.
 const observedSelections: Array<unknown> = [];
+let mockSyncStats: {
+	readonly version: string;
+	readonly chunksFetched: number;
+	readonly chunksReused: number;
+	readonly bytesFetched: number;
+} | null = null;
 
 // The page builds its own EngineRuntime; mock the module so the test drives a
 // deterministic engine with no Worker/bundle/model.
@@ -231,6 +237,9 @@ vi.mock("@amlfilter/browser", async (importActual) => {
 	// exactly as the engine's trigram does — only the runtime/engine is faked.
 	const actual = await importActual<typeof import("@amlfilter/browser")>();
 	class EngineRuntime {
+		syncStats() {
+			return mockSyncStats;
+		}
 		// The real runtime always exposes this, and /screen reads it to state the
 		// age of the list it screens against. A mock without it would leave the page
 		// permanently reporting "age unknown".
@@ -446,6 +455,7 @@ afterEach(() => {
 	observedThresholds.length = 0;
 	observedDobs.length = 0;
 	observedSelections.length = 0;
+	mockSyncStats = null;
 });
 
 // Wait until the search box is enabled (boot resolved) and return it.
@@ -861,5 +871,52 @@ describe("ScreenPage — a capped result list says so", () => {
 			).toHaveLength(SEARCH_K - 1),
 		);
 		expect(document.querySelector(".screen-results__capped")).toBeNull();
+	});
+});
+
+describe("ScreenPage — watchlist delta-sync status line", () => {
+	it("shows 'Watchlist patch applied' when chunks were both fetched and reused", async () => {
+		mockSyncStats = {
+			version: "demo-2",
+			chunksFetched: 4,
+			chunksReused: 46,
+			bytesFetched: 131_072,
+		};
+		render(<ScreenPage />);
+		await readyBox();
+		const line = await waitFor(() => screen.getByTestId("screen-sync-status"));
+		expect(line.textContent).toBe(
+			"Watchlist patch applied · 4 chunks updated, 46 cached chunks reused",
+		);
+	});
+
+	it("shows 'Cached watchlist verified' when 0 chunks were fetched", async () => {
+		mockSyncStats = {
+			version: "demo-1",
+			chunksFetched: 0,
+			chunksReused: 50,
+			bytesFetched: 0,
+		};
+		render(<ScreenPage />);
+		await readyBox();
+		const line = await waitFor(() => screen.getByTestId("screen-sync-status"));
+		expect(line.textContent).toBe(
+			"Cached watchlist verified · 50 chunks reused (0 B fetched)",
+		);
+	});
+
+	it("shows 'Signed watchlist synced' on a cold sync", async () => {
+		mockSyncStats = {
+			version: "demo-1",
+			chunksFetched: 50,
+			chunksReused: 0,
+			bytesFetched: 2_800_000,
+		};
+		render(<ScreenPage />);
+		await readyBox();
+		const line = await waitFor(() => screen.getByTestId("screen-sync-status"));
+		expect(line.textContent).toBe(
+			"Signed watchlist synced · 50 chunks verified",
+		);
 	});
 });
