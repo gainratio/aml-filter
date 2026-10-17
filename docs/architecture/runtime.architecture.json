@@ -9,9 +9,9 @@
     "views": [
       {
         "id": "trusted-data",
-        "label": "Trusted list delivery",
+        "label": "Trusted list delivery & delta sync",
         "focus": ["official_lists", "publisher", "static_origin", "sync_worker", "bundle_cache"],
-        "note": "Official feeds become signed content-addressed bytes, then are verified again in the browser."
+        "note": "Official feeds become signed Gear-CDC chunks; browsers delta-sync only changed chunks and verify every hash."
       },
       {
         "id": "screening-path",
@@ -40,7 +40,7 @@
       "id": "publisher",
       "type": "backend",
       "label": "List Publisher",
-      "sublabel": "Build + sign",
+      "sublabel": "Gear-CDC + sign",
       "pos": [165, 320],
       "size": [125, 72]
     },
@@ -56,7 +56,7 @@
       "id": "sync_worker",
       "type": "security",
       "label": "Verify + Sync Worker",
-      "sublabel": "Signed + hashed",
+      "sublabel": "Verify + delta sync",
       "tag": "fail closed",
       "pos": [470, 320],
       "size": [130, 72]
@@ -65,7 +65,7 @@
       "id": "bundle_cache",
       "type": "database",
       "label": "Verified List Cache",
-      "sublabel": "Durable OPFS / IDB",
+      "sublabel": "Cached CDC chunks",
       "pos": [625, 320],
       "size": [130, 72]
     },
@@ -90,7 +90,7 @@
       "id": "react_app",
       "type": "frontend",
       "label": "React Workstation",
-      "sublabel": "Screen + review",
+      "sublabel": "Screen + delta UI",
       "pos": [1090, 320],
       "size": [130, 72]
     },
@@ -122,7 +122,7 @@
   "connections": [
     { "id": "sources_ingest", "from": "official_lists", "to": "publisher", "label": "raw feeds", "variant": "emphasis", "labelAt": [153, 415] },
     { "id": "publisher_emits", "from": "publisher", "to": "static_origin", "label": "signed bundle", "variant": "emphasis", "labelAt": [303, 415] },
-    { "id": "origin_serves", "from": "static_origin", "to": "sync_worker", "label": "immutable bytes", "labelAt": [458, 415] },
+    { "id": "origin_serves", "from": "static_origin", "to": "sync_worker", "label": "changed chunks", "labelAt": [458, 415] },
     { "id": "worker_promotes", "from": "sync_worker", "to": "bundle_cache", "label": "verified chunks", "variant": "security", "labelAt": [613, 415] },
     { "id": "cache_materializes", "from": "bundle_cache", "to": "runtime", "label": "one immutable list", "labelAt": [768, 415] },
     { "id": "runtime_builds", "from": "runtime", "to": "screening_engine", "label": "ids + cosine", "variant": "emphasis", "labelAt": [923, 415] },
@@ -134,8 +134,8 @@
   "cards": [
     {
       "dot": "rose",
-      "title": "Verify before parse",
-      "items": ["The signed pointer anchors the content-addressed manifest", "Fetched and cached chunks are hash-checked before use"]
+      "title": "Verify & Gear-CDC delta sync",
+      "items": ["The signed pointer anchors the content-addressed manifest", "Daily updates fetch only changed chunks and re-verify cached bytes"]
     },
     {
       "dot": "emerald",
