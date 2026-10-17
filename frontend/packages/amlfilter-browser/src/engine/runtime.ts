@@ -19,6 +19,7 @@ import type { OnSyncProgress, SyncProgress } from "./bundleProgress";
 import {
 	type BundleSource,
 	type BundleSourceDeps,
+	type BundleSyncStats,
 	clearBundleStore,
 	openBundleSource,
 } from "./bundleSource";
@@ -472,6 +473,7 @@ export class EngineRuntime {
 	#reloadPromise: Promise<MultiListScreeningEngine> | null = null;
 	#ready: MultiListScreeningEngine | null = null;
 	#version: string | null = null;
+	#syncStats: BundleSyncStats | null = null;
 	// Captured on the first successful bootstrap so reload() can re-fetch the
 	// watchlist with the same pinned key and reuse the already-warm embedder
 	// (no second ~23 MB model download).
@@ -513,6 +515,11 @@ export class EngineRuntime {
 	 * bootstrap — for the rescan path to compare against a cheap manifest poll. */
 	public version(): string | null {
 		return this.#version;
+	}
+
+	/** Delta-sync statistics from the most recent bundle open, or null before bootstrap. */
+	public syncStats(): BundleSyncStats | null {
+		return this.#syncStats;
 	}
 
 	/**
@@ -592,6 +599,7 @@ export class EngineRuntime {
 			this.#generation += 1;
 			const source = this.#bundleSource;
 			this.#bundleSource = null;
+			this.#syncStats = null;
 			// Evict the active sync Worker before clearCache opens its temporary
 			// worker, keeping the peak worker/WASM footprint bounded on mobile.
 			await this.#disposeBundleSource(source);
@@ -628,6 +636,7 @@ export class EngineRuntime {
 			this.#generation += 1;
 			const source = this.#bundleSource;
 			this.#bundleSource = null;
+			this.#syncStats = null;
 			await this.#disposeBundleSource(source);
 			await this.#ready?.disposeWhenIdle();
 			this.#ready = null;
@@ -992,6 +1001,10 @@ export class EngineRuntime {
 					this.#onSyncProgress,
 					this.#selection.enabledLists,
 				)
+				.then((source) => {
+					this.#syncStats = source.syncStats?.() ?? null;
+					return source;
+				})
 				.catch((error: unknown) => {
 					this.#bundleSource = null;
 					throw error;

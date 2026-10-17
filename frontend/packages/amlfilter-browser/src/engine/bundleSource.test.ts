@@ -634,3 +634,36 @@ describe("clearBundleStore — clears without syncing first", () => {
 		expect(source.version()).toBe(latest.version);
 	});
 });
+
+describe("openBundleSource — syncStats delta accounting", () => {
+	it("distinguishes cold sync, cached reuse, and incremental delta patch", async () => {
+		const { deps } = memoryClient();
+
+		// 1. Cold boot scoped to OFAC_SDN: fetches chunks, reuses 0 (phase 1's catalog
+		// chunk is not double-counted as reused in phase 2).
+		const cold = await openBundleSource("/o", PUBKEY_URL, deps, undefined, [
+			"OFAC_SDN",
+		]);
+		const coldStats = cold.syncStats?.();
+		expect(coldStats).toBeDefined();
+		expect(coldStats?.chunksFetched).toBeGreaterThan(0);
+		expect(coldStats?.chunksReused).toBe(0);
+		expect(coldStats?.bytesFetched).toBeGreaterThan(0);
+
+		// 2. Warm boot on the same selection: 0 chunks fetched, all chunks reused.
+		const warm = await openBundleSource("/o", PUBKEY_URL, deps, undefined, [
+			"OFAC_SDN",
+		]);
+		const warmStats = warm.syncStats?.();
+		expect(warmStats?.chunksFetched).toBe(0);
+		expect(warmStats?.chunksReused).toBe(coldStats?.chunksFetched);
+		expect(warmStats?.bytesFetched).toBe(0);
+
+		// 3. Delta / incremental sync expanding to all lists: reuses OFAC + catalog
+		// chunks and fetches only the remaining lists' chunks.
+		const delta = await openBundleSource("/o", PUBKEY_URL, deps);
+		const deltaStats = delta.syncStats?.();
+		expect(deltaStats?.chunksFetched).toBeGreaterThan(0);
+		expect(deltaStats?.chunksReused).toBe(coldStats?.chunksFetched);
+	});
+});

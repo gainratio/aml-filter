@@ -23,6 +23,11 @@
 		"staleWithReason": "{{list}} · Not updated for {{age}} — {{reason}}",
 		"ageUnknown": "{{list}} · Age unknown — this list cannot say when it was last refreshed"
 	},
+	"sync": {
+		"patchApplied": "Watchlist patch applied · {{fetched}} chunks updated, {{reused}} cached chunks reused",
+		"cached": "Cached watchlist verified · {{reused}} chunks reused (0 B fetched)",
+		"initial": "Signed watchlist synced · {{fetched}} chunks verified"
+	},
 	"dob": {
 		"label": "Date of birth (optional)"
 	},

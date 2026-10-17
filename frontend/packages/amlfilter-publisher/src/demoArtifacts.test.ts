@@ -45,15 +45,19 @@ const EXPECTED_FILES = [
 	"eu/entities.jsonl",
 	"eu/meta.json",
 	"eu/vectors.f32",
+	"eu/watchlist.sqlite",
 	"ofac/entities.jsonl",
 	"ofac/meta.json",
 	"ofac/vectors.f32",
+	"ofac/watchlist.sqlite",
 	"uk/entities.jsonl",
 	"uk/meta.json",
 	"uk/vectors.f32",
+	"uk/watchlist.sqlite",
 	"un/entities.jsonl",
 	"un/meta.json",
 	"un/vectors.f32",
+	"un/watchlist.sqlite",
 ] as const;
 
 interface VersionPointer {

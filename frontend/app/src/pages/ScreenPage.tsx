@@ -1,5 +1,6 @@
 import {
 	type BootStage,
+	type BundleSyncStats,
 	type CatalogListInfo,
 	configFromEnv,
 	EngineRuntime,
@@ -235,6 +236,40 @@ function ListAges({
 	);
 }
 
+/** Shows whether the watchlist bundle was delta-patched, served from local cache,
+ * or freshly synced from origin. */
+function SyncStatusLine({
+	stats,
+	t,
+}: {
+	readonly stats: BundleSyncStats | null;
+	readonly t: TFunction;
+}) {
+	if (
+		stats === null ||
+		(stats.chunksFetched === 0 && stats.chunksReused === 0)
+	) {
+		return null;
+	}
+	const text =
+		stats.chunksFetched > 0 && stats.chunksReused > 0
+			? t("sync.patchApplied", {
+					fetched: stats.chunksFetched,
+					reused: stats.chunksReused,
+				})
+			: stats.chunksFetched === 0
+				? t("sync.cached", { reused: stats.chunksReused })
+				: t("sync.initial", { fetched: stats.chunksFetched });
+	return (
+		<p
+			className="screen-list-age screen-sync-status"
+			data-testid="screen-sync-status"
+		>
+			{text}
+		</p>
+	);
+}
+
 /** Says which lists the search covers. On a phone that starts US-only, it offers
  * the one-tap switch to every list and says what that costs. */
 function ScopeLine({
@@ -348,6 +383,7 @@ export function ScreenPage() {
 	const [catalog, setCatalog] = useState<
 		ReadonlyArray<CatalogListInfo> | null | undefined
 	>(undefined);
+	const [syncStats, setSyncStats] = useState<BundleSyncStats | null>(null);
 	// The screen in flight, so a new query waits for it and a superseded one is
 	// skipped rather than queued (a streaming search takes seconds).
 	const inflight = useRef<Promise<void>>(Promise.resolve());
@@ -427,6 +463,7 @@ export function ScreenPage() {
 					return;
 				}
 				setEntities(runtime.engine()?.allEntities() ?? []);
+				setSyncStats(runtime.syncStats?.() ?? null);
 				setPhase({ kind: "ready" });
 				// The signed catalog already carries each list's age; read it so the
 				// page can state it. Failing to read it is NOT fatal to screening —
@@ -462,6 +499,7 @@ export function ScreenPage() {
 		setPhase({ kind: "booting", stage: { kind: "downloading" } });
 		// Forget the previous attempt's age: re-reading it is part of re-booting.
 		setCatalog(undefined);
+		setSyncStats(null);
 		setBootNonce((n) => n + 1);
 	}, []);
 
@@ -479,6 +517,7 @@ export function ScreenPage() {
 			.then(() => {
 				if (alive.current) {
 					setEntities(runtime.engine()?.allEntities() ?? []);
+					setSyncStats(runtime.syncStats?.() ?? null);
 					setPhase({ kind: "ready" });
 				}
 			})
@@ -584,6 +623,7 @@ export function ScreenPage() {
 						t={t}
 					/>
 					<ListAges catalog={catalog} scope={scope} t={t} />
+					<SyncStatusLine stats={syncStats} t={t} />
 				</>
 			)}
 

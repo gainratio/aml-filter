@@ -258,6 +258,14 @@ export async function clearBundleStore(
 	}
 }
 
+/** Delta-sync statistics from the most recent two-phase bundle open. */
+export interface BundleSyncStats {
+	readonly version: string;
+	readonly chunksFetched: number;
+	readonly chunksReused: number;
+	readonly bytesFetched: number;
+}
+
 /** A synced bundle, exposing the SAME catalog + per-list loaders the runtime's
  * JSON path exposes — but reading from the materialized, content-verified store. */
 export interface BundleSource {
@@ -272,6 +280,8 @@ export interface BundleSource {
 	): Promise<LoadedWatchlistMetadata>;
 	/** The promoted bundle version (the signed `/latest` pointer's version). */
 	version(): string;
+	/** Delta-sync chunk/byte statistics from opening this bundle source. */
+	syncStats?(): BundleSyncStats;
 	/** Drop the durable store (every chunk + manifest + the active pointer) — the
 	 * "Clear cached lists" affordance; the next sync re-fetches + re-verifies. */
 	clear(): Promise<void>;
@@ -312,7 +322,7 @@ export async function openBundleSource(
 		// gate. Splitting the FETCH did not split the VERIFY. Phase two costs one
 		// extra pointer fetch (256 bytes); its manifest request is a conditional GET
 		// against an immutable content-addressed URL.
-		await client.sync(baseUrl, pubkeyUrl, {
+		const phase1 = await client.sync(baseUrl, pubkeyUrl, {
 			expectedBundleId: null,
 			expectedChannel: null,
 			wantedPaths: [CATALOG_PATH],
@@ -336,6 +346,14 @@ export async function openBundleSource(
 			indexedDbLayout: INDEXED_DB_LAYOUT,
 			...(progress === undefined ? {} : { onProgress: progress }),
 		});
+		const phase1Total = phase1.chunksFetched + phase1.chunksReused;
+		const stats: BundleSyncStats = {
+			version: result.version,
+			chunksFetched: phase1.chunksFetched + result.chunksFetched,
+			chunksReused:
+				phase1.chunksReused + Math.max(0, result.chunksReused - phase1Total),
+			bytesFetched: phase1.bytesFetched + result.bytesFetched,
+		};
 
 		const loadList = async (
 			entry: WatchlistCatalogEntry,
@@ -392,6 +410,7 @@ export async function openBundleSource(
 			loadList,
 			loadListMetadata,
 			version: () => result.version,
+			syncStats: () => stats,
 			clear: async () => {
 				// Release this source's Worker (and its storage handles) BEFORE the
 				// clear's own Worker takes the sync lock.
