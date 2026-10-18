@@ -204,8 +204,8 @@ interface ReceiptStatusChipProps {
  * receipt-ui's StatusPill (live status region, aria-hidden icon + word label —
  * WCAG 1.4.1), but with the label routed through i18next. Composed over the
  * library's public `useReceiptVerification` hook instead of `ReceiptBadge` so
- * every app-rendered string stays translatable; receipt-ui 0.1.0 has no
- * label-injection API (0.2.0 adoption is tracked in docs/ARCHITECTURE.md).
+ * every app-rendered string stays translatable; receipt-ui 0.3.0's injectable
+ * panel labels are not yet wired here (tracked in docs/ARCHITECTURE.md).
  */
 function ReceiptStatusChip({ status, t }: ReceiptStatusChipProps) {
 	return (

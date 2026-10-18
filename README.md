@@ -57,12 +57,14 @@ quietly showing no matches. Names are then matched inside the browser tab by mea
 Your customers and decisions are saved in your browser's own storage, not on a server.
 
 While the app is open, it checks for a newer list every 30 minutes (or right away when
-you click **Check for watchlist update** on the Screen page). Because the lists are
+you click **Check for updates** on the Customers page). Because the lists are
 split into content-addressed chunks, a daily update downloads only the chunks that
 changed and reuses the rest from your browser's cache; a status pill on the Screen page
-shows how many chunks were reused or patched. When a list changes, it screens your saved
-customers again and only flags a match you already reviewed if something about it
-changed.
+shows whether the list was freshly synced (`Signed watchlist synced · N chunks verified`),
+reused from cache (`Cached watchlist verified · N chunks reused (0 B fetched)`), or
+incrementally updated (`Watchlist patch applied · X chunks updated, Y cached chunks reused`).
+When a list changes, it screens your saved customers again and only flags a match you
+already reviewed if something about it changed.
 
 ## Which lists, and how fresh
 

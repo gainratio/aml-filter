@@ -53,7 +53,8 @@ pnpm --filter aml-filter-app preview    # serve the minified build locally
 The `prebuild` hook self-hosts the MiniLM model weights and generates demo stats. The
 production build ships everything as static files in `app/dist/` — host it on any static
 host/CDN over HTTPS. A secure context is required for in-tab WebCrypto verification;
-screening prefers OPFS and falls back to IndexedDB for its signed-list cache, while the
+screening caches signed-list chunks in OPFS SQLite (`@gainratio/browser` `SqliteCacheStore`,
+with an in-memory SQLite fallback if OPFS cannot open — never IndexedDB), while the
 SQLite KYC workstation requires OPFS.
 
 ## The gate

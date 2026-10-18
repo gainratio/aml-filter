@@ -181,9 +181,11 @@ The boot + screen flow:
    `file_sha256`. Any signature or hash mismatch aborts the load — there is no fallback
    to unverified bytes. The resulting `SyncResult` (`version`, `manifestHash`,
    `chunksFetched`, `chunksReused`, `bytesFetched`) is exposed via
-   `ScreeningEngine.syncStats()` and rendered on `/screen` (`Cached (N chunks reused)` or
-   `Patch applied (X new · Y cached)`), with an interactive **Check for watchlist update**
-   trigger (`checkForWatchlistUpdate()`) alongside the 30-minute background poller.
+   `ScreeningEngine.syncStats()` and rendered on `/screen` (`Signed watchlist synced · N chunks verified`,
+   `Cached watchlist verified · N chunks reused (0 B fetched)`, or
+   `Watchlist patch applied · X chunks updated, Y cached chunks reused`), while `/customers`
+   provides an interactive **Check for updates** trigger (`checkForWatchlistUpdates()`)
+   alongside the 30-minute background poller in `WorkstationGate`.
 3. **Materialize + decode.** The verified bundle is materialized into `catalog.json` +
    per-list `{entities.jsonl, vectors.f32, meta.json}` files;
    `buildLoadedFromBundleFiles` (`engine/watchlist.ts`) reconstructs the Float32 vector
@@ -191,9 +193,10 @@ The boot + screen flow:
    list into a separate in-memory SQLite database through
    `@gainratio/browser/vector/sqlite`; vectors and namespaced exact token/phonetic
    postings share that database, while SQLite and sqlite-vector execute in a Worker.
-   On the public `/screen` route, boot awaits that one selected OFAC database before
-   reporting Ready. Static Worker/WASM assets and vector rows are therefore local
-   before a user types; search causes no network request.
+   On the public `/screen` route (`pages/screenScope.ts`), a desktop eagerly awaits all
+   four catalog databases before reporting Ready, while a phone or tablet starts with the
+   OFAC database and offers a one-tap switch to all four lists. Static Worker/WASM assets
+   and vector rows are therefore local before a user types; search causes no network request.
 4. **Embed** the query name in-tab through the `Embedder` seam (`engine/embedder.ts`;
    stubbable for tests via `createEmbedder`) — **once**, then reused across all lists.
 5. **Retrieve + score + merge**: the `ScreeningEngine` unions sqlite-vector neighbours
@@ -214,14 +217,15 @@ re-reads the same capped keys split by namespace; SQLite's document-frequency ca
 per key, so the split partitions exactly the lexical union) — context for the reviewer,
 never a score input.
 
-**Durable, fail-closed bundle cache.** `@gainratio/browser` owns the Worker, signed
-sync state machine, cross-tab lock, and content-addressed store contract (separate
-from the customer DB). The Worker prefers
-**OPFS**; if WebKit exposes OPFS but cannot open it, the same contract uses bounded
-**IndexedDB** storage. AML passes its established IndexedDB layout
-(`aml-filter-signed-bundles-v1` / `entries` / slash-delimited keys) into every
-shared sync and clear request, so the extraction reuses and clears existing
-verified caches in place. On every load the bytes — cached or freshly fetched — are
+**Durable, fail-closed bundle cache.** `@gainratio/browser` (`^0.4.2`) owns the Worker,
+signed sync state machine, cross-tab lock, and OPFS SQLite content-addressed store
+(`SqliteCacheStore`, `amlfilter-watchlists-v1-chunks`, separate from the customer DB).
+When OPFS cannot open (for example in headless WebKit or private browsing), the Worker
+falls back to an in-memory SQLite cache for that tab — never to IndexedDB. AML passes
+its historical `aml-filter-signed-bundles-v1` / `entries` / slash-delimited `indexedDbLayout`
+into shared sync and clear requests solely so legacy 0.2.x IndexedDB stores are migrated
+once and removed on clear; `@gainratio/browser` never writes new bundle data to IndexedDB.
+On every load the bytes — cached or freshly fetched — are
 re-verified: chunks against their content hash
 and the pointer against the pinned key. A tampered or version-mismatched entry is
 rejected. If the pointer fetch fails, the sync falls back to the cached active version

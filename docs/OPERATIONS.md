@@ -10,7 +10,7 @@ operation is unbounded, or the deployed site cannot prove its exact Git commit.
 
 | Data | Path and storage | Retention / deletion | Network and logs |
 | --- | --- | --- | --- |
-| Signed watchlists and list vectors | Cloudflare Pages → verified Worker → content-addressed durable cache (OPFS preferred; IndexedDB WebKit fallback) | Replaced by monotonic signed publishes; **Clear cached lists** deletes the public-data cache | Same-origin GET only; public, never PII |
+| Signed watchlists and list vectors | Cloudflare Pages → verified Worker → OPFS SQLite content-addressed durable cache (`SqliteCacheStore`; in-memory SQLite fallback when OPFS cannot open, never IndexedDB) | Replaced by monotonic signed publishes; **Clear cached lists** deletes the public-data cache | Same-origin GET only; public, never PII |
 | Embedding model and ORT runtime | Same-origin immutable assets → browser cache / memory | Browser cache policy; user can clear site data | Same-origin GET only; no Hugging Face/jsDelivr fallback |
 | Typed screening query | Input → ephemeral worker embedding → score | Not persisted by `/screen`; query vector is ephemeral | **Zero requests while typing/scoring** and no query text in console output, enforced by C1 Chromium |
 | Customer profile, DOB, identifiers | UI → SQLite-WASM on origin-private OPFS | Local until explicit customer deletion or browser-site-data deletion; deletion removes application rows with `secure_delete=ON` | No application API, telemetry, prompt, or provider path |
@@ -120,8 +120,9 @@ for real-domain measurement.
 ## Supported browser baseline
 
 Production support covers the current and previous desktop releases of Chrome, Edge,
-Firefox, and Safari 17+. A secure context must provide module Workers, durable browser
-storage (OPFS or IndexedDB), WebCrypto, and Web Locks. Mobile Chrome and Safari use the
+Firefox, and Safari 17+. A secure context must provide module Workers, OPFS (with an
+in-memory SQLite fallback for the signed-list cache when OPFS cannot open; never
+IndexedDB), WebCrypto, and Web Locks. Mobile Chrome and Safari use the
 bounded-memory screening path; the SQLite KYC workstation still requires OPFS.
 Embedded WebViews remain outside the release contract.
 

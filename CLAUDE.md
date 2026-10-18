@@ -65,8 +65,8 @@ product runs in the tab. The flow:
 
 **Tech Stack**: React + TypeScript (Vite) SPA, a pnpm workspace, Biome, transformers.js
 MiniLM (`Xenova/all-MiniLM-L6-v2`, 384-dim) running both in-tab and in-Node, SQLite-WASM
-over OPFS (customers), an OPFS bundle store (the durable, verified list cache), and an
-Ed25519-signed, content-addressed watchlist bundle (served same-origin).
+over OPFS (customers), an OPFS SQLite bundle store (`@gainratio/browser` `^0.4.2` `SqliteCacheStore`,
+the durable, verified list cache), and an Ed25519-signed, content-addressed watchlist bundle (served same-origin).
 
 ## Common Commands
 
@@ -83,7 +83,7 @@ pnpm --filter aml-filter-app preview      # Serve the production build
 
 ### The gate — one command, from `frontend/` (CI literally runs this same script)
 ```bash
-pnpm gate               # lint → typecheck → test → build → verify-i18n → the 5 Playwright e2e lanes
+pnpm gate               # lint → typecheck → test → build → verify-i18n → the 7 Playwright e2e lanes
 ```
 Individual stages (what `gate` fans out to):
 ```bash
@@ -93,13 +93,15 @@ pnpm -r run test        # Vitest across the workspace
 pnpm -r run build       # Production build across the workspace
 ```
 
-### e2e lanes (from `frontend/app`; all five are part of the gate)
+### e2e lanes (from `frontend/app`; all seven are part of the gate)
 ```bash
 pnpm test:e2e:receipt   # Module-level score-receipt crypto proof in Chromium, Firefox, and WebKit
 pnpm test:e2e:c1        # Browser-engine e2e in real Chromium (incl. the receipt-badge journey)
 pnpm test:e2e:kyc       # Backend-free local-first KYC journey in real Chromium
 pnpm test:e2e:bundle    # Signed-bundle delta-sync boot (verify → OPFS → offline reload)
-pnpm test:e2e:mobile:ci # Mobile memory smoke (Android Chromium + desktop control profile)
+pnpm test:e2e:mobile:ci # Mobile memory smoke (WebKit iPhone + Android Chromium + desktop control profile)
+pnpm test:e2e:memory    # Boot order + Worker WebAssembly memory ceiling (<256 MiB)
+pnpm test:e2e:matrix    # Cross-browser matrix verification
 ```
 
 ### Publish signed lists (from `frontend/`)
@@ -129,7 +131,7 @@ Each rule below carries the real shipped scar that makes it non-negotiable:
   step copy — the 2026-07 standards pass found CI running a whole lane
   (`test:e2e:bundle`) that neither doc mentioned. Three places to say one thing is two
   drifts waiting.
-- **The five real-Chromium e2e lanes are part of the gate, not optional extras.** Scar:
+- **The seven real-browser e2e lanes are part of the gate, not optional extras.** Scar:
   an es2020 model-load crash, a silent boot hang, and the demo bundle failing in-tab
   signature verification all shipped through green units + green build — only the
   production-build browser lanes catch this class.
@@ -165,9 +167,10 @@ This repo ships two WASM / edge-compute patterns worth calling out:
   by frozen golden parity fixtures (scoring + tiering).
 - **Browser storage = sqlite-wasm over OPFS.** Customer/KYC data lives in
   `@sqlite.org/sqlite-wasm` over OPFS (`@amlfilter/workstation` DB worker); verified
-  bundle bytes live in the OPFS bundle store owned by the sync worker
-  (`amlfilter-browser` `engine/sync/opfsStore.ts`). No IndexedDB list cache remains — the
-  signed content-addressed bundle over OPFS is the single verified-list store.
+  bundle bytes live in the OPFS SQLite bundle store (`@gainratio/browser` `^0.4.2`
+  `SqliteCacheStore`, `amlfilter-watchlists-v1-chunks`, driven via `amlfilter-browser`
+  `engine/bundleSource.ts`). No IndexedDB list cache remains — the signed
+  content-addressed bundle in OPFS SQLite is the single verified-list store.
 
 ## Architecture
 
@@ -195,19 +198,22 @@ path** — same-origin from `/bundle/origin` (`VITE_BUNDLE_BASE_URL` only OVERRI
 origin): the signed `latest` pointer → the content-hashed `manifest` → only the missing
 deduplicated `chunk/` files. **Verify fail-closed** every byte (Ed25519 + SHA-256 against the
 pinned `frontend/app/public/public.key`; any signature or hash mismatch aborts the load) →
-decode the precomputed name vectors → embed the query name in-tab once → **brute-force
-cosine** retrieval per list → the typed Assay additive adapter (`computeScore` / `PRESETS`:
+decode the precomputed name vectors → embed the query name in-tab once → **SQLite +
+`sqlite-vector` cosine and exact token/Double-Metaphone** retrieval per list
+(`@gainratio/browser/vector/sqlite`, one disposable in-memory SQLite 3.53.4 database per
+immutable list) → the typed Assay additive adapter (`computeScore` / `PRESETS`:
 `strict` / `balanced` / `lenient`; 5 signals — `name_vector`, `name_sequence`, `alias_match`,
 `dob_match`, `country_match`). The `MultiListScreeningEngine` (`engine/multiEngine.ts`)
 holds one index per list over a shared embedder, applies the per-list threshold
 (`perList[id] ?? query.threshold ?? default`), and merges. Verified bundle bytes are cached
-durably in the **OPFS bundle store** (`engine/sync/opfsStore.ts`, owned by the sync Web
-Worker, separate from the customer DB), re-verified fail-closed on every load → a repeat
-visit does not re-download the list (NOT offline support: there is no service worker);
-a zero-byte or integrity-failing chunk is evicted and re-fetched (self-healing).
+durably in the **OPFS SQLite bundle store** (`@gainratio/browser` `^0.4.2` `SqliteCacheStore`,
+driven by `engine/bundleSource.ts` in the sync Web Worker, separate from the customer DB),
+re-verified fail-closed on every load → a repeat visit does not re-download the list (NOT
+offline support: there is no service worker); a zero-byte or integrity-failing chunk is
+evicted and re-fetched (self-healing).
 Entry points: `EngineRuntime.bootstrap()` → `ScreeningEngine.screen({ name })`. (The
 standalone `catalog.json` / per-list `watchlist.json` JSON fetch path and its IndexedDB list
-cache were **retired** — the signed content-addressed bundle over OPFS is now the only
+cache were **retired** — the signed content-addressed bundle in OPFS SQLite is now the only
 transport.)
 
 ### 3. Workstation — `frontend/packages/amlfilter-workstation` (`@amlfilter/workstation`) + `frontend/app`
@@ -238,10 +244,11 @@ alike; any signature or hash mismatch aborts the load, with no silent empty list
 ### Key Patterns
 - **One scoring contract**: the AML adapter composes exact
   `@gainratio/assay@0.5.0-dev.6`, then emits its score, stable input hash, ordered
-  component evidence, `reasons[]`, and a plain-language `explanation`. The contract is
+  component evidence, `reasons[]`, and a plain-language `explanation` sealed into an
+  `@gainratio/avow` (`^0.5.3`) Ed25519 score receipt. The contract is
   parity-locked by a frozen golden snapshot (see Testing).
 - **Local-first**: customer data lives only in the browser (SQLite-WASM over OPFS) and
-  never leaves the machine; verified list bytes cache durably in the OPFS bundle store
+  never leaves the machine; verified list bytes cache durably in the OPFS SQLite bundle store
   (separate store).
 - **Fail closed** on trust: catalog + list verification aborts on any signature/hash
   mismatch — over fetched and cached bytes alike.
@@ -260,9 +267,9 @@ alike; any signature or hash mismatch aborts the load, with no silent empty list
 
 ## Testing
 
-Unit tests run under **Vitest**; end-to-end runs under **Playwright** in real Chromium.
+Unit tests run under **Vitest**; end-to-end runs under **Playwright** in real browsers.
 
-Five e2e lanes (`frontend/app`), all gate-enforced. Three drive the **minified production
+Seven e2e lanes (`frontend/app`), all gate-enforced. Five drive the **minified production
 build** against the **committed signed demo catalog**:
 - `pnpm test:e2e:c1` — the browser-engine lane (incl. an offline-cache spec and the
   score-receipt journey: seal → display → verify → rekey-fail-closed).
@@ -270,14 +277,17 @@ build** against the **committed signed demo catalog**:
   review → resolve. Its webServers are `vite preview` + the static catalog server only.
 - `pnpm test:e2e:bundle` — the signed-bundle delta-sync lane: verify → OPFS → offline
   reload.
+- `pnpm test:e2e:memory` — the phone memory guard: model load order before list chunks +
+  Worker WebAssembly memory ceiling (<256 MiB).
+- `pnpm test:e2e:matrix` — cross-browser matrix verification.
 
 Two run against `vite dev`:
 - `pnpm test:e2e:receipt` — the module-level score-receipt crypto proof (sign →
   verify → tamper-reject → wrong-key-reject) in Chromium, Firefox, and WebKit; it backs the
   `@vitest-environment node` opt-out in `scoreReceipt.test.ts` (see
   `playwright.config.ts` for why it cannot fold into the preview lanes).
-- `pnpm test:e2e:mobile:ci` — the mobile memory smoke (Android Chromium + desktop
-  control profile).
+- `pnpm test:e2e:mobile:ci` — the mobile memory smoke (WebKit iPhone + Android Chromium +
+  desktop control profile).
 
 **Parity is frozen committed golden JSON snapshots** — the TS implementation is the source
 of truth (the former Python golden generators were deleted):
@@ -291,4 +301,4 @@ Front-door docs live in `/docs` (the root `README.md` is the canonical index):
 - `QUICKSTART.md` - clone → install → run the app → screen a name, all in the browser
 - `DEPLOY.md` - building and hosting the static app + refreshing the signed lists
 - `WATCHLIST_FORMAT.md` - the signed catalog + per-list wire format
-- `diagrams/` - d2 sources + rendered SVGs
+- `architecture/` - interactive Archify architecture map (`runtime.architecture.json` + `index.html`)

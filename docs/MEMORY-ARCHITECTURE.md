@@ -15,7 +15,7 @@ There are four deliberately separate storage classes:
 | Data | Durable browser storage | Runtime cost | Why it stays separate |
 | --- | --- | --- | --- |
 | MiniLM weights | Same-origin CacheStorage | ~23 MB model asset plus runtime/WASM allocations | The model is loaded once by its worker and reused; it is not customer data |
-| Signed public watchlist bundle | Worker-owned content-addressed store: OPFS preferred, bounded IndexedDB WebKit fallback | Verified bytes plus the lists selected for the current route | Ed25519, SHA-256, monotonic pointer, cached reuse, and verify-before-parse remain byte-level invariants |
+| Signed public watchlist bundle | Worker-owned OPFS SQLite content-addressed store (`SqliteCacheStore`; in-memory SQLite fallback when OPFS cannot open, never IndexedDB) | Verified bytes plus the lists selected for the current route | Ed25519, SHA-256, monotonic pointer, cached reuse, and verify-before-parse remain byte-level invariants |
 | Public retrieval index | One in-memory SQLite 3.53.4 database per immutable signed list, with sqlite-vector 1.1.2 in a Worker | Derived vector rows plus exact token/Double-Metaphone postings for the currently loaded lists | The database is disposable query state rebuilt only from verified bundle bytes; it is not another durable authority |
 | Customers, matches, settings, audit events | Separate SQLite-WASM database on origin-private OPFS | Small transactional rows | Private state needs transactions, deletion, and audit semantics and never enters the public-list index |
 
@@ -77,11 +77,10 @@ bundle store 16). Renderer RSS after a forced GC dropped from 427-728 MB to 301-
 with the new order; run-to-run noise is large, so treat RSS as indicative only. This is
 Chromium on a desktop, not Safari: iPhone behaviour is still unmeasured.
 
-`pnpm --filter aml-filter-app test:e2e:memory` is the guard. It mirrors the real signed
-bundle, boots `/screen` as an iPhone, and asserts (1) the model file is requested before
-the first list chunk and (2) total WebAssembly memory in the page's workers stays under
-256 MiB. It needs the network once to mirror the bundle, so it is not part of
-`pnpm gate`.
+`pnpm --filter aml-filter-app test:e2e:memory` is the guard (enforced in `pnpm gate`). It
+serves the signed bundle, boots `/screen` as an iPhone, and asserts (1) the model file is
+requested before the first list chunk and (2) total WebAssembly memory in the page's
+workers stays under 256 MiB.
 
 ## Shipped SQLite retrieval design
 
@@ -99,11 +98,12 @@ Measured corpus experiments found those alternatives noisier, larger, or semanti
 different from the accepted retrieval contract. This design reuses one database without
 turning a phonetic or edit-distance hit into a decision rule.
 
-This does **not** move the signed bundle into an additional durable database. The
-OPFS-first content-addressed bundle store remains the recovery source of truth and every
-input is verified before rows are derived. Streaming residency disposes the prior list's
-database before loading the next, while eager residency may retain one database per
-enabled list. A reload can always rebuild these indexes from the verified cached bundle.
+This does **not** move the signed bundle into the public retrieval database. The
+OPFS SQLite content-addressed bundle store (`SqliteCacheStore`) remains the recovery source
+of truth and every input is verified before rows are derived. Streaming residency disposes
+the prior list's database before loading the next, while eager residency may retain one
+database per enabled list. A reload can always rebuild these indexes from the verified
+cached bundle.
 
 The KYC store is intentionally unrelated: `@amlfilter/workstation` owns its own
 SQLite-WASM Worker and OPFS database for customers, matches, settings, and audit events.
@@ -121,12 +121,12 @@ loaded carelessly. The app therefore:
 - uses one-list-at-a-time vector residency on mobile, unknown-memory devices, and
   desktops reporting 8 GB or less;
 - delegates signed-bundle transport, verification, cross-tab locking, and durable
-  storage to `@gainratio/browser` from npm (tracks the latest release);
+  OPFS SQLite storage (`SqliteCacheStore`) to `@gainratio/browser` (`^0.4.2`) from npm;
 - disposes the old engine before a reload, then builds and swaps the replacement;
 - prevents overlapping update checks and clears recurring timers on unmount.
 
 The supported baseline is the current and previous desktop Chrome, Edge, Firefox, and
 Safari 17+. Mobile Safari and Chrome use the bounded-memory path. Embedded WebViews are
-outside the release contract. Screening requires Workers, durable browser storage
-(OPFS or IndexedDB), WebCrypto, Web Locks, and a secure context. The KYC workstation
-additionally requires OPFS for its SQLite database.
+outside the release contract. Screening requires Workers, OPFS (with an in-memory SQLite
+session fallback when OPFS cannot open; never IndexedDB), WebCrypto, Web Locks, and a
+secure context. The KYC workstation additionally requires OPFS for its durable SQLite database.

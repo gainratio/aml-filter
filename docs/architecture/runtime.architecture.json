@@ -5,6 +5,10 @@
     "title": "AML-Filter — Verified In-Browser Screening",
     "locale": "en",
     "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/gainratio/aml-filter",
+      "revision": "d9a93b6315840d46b66d948b2d89418e0061e84a"
+    },
     "viewBox": [1390, 700],
     "views": [
       {
@@ -34,7 +38,8 @@
       "label": "Official Lists",
       "sublabel": "Official sanctions",
       "pos": [20, 323],
-      "size": [120, 66]
+      "size": [120, 66],
+      "sources": [{ "path": "README.md", "line": 69, "end_line": 74, "label": "Official sanctions lists" }]
     },
     {
       "id": "publisher",
@@ -42,7 +47,8 @@
       "label": "List Publisher",
       "sublabel": "Gear-CDC + sign",
       "pos": [165, 320],
-      "size": [125, 72]
+      "size": [125, 72],
+      "sources": [{ "path": "frontend/packages/amlfilter-publisher/src/buildDemoBundle.ts", "line": 1, "end_line": 25, "label": "Bundle publisher" }]
     },
     {
       "id": "static_origin",
@@ -50,7 +56,8 @@
       "label": "Static Bundle Origin",
       "sublabel": "Manifest + chunks",
       "pos": [315, 320],
-      "size": [130, 72]
+      "size": [130, 72],
+      "sources": [{ "path": "docs/WATCHLIST_FORMAT.md", "line": 15, "end_line": 23, "label": "Static bundle layout" }]
     },
     {
       "id": "sync_worker",
@@ -59,15 +66,17 @@
       "sublabel": "Verify + delta sync",
       "tag": "fail closed",
       "pos": [470, 320],
-      "size": [130, 72]
+      "size": [130, 72],
+      "sources": [{ "path": "frontend/packages/amlfilter-browser/src/engine/bundleSource.ts", "line": 1, "end_line": 20, "label": "Two-phase signed sync" }]
     },
     {
       "id": "bundle_cache",
       "type": "database",
       "label": "Verified List Cache",
-      "sublabel": "Cached CDC chunks",
+      "sublabel": "OPFS SQLite · chunks",
       "pos": [625, 320],
-      "size": [130, 72]
+      "size": [130, 72],
+      "sources": [{ "path": "frontend/packages/amlfilter-browser/src/engine/bundleSource.ts", "line": 217, "end_line": 231, "label": "Durable OPFS SQLite cache" }]
     },
     {
       "id": "runtime",
@@ -76,7 +85,8 @@
       "sublabel": "3.53.4 + vector 1.1.2",
       "tag": "in memory",
       "pos": [780, 320],
-      "size": [130, 72]
+      "size": [130, 72],
+      "sources": [{ "path": "frontend/packages/amlfilter-browser/src/engine/vectorIndex.ts", "line": 1, "end_line": 25, "label": "SQLite vector index" }]
     },
     {
       "id": "screening_engine",
@@ -84,7 +94,8 @@
       "label": "Explainable Scoring",
       "sublabel": "Signals + thresholds",
       "pos": [935, 320],
-      "size": [130, 72]
+      "size": [130, 72],
+      "sources": [{ "path": "frontend/packages/amlfilter-browser/src/engine/screeningEngine.ts", "line": 1, "end_line": 25, "label": "Explainable scorer" }]
     },
     {
       "id": "react_app",
@@ -92,7 +103,8 @@
       "label": "React Workstation",
       "sublabel": "Screen + delta UI",
       "pos": [1090, 320],
-      "size": [130, 72]
+      "size": [130, 72],
+      "sources": [{ "path": "frontend/app/src/main.tsx", "line": 1, "end_line": 19, "label": "SPA entrypoint" }]
     },
     {
       "id": "analyst",
@@ -100,7 +112,8 @@
       "label": "AML Analyst",
       "sublabel": "Human approval",
       "pos": [1245, 323],
-      "size": [125, 66]
+      "size": [125, 66],
+      "sources": [{ "path": "README.md", "line": 30, "end_line": 34, "label": "Human-in-the-loop review" }]
     },
     {
       "id": "embedder_worker",
@@ -108,7 +121,8 @@
       "label": "MiniLM Worker",
       "sublabel": "Query embedding",
       "pos": [935, 80],
-      "size": [130, 66]
+      "size": [130, 66],
+      "sources": [{ "path": "frontend/packages/amlfilter-browser/src/engine/embedderWorker.ts", "line": 1, "end_line": 25, "label": "In-tab MiniLM worker" }]
     },
     {
       "id": "kyc_database",
@@ -116,7 +130,8 @@
       "label": "Private KYC SQLite",
       "sublabel": "Durable OPFS",
       "pos": [1090, 535],
-      "size": [130, 66]
+      "size": [130, 66],
+      "sources": [{ "path": "frontend/packages/amlfilter-workstation/src/db/schema.ts", "line": 1, "end_line": 25, "label": "Private KYC SQLite schema" }]
     }
   ],
   "connections": [
