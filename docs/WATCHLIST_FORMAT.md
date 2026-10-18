@@ -33,9 +33,10 @@ The app's bundle base URL defaults to **`/bundle/origin`** (overridable with
 2. Fetches **`manifest/<manifest_hash>`** and checks that the bytes hash to the
    `manifest_hash` the verified pointer named. Authenticity flows from the signed
    pointer → the content hash, so the manifest needs no separate `.sig`.
-3. Diffs the manifest's chunk set against the durable browser store and fetches **only
-   the missing `chunk/<hash>` files** — the delta sync. OPFS is preferred; affected
-   WebKit builds that expose but cannot open OPFS use a bounded IndexedDB adapter.
+3. Diffs the manifest's chunk set against the durable OPFS SQLite browser store
+   (`@gainratio/browser` `SqliteCacheStore`, with an in-memory SQLite fallback when OPFS
+   cannot open and never IndexedDB) and fetches **only the missing `chunk/<hash>` files**
+   — the delta sync.
    Each chunk is verified to hash to its name, and each reassembled file is verified
    to hash to its `file_sha256`.
 

@@ -46,10 +46,11 @@ const engine = await runtime.bootstrap(config, onStage, {
 The workstation's deterministic memory policy uses streaming by default when the
 browser's memory budget is unknown or ≤8 GB; eager residency is reserved for an
 explicitly reported >8 GB desktop. Callers that need desktop throughput can still pass
-`residency: "eager"` explicitly. The public `/screen` route eagerly initializes only
-its one selected OFAC list, so the Ready state includes the SQLite Worker, sqlite-vector
-runtime, and rows: typing and scoring trigger zero network requests. It never eagerly
-loads the rest of the catalog. `EngineRuntime` serializes bootstrap, reload, and
+`residency: "eager"` explicitly. On the public `/screen` route (`pages/screenScope.ts`),
+a desktop eagerly initializes all four catalog lists, while a phone or tablet starts with
+the OFAC SDN list and offers a one-tap switch to all four lists (`streaming`), so the
+Ready state includes the SQLite Worker, sqlite-vector runtime, and rows: typing and
+scoring trigger zero network requests. `EngineRuntime` serializes bootstrap, reload, and
 cache-clear lifecycle operations; clear-cache disposes vector databases, metadata, and
 the optional model worker before the next verified boot.
 
@@ -77,7 +78,7 @@ await verifyEd25519(pubkeyRaw32, bytes, sigBase64);
 
 ## Shared substrate
 
-`@gainratio/browser` is a normal npm dependency (`^0.2.0`, no upper cap), not
+`@gainratio/browser` is a normal npm dependency (`^0.4.2`, no upper cap), not
 vendored source, a Git pin, or a local sibling link. The app tracks its latest
 release; the committed lockfile makes clean-clone CI and deploys install the
 exact version CI tested, including SQLite 3.53.4 and

@@ -40,9 +40,9 @@ Serve `dist/` as plain static files over **HTTPS**. A secure context is required
 - **WebCrypto** (`crypto.subtle`) — the in-tab Ed25519 signature verification of the
   watchlist. The verification is **fail-closed**: any signature or hash mismatch aborts
   the load.
-- **OPFS** — where the local-first KYC store (SQLite-WASM) persists in the browser.
-- **OPFS or IndexedDB** — the signed-list cache prefers OPFS and uses a bounded
-  IndexedDB compatibility adapter when WebKit cannot actually open OPFS.
+- **OPFS** — where both the local-first KYC store (SQLite-WASM) and the signed-list
+  chunk cache (`@gainratio/browser` `SqliteCacheStore`) persist in the browser (if OPFS
+  cannot open, the signed-list cache runs in memory for that tab; never IndexedDB).
 
 `localhost` also counts as a secure context, which is what local preview and the e2e
 lanes rely on; a LAN IP does **not** and will fail differently. Any static host that
