@@ -889,14 +889,90 @@ textarea:focus-visible {
 	align-items: end;
 }
 
+/* Review Board 3-select filter bar: 3 columns on desktop inside a clean card surface */
+.form-group.form-grid:has(#tier-filter) {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	background: var(--color-bg-white);
+	border: 1px solid var(--color-border);
+	border-top: 3px solid var(--color-ink);
+	border-radius: var(--radius-md);
+	padding: 1.15rem 1.35rem;
+	box-shadow: var(--shadow-sm);
+	margin-top: 1rem;
+}
+
 .card {
 	border-color: var(--color-border);
+	border-top: 3px solid var(--color-ink);
 	border-radius: var(--radius-md);
-	box-shadow: var(--shadow-sm);
+	box-shadow:
+		0 1px 3px rgba(16, 42, 43, 0.04),
+		0 10px 26px rgba(16, 42, 43, 0.06);
 }
 
 .card-muted {
-	background: rgba(255, 255, 255, 0.72);
+	background: rgba(255, 255, 255, 0.92);
+}
+
+/* WorkstationGate analyst sign-in card: compact, centered, properly spaced */
+form.card.card-muted:has(#analyst-name) {
+	max-width: 520px;
+	margin: 2.5rem auto;
+	padding: 2rem 2.25rem;
+	background: var(--color-bg-white);
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+form.card.card-muted:has(#analyst-name) h2 {
+	margin: 0;
+	font-size: 1.5rem;
+}
+
+form.card.card-muted:has(#analyst-name) p.text-muted {
+	margin: 0 0 0.35rem;
+	line-height: 1.55;
+}
+
+form.card.card-muted:has(#analyst-name) .form-label {
+	margin-bottom: -0.25rem;
+}
+
+form.card.card-muted:has(#analyst-name) button[type="submit"] {
+	align-self: flex-start;
+	margin-top: 0.35rem;
+	padding-inline: 1.35rem;
+}
+
+/* Customer onboarding form card: full-width white surface with 3-col metadata row */
+form.card.card-muted:has(#customer-reference) {
+	background: var(--color-bg-white);
+	padding: 1.65rem 1.85rem;
+	margin-bottom: 2rem;
+}
+
+form.card.card-muted:has(#customer-reference) h2 {
+	font-size: 1.25rem;
+	margin-bottom: 1.15rem;
+	padding-bottom: 0.65rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+form.card.card-muted:has(#customer-reference) .form-grid:has(#customer-dob) {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Empty-state ledger box for Customers (0) and Matches (0, 0 pending) */
+.page-main > div > h2 + p:last-child {
+	margin-top: 0.65rem;
+	padding: 2.25rem 1.5rem;
+	border: 1px dashed var(--color-border-dark);
+	border-radius: var(--radius-md);
+	background: rgba(255, 255, 255, 0.78);
+	color: var(--color-text-muted);
+	text-align: center;
+	font-size: 0.95rem;
 }
 
 .alert {
@@ -1090,6 +1166,13 @@ textarea:focus-visible {
 
 .page-header {
 	gap: 1rem;
+	margin-bottom: 1.35rem;
+	padding-bottom: 0.85rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.page-header h1 {
+	margin-bottom: 0;
 }
 
 .table {
@@ -1175,7 +1258,9 @@ textarea:focus-visible {
 		font-size: 0.76rem;
 	}
 
-	.form-grid {
+	.form-grid,
+	.form-group.form-grid:has(#tier-filter),
+	form.card.card-muted:has(#customer-reference) .form-grid:has(#customer-dob) {
 		grid-template-columns: 1fr;
 		gap: 0.9rem;
 	}
