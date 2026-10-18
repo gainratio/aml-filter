@@ -140,30 +140,132 @@ function Hero() {
 	const { t } = useTranslation("landing");
 	return (
 		<header className="landing__hero">
-			<div className="landing__eyebrow">{t("hero.eyebrow")}</div>
-			<div className="landing__wordmark">
-				<img src="/logo.svg" alt="" aria-hidden="true" />
-				<span className="landing__wordmark-name">
-					AML-Filter<span className="landing__wordmark-dot">.</span>
-				</span>
+			<div className="landing__hero-grid">
+				<div className="landing__hero-copy">
+					<div className="landing__eyebrow">{t("hero.eyebrow")}</div>
+					<div className="landing__wordmark">
+						<img src="/logo.svg" alt="" aria-hidden="true" />
+						<span className="landing__wordmark-name">
+							AML-Filter<span className="landing__wordmark-dot">.</span>
+						</span>
+						<span className="landing__wordmark-tag">
+							Zero-Egress Sanctions &amp; KYC Engine
+						</span>
+					</div>
+
+					<h1 className="landing__title">
+						<Trans
+							i18nKey="hero.title"
+							ns="landing"
+							components={{ em: <em /> }}
+						/>
+					</h1>
+
+					<p className="landing__lede">{t("hero.lede")}</p>
+					<p className="landing__audience">{t("hero.audience")}</p>
+
+					<div className="landing__cta">
+						<Link to="/screen" className="landing__btn landing__btn--primary">
+							{t("hero.ctaPrimary")}
+						</Link>
+						<Link to="/customers" className="landing__btn landing__btn--ghost">
+							{t("hero.ctaSecondary")}
+						</Link>
+					</div>
+					<p className="landing__footnote">{t("hero.footnote")}</p>
+				</div>
+
+				<aside className="landing__dossier" aria-hidden="true">
+					<div className="landing__dossier-head">
+						<div className="landing__dossier-status">
+							<span className="landing__dossier-pulse" />
+							<span>IN-TAB MATCHER · ZERO NETWORK EGRESS</span>
+						</div>
+						<span className="landing__dossier-seal">ED25519 VERIFIED ✓</span>
+					</div>
+
+					<div className="landing__dossier-body">
+						<div className="landing__dossier-query">
+							<div className="landing__dossier-query-top">
+								<span>ENTITY QUERY · MULTI-SCRIPT NORMALIZATION</span>
+								<span className="landing__dossier-egress">0 B sent</span>
+							</div>
+							<div className="landing__dossier-query-val">
+								Vladimir Putin{" "}
+								<span className="landing__dossier-cyrillic">
+									/ ВЛАДИМИР ПУТИН
+								</span>
+							</div>
+						</div>
+
+						<div className="landing__dossier-lists">
+							<span className="landing__dossier-list-pill landing__dossier-list-pill--hit">
+								US OFAC SDN
+							</span>
+							<span className="landing__dossier-list-pill landing__dossier-list-pill--hit">
+								EU Consolidated
+							</span>
+							<span className="landing__dossier-list-pill landing__dossier-list-pill--hit">
+								UN Security Council
+							</span>
+							<span className="landing__dossier-list-pill landing__dossier-list-pill--hit">
+								UK Sanctions List
+							</span>
+						</div>
+
+						<div className="landing__dossier-match">
+							<div className="landing__dossier-match-head">
+								<div>
+									<div className="landing__dossier-tier">
+										CRITICAL · TIER 1 SANCTIONS HIT
+									</div>
+									<div className="landing__dossier-entity">
+										PUTIN, Vladimir Vladimirovich (DOB 1952-10-07)
+									</div>
+								</div>
+								<div className="landing__dossier-score">0.984</div>
+							</div>
+
+							<div className="landing__dossier-signals">
+								<div className="landing__dossier-sig">
+									<div className="landing__dossier-sig-label">
+										<span>Lexical + Jaro-Winkler token sort</span>
+										<span>0.99</span>
+									</div>
+									<div className="landing__dossier-sig-bar">
+										<span style={{ width: "99%" }} />
+									</div>
+								</div>
+
+								<div className="landing__dossier-sig">
+									<div className="landing__dossier-sig-label">
+										<span>MiniLM-L6-v2 384-d ONNX cosine</span>
+										<span>0.96</span>
+									</div>
+									<div className="landing__dossier-sig-bar landing__dossier-sig-bar--teal">
+										<span style={{ width: "96%" }} />
+									</div>
+								</div>
+
+								<div className="landing__dossier-sig">
+									<div className="landing__dossier-sig-label">
+										<span>Cyrillic ↔ Latin transliteration alias</span>
+										<span>1.00</span>
+									</div>
+									<div className="landing__dossier-sig-bar">
+										<span style={{ width: "100%" }} />
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div className="landing__dossier-foot">
+							<span>🔒 Gear-CDC signed bundle · SHA-256 + Ed25519</span>
+							<span>OPFS SQLite</span>
+						</div>
+					</div>
+				</aside>
 			</div>
-
-			<h1 className="landing__title">
-				<Trans i18nKey="hero.title" ns="landing" components={{ em: <em /> }} />
-			</h1>
-
-			<p className="landing__lede">{t("hero.lede")}</p>
-			<p className="landing__audience">{t("hero.audience")}</p>
-
-			<div className="landing__cta">
-				<Link to="/screen" className="landing__btn landing__btn--primary">
-					{t("hero.ctaPrimary")}
-				</Link>
-				<Link to="/customers" className="landing__btn landing__btn--ghost">
-					{t("hero.ctaSecondary")}
-				</Link>
-			</div>
-			<p className="landing__footnote">{t("hero.footnote")}</p>
 		</header>
 	);
 }
