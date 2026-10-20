@@ -87,7 +87,8 @@ describe("stageBundle", () => {
 		const jsonl = await readFile(join(dir, "ofac", "entities.jsonl"), "utf8");
 		const rows = jsonl.split("\n").filter((l) => l.length > 0);
 		expect(rows).toHaveLength(1);
-		// Round-trips to the same entity.
+		// Round-trips to the same entity with version-invariant wire `list_version`
+		// (`meta.json` carries the list version so Gear-CDC reuses unchanged rows).
 		expect(JSON.parse(rows[0] as string)).toEqual({
 			entity_id: "OFAC_SDN:0001",
 			name_canonical: "ivan fakovich",
@@ -96,12 +97,31 @@ describe("stageBundle", () => {
 			countries: [],
 			risk_category: "SANCTION",
 			source_list: "OFAC_SDN",
-			list_version: "demo-1",
+			list_version: "",
 		});
 		// Stable key order: keys serialize in the fixed schema order.
 		expect((rows[0] as string).indexOf('"entity_id"')).toBeLessThan(
 			(rows[0] as string).indexOf('"name_canonical"'),
 		);
+	});
+
+	test("keeps entities.jsonl byte-identical across daily version bumps for Gear-CDC deduplication", async () => {
+		await stageBundle(dir, lists(), GENERATED_AT);
+		const day1 = await readFile(join(dir, "ofac", "entities.jsonl"));
+
+		const dir2 = await mkdtemp(join(tmpdir(), "aml-stage-day2-"));
+		try {
+			const bumped = lists().map((l) => ({
+				...l,
+				version: "2026-10-20",
+				entities: l.entities.map((e) => ({ ...e, list_version: "2026-10-20" })),
+			}));
+			await stageBundle(dir2, bumped, "2026-10-20T06:00:00Z");
+			const day2 = await readFile(join(dir2, "ofac", "entities.jsonl"));
+			expect(day2).toEqual(day1);
+		} finally {
+			await rm(dir2, { recursive: true, force: true });
+		}
 	});
 
 	test("writes vectors.f32 as raw LE Float32 bytes", async () => {

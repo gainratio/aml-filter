@@ -381,7 +381,10 @@ function assertRiskCategory(value: string, entityId: string): RiskCategory {
  * dob_match assumes ISO + slices [0,4]); idempotent on already-ISO values, and
  * an unparseable value drops to no-DOB rather than reaching the scorer as junk.
  */
-function toEntity(wire: WatchlistEntity): Entity {
+function toEntity(
+	wire: WatchlistEntity,
+	listVersion = wire.list_version,
+): Entity {
 	return {
 		entity_id: wire.entity_id,
 		entity_type: DEFAULT_ENTITY_TYPE,
@@ -394,7 +397,7 @@ function toEntity(wire: WatchlistEntity): Entity {
 		addresses: [],
 		risk_category: assertRiskCategory(wire.risk_category, wire.entity_id),
 		source_list: wire.source_list,
-		list_version: wire.list_version,
+		list_version: wire.list_version || listVersion,
 	};
 }
 
@@ -437,7 +440,7 @@ function buildLoadedFromMatrix(
 	const ids = wireEntities.map((e) => e.entity_id);
 	const entities = new Map<string, Entity>();
 	for (const wire of wireEntities) {
-		entities.set(wire.entity_id, toEntity(wire));
+		entities.set(wire.entity_id, toEntity(wire, version));
 	}
 	return {
 		index: new VectorIndex(
@@ -648,7 +651,7 @@ export function buildLoadedWatchlistMetadataFromBundleFiles(
 	}
 	const entities = new Map<string, Entity>();
 	for (const wire of wireEntities) {
-		entities.set(wire.entity_id, toEntity(wire));
+		entities.set(wire.entity_id, toEntity(wire, meta.version));
 	}
 	return { entities, listId: meta.listId, version: meta.version };
 }

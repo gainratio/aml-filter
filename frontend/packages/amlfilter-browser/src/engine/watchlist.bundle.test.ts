@@ -17,6 +17,7 @@ import {
 	type BundleListFiles,
 	buildLoadedFromBundleFiles,
 	buildLoadedWatchlist,
+	buildLoadedWatchlistMetadataFromBundleFiles,
 	decodeVectorBytes,
 	type Watchlist,
 	type WatchlistEntity,
@@ -177,6 +178,20 @@ describe("buildLoadedFromBundleFiles — entities + vectors round trip", () => {
 		expect(ivan?.dob).toEqual(["1971-03-14"]);
 		expect(ivan?.aliases[0]?.name).toBe("vanya fakovich");
 		expect(ivan?.risk_category).toBe("SANCTION");
+		expect(ivan?.list_version).toBe("demo-1");
+	});
+
+	it("hydrates entity.list_version from meta.version when entities.jsonl uses version-invariant empty list_version", () => {
+		const files: BundleListFiles = {
+			...fixtureBundleFiles(),
+			entitiesJsonl: fixtureEntitiesJsonl(
+				fixtureEntities().map((e) => ({ ...e, list_version: "" })),
+			),
+		};
+		const loaded = buildLoadedFromBundleFiles(files);
+		expect(loaded.entities.get("OFAC_SDN:0001")?.list_version).toBe("demo-1");
+		const metadata = buildLoadedWatchlistMetadataFromBundleFiles(files);
+		expect(metadata.entities.get("OFAC_SDN:0001")?.list_version).toBe("demo-1");
 	});
 
 	it("wraps vectors.f32 into a VectorIndex with one row per entity", async () => {

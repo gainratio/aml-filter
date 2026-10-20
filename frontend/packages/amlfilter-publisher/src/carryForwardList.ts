@@ -117,6 +117,7 @@ export async function carryForwardList(
 	const entities = parsePublishedEntities(
 		slug,
 		DECODER.decode(requireFile(slug, files, "entities.jsonl")),
+		meta.version,
 	);
 	const vectors = bytesToVectors(requireFile(slug, files, "vectors.f32"));
 	assertPopulation(slug, meta, entities.length, vectors.length);
@@ -260,17 +261,21 @@ function requireFile(
 function parsePublishedEntities(
 	slug: string,
 	jsonl: string,
+	listVersion: string,
 ): readonly WatchlistEntity[] {
 	return jsonl
 		.split("\n")
 		.filter((line) => line.length > 0)
-		.map((line, index) => asPublishedEntity(slug, line, index + 1));
+		.map((line, index) =>
+			asPublishedEntity(slug, line, index + 1, listVersion),
+		);
 }
 
 function asPublishedEntity(
 	slug: string,
 	line: string,
 	lineNo: number,
+	listVersion: string,
 ): WatchlistEntity {
 	let parsed: Partial<WatchlistEntity>;
 	try {
@@ -298,7 +303,10 @@ function asPublishedEntity(
 			`published ${slug}/entities.jsonl line ${lineNo} is not a well-formed entity`,
 		);
 	}
-	return parsed as WatchlistEntity;
+	return {
+		...(parsed as WatchlistEntity),
+		list_version: parsed.list_version || listVersion,
+	};
 }
 
 function parseMeta(

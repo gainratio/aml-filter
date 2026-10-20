@@ -69,6 +69,7 @@ export interface MirrorInput {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1_000;
+const MIRROR_CONCURRENCY = 8;
 /** One file staged in memory; nothing touches disk until all of them verify. */
 interface PendingWrite {
 	readonly relPath: readonly string[];
@@ -108,19 +109,33 @@ function assertWithinCeiling(
 	}
 }
 
-/** Fetch every chunk and prove it through the client's decode path. */
+/** Fetch every chunk with a bounded worker pool and prove it through the client's decode path. */
 async function verifiedChunks(
 	baseUrl: string,
 	fetchBytes: OriginFetch,
 	hashes: ReadonlyArray<string>,
 ): Promise<readonly PendingWrite[]> {
-	const staged: PendingWrite[] = [];
-	for (const hash of hashes) {
-		const compressed = await fetchBytes(`${baseUrl}/chunk/${hash}`);
-		// THE client rule: zstd-decompress, then sha256(plaintext) == its name.
-		await decompressAndVerify(hash, compressed);
-		staged.push({ relPath: ["chunk", hash], bytes: compressed });
-	}
+	const staged = new Array<PendingWrite>(hashes.length);
+	let nextIndex = 0;
+	const verifyNext = async (): Promise<void> => {
+		while (nextIndex < hashes.length) {
+			const idx = nextIndex;
+			nextIndex += 1;
+			const hash = hashes[idx];
+			if (hash === undefined) {
+				break;
+			}
+			const compressed = await fetchBytes(`${baseUrl}/chunk/${hash}`);
+			// THE client rule: zstd-decompress, then sha256(plaintext) == its name.
+			await decompressAndVerify(hash, compressed);
+			staged[idx] = { relPath: ["chunk", hash], bytes: compressed };
+		}
+	};
+	const workers = Array.from(
+		{ length: Math.min(MIRROR_CONCURRENCY, hashes.length) },
+		verifyNext,
+	);
+	await Promise.all(workers);
 	return staged;
 }
 
