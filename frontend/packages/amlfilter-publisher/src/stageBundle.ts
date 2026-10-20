@@ -95,7 +95,16 @@ function jsonBytes(value: unknown): Uint8Array {
 	return ENCODER.encode(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** Serialize one entity with the fixed WatchlistEntity schema key order. */
+/**
+ * Serialize one entity with the fixed WatchlistEntity schema key order.
+ *
+ * `list_version` is normalized to `""` on the wire because `<slug>/meta.json`
+ * already carries the list's authoritative `version` in a single chunk and the
+ * reader (`buildLoadedFromBundleFiles`, `buildLoadedWatchlistMetadataFromBundleFiles`,
+ * `carryForwardList`) hydrates `entity.list_version` from `meta.version`.
+ * Repeating a daily build date on every JSONL line would mutate every line on
+ * every publish and defeat Gear-CDC chunk deduplication across daily updates.
+ */
 function entityLine(e: WatchlistEntity): string {
 	const ordered: WatchlistEntity = {
 		entity_id: e.entity_id,
@@ -105,7 +114,7 @@ function entityLine(e: WatchlistEntity): string {
 		countries: e.countries,
 		risk_category: e.risk_category,
 		source_list: e.source_list,
-		list_version: e.list_version,
+		list_version: "",
 	};
 	return JSON.stringify(ordered);
 }
@@ -186,7 +195,7 @@ export async function stageBundle(
 	options: StageBundleOptions = {},
 ): Promise<void> {
 	await mkdir(outDir, { recursive: true });
-	const includeSqlite = options.includeSqlite ?? true;
+	const includeSqlite = options.includeSqlite ?? false;
 	for (const list of lists) {
 		await stageOne(outDir, list, generatedAt, includeSqlite);
 	}
