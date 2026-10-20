@@ -456,4 +456,32 @@ describe("httpFetchBytes", () => {
 			globalThis.fetch = originalFetch;
 		}
 	});
+
+	it("retries transient network errors and 5xx responses before succeeding", async () => {
+		const originalFetch = globalThis.fetch;
+		let calls = 0;
+		globalThis.fetch = (() => {
+			calls += 1;
+			if (calls === 1) {
+				return Promise.reject(new TypeError("fetch failed"));
+			}
+			if (calls === 2) {
+				return Promise.resolve(
+					new Response("gateway timeout", {
+						status: 504,
+						statusText: "Gateway Timeout",
+					}),
+				);
+			}
+			return Promise.resolve(new Response(new Uint8Array([9, 8, 7])));
+		}) as typeof fetch;
+		try {
+			await expect(
+				httpFetchBytes("https://x/chunk/abc", () => Promise.resolve()),
+			).resolves.toEqual(new Uint8Array([9, 8, 7]));
+			expect(calls).toBe(3);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
 });

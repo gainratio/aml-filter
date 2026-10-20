@@ -338,15 +338,53 @@ export function parseVerifyArgs(argv: ReadonlyArray<string>): VerifyCliArgs {
 	};
 }
 
-/** Default transport: plain fetch, fail-closed on any non-2xx status. */
-export async function httpFetchBytes(url: string): Promise<Uint8Array> {
-	const response = await fetch(url);
-	if (!response.ok) {
-		throw new OriginVerifyError(
-			`fetch ${url} failed: ${response.status} ${response.statusText}`,
-		);
+const HTTP_FETCH_ATTEMPTS = 4;
+const HTTP_FETCH_RETRY_DELAY_MS = 250;
+
+/** Default transport: plain fetch with bounded retry on transient network/5xx errors, fail-closed on non-2xx. */
+export async function httpFetchBytes(
+	url: string,
+	sleepMs: (ms: number) => Promise<void> = (ms) =>
+		new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<Uint8Array> {
+	let lastError: unknown;
+	for (let attempt = 1; attempt <= HTTP_FETCH_ATTEMPTS; attempt += 1) {
+		let response: Response;
+		try {
+			response = await fetch(url);
+		} catch (error) {
+			lastError = error;
+			if (attempt < HTTP_FETCH_ATTEMPTS) {
+				await sleepMs(HTTP_FETCH_RETRY_DELAY_MS * attempt);
+			}
+			continue;
+		}
+		if (!response.ok) {
+			const err = new OriginVerifyError(
+				`fetch ${url} failed: ${response.status} ${response.statusText}`,
+			);
+			if (
+				(response.status >= 500 || response.status === 429) &&
+				attempt < HTTP_FETCH_ATTEMPTS
+			) {
+				lastError = err;
+				await sleepMs(HTTP_FETCH_RETRY_DELAY_MS * attempt);
+				continue;
+			}
+			throw err;
+		}
+		try {
+			return new Uint8Array(await response.arrayBuffer());
+		} catch (error) {
+			lastError = error;
+			if (attempt < HTTP_FETCH_ATTEMPTS) {
+				await sleepMs(HTTP_FETCH_RETRY_DELAY_MS * attempt);
+			}
+		}
 	}
-	return new Uint8Array(await response.arrayBuffer());
+	throw lastError instanceof Error
+		? lastError
+		: new OriginVerifyError(String(lastError));
 }
 
 interface RunDeps {
