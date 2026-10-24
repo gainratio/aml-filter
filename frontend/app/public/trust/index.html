@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trust and Verification — AML-Filter</title>
+  <meta name="description" content="Verify the signed sanctions bundle, the pinned key and the list version yourself. What AML-Filter proves, what it does not, and the key-rotation record.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://aml-filter.com/trust/">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/seo.css">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="AML-Filter">
+  <meta property="og:title" content="Trust and Verification — AML-Filter">
+  <meta property="og:description" content="Verify the signed sanctions bundle, the pinned key and the list version yourself. What AML-Filter proves, what it does not, and the key-rotation record.">
+  <meta property="og:url" content="https://aml-filter.com/trust/">
+  <meta property="og:image" content="https://aml-filter.com/logo.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Trust and Verification — AML-Filter">
+  <meta name="twitter:description" content="Verify the signed sanctions bundle, the pinned key and the list version yourself. What AML-Filter proves, what it does not, and the key-rotation record.">
+  <meta property="article:modified_time" content="2026-10-24">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/">AML-Filter</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/ofac-check/">OFAC check</a><a href="/sanctions-screening/">Screening</a><a href="/eu-sanctions-list/">Lists</a><a href="/trust/" aria-current="page">Trust</a><a class="nav-cta" href="/screen">Open the screener</a>
+    </nav>
+  </div>
+</header>
+<main>
+<div class="wrap breadcrumbs"><a href="/">Home</a> / TRUST</div>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">TRUST</p>
+    <h1>Verify the data and the code</h1>
+    <p class="lede">The sanctions bundle is signed and content-addressed, and the browser refuses a bad one. Here is exactly what is checked, how to inspect the live version, and what none of it proves.</p>
+    <div class="cta-row">
+  <a class="button" href="/screen">Open the free screener</a>
+  <a class="button button--ghost" href="/eu-sanctions-list/">See list coverage</a>
+</div>
+<p class="small">No account. Nothing you type is uploaded. The first visit downloads the matcher and the signed list (up to about 80 MB); repeat visits reuse the cached copy.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What is signed</h2>
+    <p>The app does not fetch a CSV from a web server and hope for the best. It fetches a <strong>signed pointer</strong> that names a content-addressed manifest. The pointer carries an Ed25519 signature and a monotonic sequence number; the manifest lists every file and the SHA-256 of every chunk. The browser checks the signature against a pinned public key, checks every chunk hash, and refuses a bundle whose sequence moves backwards.</p>
+    <p>The same checks run over cached bytes on a repeat visit, so a poisoned cache is refused rather than silently used. The verifier is in the open source: <a href="https://github.com/gainratio/aml-filter/blob/main/frontend/packages/amlfilter-publisher/src/verifyPublishedOrigin.ts">verifyPublishedOrigin.ts</a> and the browser bundle loader.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>Check the published version yourself</h2>
+    <p>The live pointer is public JSON:</p>
+    <pre><code>curl -s https://aml-filter.com/bundle/origin/latest</code></pre>
+    <p>It returns the <code>manifest_hash</code>, <code>version</code>, <code>sequence</code> and <code>signature</code>. The version identifies the list data; the sequence is the anti-rollback counter. The app shows the same values on screen.</p>
+    <p>The pinned key is a raw 32-byte Ed25519 public key:</p>
+    <pre><code>curl -s https://aml-filter.com/public.key | od -An -tx1</code></pre>
+    <p>It should match the key in the repository at <code>frontend/app/public/public.key</code>. The key is served same-origin; it is not taken from the bundle.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>Privacy, concretely</h2>
+    <ul>
+      <li>No account, no email, no server-side screening endpoint.</li>
+      <li>No third-party scripts, fonts, analytics or error beacons. The content security policy allows same-origin code and data only.</li>
+      <li>Names, dates of birth and results stay in the tab; the KYC workstation stores its records in OPFS SQLite on your device.</li>
+      <li>The list download is inbound public data; it reveals nothing about who you are screening.</li>
+    </ul>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>Security history, including the mistake</h2>
+    <p>One production signing seed was committed to this public repository on 2026-06-20 and rotated on 2026-07-21. The old key is burned and revoked; the live key was replaced and the demo key was decoupled. The full record — fingerprints, exposure window, impact and the do-not-roll-back rule — is in <a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md#key-history">SECURITY.md</a>. We publish the mistake because a trust page that only lists successes is not a trust page.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What this does not prove</h2>
+    <ul>
+      <li>It proves the bundle is the one the key holder signed. It does not prove the upstream government list was correct or complete.</li>
+      <li>It proves the code that ran is the code in the repository only if you trust the deployment; the source and the reproducible build path are public.</li>
+      <li>It does not make you compliant. Screening is one control in an AML program, and a no-hit result is not a legal safe harbour.</li>
+    </ul>
+    <div class="note warn"><p><strong>Found a problem?</strong> Report verification or supply-chain issues privately using the <a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">security policy</a>, not a public issue.</p></div>
+  </div>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h3>AML-Filter</h3>
+        <p>Free, in-browser sanctions screening. The matching runs on your device; the watchlists are signed and verified before use.</p>
+        <p><a href="/screen">Open the screener</a></p>
+      </div>
+      <div>
+        <h3>Guides</h3>
+        <ul>
+          <li><a href="/ofac-check/">OFAC SDN check</a></li>
+          <li><a href="/sanctions-screening/">Screening for small business</a></li>
+          <li><a href="/sanctions-screening-without-uploading-data/">Screening without upload</a></li>
+          <li><a href="/eu-sanctions-list/">EU, UN and UK lists</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Project</h3>
+        <ul>
+          <li><a href="/trust/">Trust and verification</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="/sitemap.xml">Sitemap</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">AML-Filter searches public sanctions data entirely in the browser tab. The lists are public government data; the software is MIT-licensed. This is not a compliance vendor, a full AML program, or legal advice. Always follow the requirements of your own regulator and jurisdiction. Last updated 2026-10-24.</p>
+  </div>
+</footer>
+</body>
+</html>

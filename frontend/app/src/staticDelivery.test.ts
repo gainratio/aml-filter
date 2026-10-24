@@ -5,6 +5,14 @@ const APP_ROOT = join(import.meta.dirname, "..");
 const PUBLIC_ROOT = join(APP_ROOT, "public");
 const ORIGIN = "https://aml-filter.com";
 const REPO_URL = "https://github.com/gainratio/aml-filter";
+/** Static acquisition/trust pages. No JS, no inline styles: the CSP allows neither. */
+const GUIDE_ROUTES = [
+	"/ofac-check/",
+	"/sanctions-screening/",
+	"/sanctions-screening-without-uploading-data/",
+	"/eu-sanctions-list/",
+	"/trust/",
+] as const;
 
 function readAppFile(relativePath: string): string {
 	return readFileSync(join(APP_ROOT, relativePath), "utf8");
@@ -109,7 +117,28 @@ describe("static discovery artifacts", () => {
 		);
 
 		expect(sitemap.querySelector("parsererror")).toBeNull();
-		expect(locations).toEqual([`${ORIGIN}/`, `${ORIGIN}/screen`]);
+		expect(locations).toEqual([
+			`${ORIGIN}/`,
+			...GUIDE_ROUTES.map((route) => `${ORIGIN}${route}`),
+			`${ORIGIN}/screen`,
+		]);
+	});
+
+	test("guide pages are static, canonical, and CSP-safe", () => {
+		for (const route of GUIDE_ROUTES) {
+			const html = readPublicFile(`${route.slice(1)}index.html`);
+			const document = new DOMParser().parseFromString(html, "text/html");
+
+			expect(document.querySelectorAll("h1")).toHaveLength(1);
+			expect(
+				document.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+			).toBe(`${ORIGIN}${route}`);
+			expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBeTruthy();
+			expect(html).not.toMatch(/<style[\s>]/i);
+			expect(html).not.toMatch(/\sstyle\s*=/i);
+			expect(html).not.toMatch(/<script[\s>]/i);
+			expect(html).toContain('href="/screen"');
+		}
 	});
 
 	test("llms.txt is concise, factual, linked, and carries the product disclaimer", () => {

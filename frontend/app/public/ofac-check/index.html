@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Free OFAC SDN Search — No Upload, No Account | AML-Filter</title>
+  <meta name="description" content="Check a name against the US OFAC SDN list in your browser. Free, no account, no upload; signed watchlists and an explained match score.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://aml-filter.com/ofac-check/">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/seo.css">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="AML-Filter">
+  <meta property="og:title" content="Free OFAC SDN Search — No Upload, No Account | AML-Filter">
+  <meta property="og:description" content="Check a name against the US OFAC SDN list in your browser. Free, no account, no upload; signed watchlists and an explained match score.">
+  <meta property="og:url" content="https://aml-filter.com/ofac-check/">
+  <meta property="og:image" content="https://aml-filter.com/logo.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Free OFAC SDN Search — No Upload, No Account | AML-Filter">
+  <meta name="twitter:description" content="Check a name against the US OFAC SDN list in your browser. Free, no account, no upload; signed watchlists and an explained match score.">
+  <meta property="article:modified_time" content="2026-10-24">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/">AML-Filter</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/ofac-check/" aria-current="page">OFAC check</a><a href="/sanctions-screening/">Screening</a><a href="/eu-sanctions-list/">Lists</a><a href="/trust/">Trust</a><a class="nav-cta" href="/screen">Open the screener</a>
+    </nav>
+  </div>
+</header>
+<main>
+<div class="wrap breadcrumbs"><a href="/">Home</a> / OFAC SDN CHECK</div>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">OFAC SDN CHECK</p>
+    <h1>Free OFAC SDN search, without uploading a name</h1>
+    <p class="lede">Type a name and see whether it matches the U.S. Treasury's Specially Designated Nationals list. The matching runs on your device; the name is never sent to a server.</p>
+    <div class="cta-row">
+  <a class="button" href="/screen">Open the free screener</a>
+  <a class="button button--ghost" href="/trust/">How verification works</a>
+</div>
+<p class="small">No account. Nothing you type is uploaded. The first visit downloads the matcher and the signed list (up to about 80 MB); repeat visits reuse the cached copy.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What the OFAC SDN list is</h2>
+    <p>The U.S. Treasury's Office of Foreign Assets Control (OFAC) publishes the Specially Designated Nationals and Blocked Persons list. It names people, companies, vessels and other entities that U.S. persons are generally prohibited from dealing with. Banks and payment providers are expected to check names against it; so are many importers, exporters, accountants and company-formation agents.</p>
+    <p>The list is public. The hard part is not getting it; it is checking a name reliably without sending your customer list to a third party, and being able to explain why a name did or did not match.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What this check does</h2>
+    <div class="grid">
+      <div class="card"><h3>1. Normalise</h3><p>Case, accents, punctuation, name order and common transliterations are normalised before comparison, so <em>Vladimir Putin</em> and <em>PUTIN, Vladimir Vladimirovich</em> are compared as names rather than strings.</p></div>
+      <div class="card"><h3>2. Match</h3><p>The app compares the name against the SDN list's primary names and aliases, using token and character similarity plus optional date-of-birth and country signals. Each signal contributes a separate, visible weight.</p></div>
+      <div class="card"><h3>3. Explain</h3><p>Every hit shows the list it came from, the matched name or alias, the score and the reasons. A score is not a decision; it is evidence for the person reviewing the case.</p></div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What you see</h2>
+    <ul>
+      <li><strong>The list and the entry</strong> — for example <em>US OFAC SDN</em>, with the matched primary name or alias.</li>
+      <li><strong>A score and tier</strong> — a 0–1 similarity score with the named signals that produced it, not just a red or green dot.</li>
+      <li><strong>The signed list version</strong> — the app verifies the watchlist before use and records which version it screened against.</li>
+      <li><strong>No upload</strong> — the name, date of birth and results stay in the browser tab.</li>
+    </ul>
+    <div class="note"><p><strong>First-visit cost.</strong> The matcher model is about 23 MB and the signed list bundle can be up to about 80 MB. The app caches them, so repeat visits are much faster. Opening the page still needs a network connection; there is no offline mode.</p></div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What it does not do</h2>
+    <ul>
+      <li>It is not a compliance vendor, a regulated screening service, or a substitute for your own AML program.</li>
+      <li>It does not provide legal advice or a definitive "clear" decision. A no-hit result is one input, not a safe harbour.</li>
+      <li>It covers the public lists shipped in its signed bundle (US OFAC SDN, EU, UN and UK consolidated lists). National lists, sectoral lists and ownership/control analysis may go beyond them.</li>
+      <li>It does not keep a server-side audit log. If you need a centrally retained, tamper-evident record, use the local review workflow and your own record-keeping process — or a vendor built for that.</li>
+    </ul>
+  </div>
+</section>
+<section class="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <details><summary>Is it really free?</summary><p>Yes. The source is MIT-licensed and there is no account, subscription or per-check fee. You pay in first-visit download size and your own review time.</p></details>
+    <details><summary>Do you store the names I type?</summary><p>No. Matching runs in the tab and the app makes no third-party requests. There is no analytics script and no backend screening endpoint. The only network traffic is fetching the app and the signed list bundle.</p></details>
+    <details><summary>Does it check the EU, UN and UK lists too?</summary><p>Yes. The signed bundle carries the public lists the app screens against, and every hit names its list. See <a href="/eu-sanctions-list/">the list coverage page</a>.</p></details>
+    <details><summary>How current is the data?</summary><p>The app verifies a signed, content-addressed bundle and shows the version it used. The published pointer is public: <a href="/bundle/origin/latest">/bundle/origin/latest</a>. Check the <code>version</code> and <code>sequence</code> fields, and see <a href="/trust/">Trust and verification</a>.</p></details>
+    <details><summary>Can I use it commercially?</summary><p>The software is MIT-licensed, so yes. Your own regulatory obligations do not disappear: you still need a documented screening process, appropriate lists, and a human review of potential matches.</p></details>
+  </div>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h3>AML-Filter</h3>
+        <p>Free, in-browser sanctions screening. The matching runs on your device; the watchlists are signed and verified before use.</p>
+        <p><a href="/screen">Open the screener</a></p>
+      </div>
+      <div>
+        <h3>Guides</h3>
+        <ul>
+          <li><a href="/ofac-check/">OFAC SDN check</a></li>
+          <li><a href="/sanctions-screening/">Screening for small business</a></li>
+          <li><a href="/sanctions-screening-without-uploading-data/">Screening without upload</a></li>
+          <li><a href="/eu-sanctions-list/">EU, UN and UK lists</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Project</h3>
+        <ul>
+          <li><a href="/trust/">Trust and verification</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="/sitemap.xml">Sitemap</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">AML-Filter searches public sanctions data entirely in the browser tab. The lists are public government data; the software is MIT-licensed. This is not a compliance vendor, a full AML program, or legal advice. Always follow the requirements of your own regulator and jurisdiction. Last updated 2026-10-24.</p>
+  </div>
+</footer>
+</body>
+</html>

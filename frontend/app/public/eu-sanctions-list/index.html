@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EU, UN and UK Sanctions List Check — In Your Browser | AML-Filter</title>
+  <meta name="description" content="Check a name against the EU consolidated, UN consolidated, UK OFSI and US OFAC lists in one local search, with the list and version shown for every hit.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://aml-filter.com/eu-sanctions-list/">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/seo.css">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="AML-Filter">
+  <meta property="og:title" content="EU, UN and UK Sanctions List Check — In Your Browser | AML-Filter">
+  <meta property="og:description" content="Check a name against the EU consolidated, UN consolidated, UK OFSI and US OFAC lists in one local search, with the list and version shown for every hit.">
+  <meta property="og:url" content="https://aml-filter.com/eu-sanctions-list/">
+  <meta property="og:image" content="https://aml-filter.com/logo.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="EU, UN and UK Sanctions List Check — In Your Browser | AML-Filter">
+  <meta name="twitter:description" content="Check a name against the EU consolidated, UN consolidated, UK OFSI and US OFAC lists in one local search, with the list and version shown for every hit.">
+  <meta property="article:modified_time" content="2026-10-24">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/">AML-Filter</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/ofac-check/">OFAC check</a><a href="/sanctions-screening/">Screening</a><a href="/eu-sanctions-list/" aria-current="page">Lists</a><a href="/trust/">Trust</a><a class="nav-cta" href="/screen">Open the screener</a>
+    </nav>
+  </div>
+</header>
+<main>
+<div class="wrap breadcrumbs"><a href="/">Home</a> / LIST COVERAGE</div>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">LIST COVERAGE</p>
+    <h1>Check a name against the EU, UN and UK sanctions lists</h1>
+    <p class="lede">One search across four public lists, matched on your device, with the list and list version shown for every hit.</p>
+    <div class="cta-row">
+  <a class="button" href="/screen">Open the free screener</a>
+  <a class="button button--ghost" href="/trust/">How verification works</a>
+</div>
+<p class="small">No account. Nothing you type is uploaded. The first visit downloads the matcher and the signed list (up to about 80 MB); repeat visits reuse the cached copy.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>The four lists in the bundle</h2>
+    <table>
+      <thead><tr><th>List</th><th>Publisher</th><th>Typical scope</th></tr></thead>
+      <tbody>
+        <tr><td>OFAC SDN</td><td>U.S. Treasury, OFAC</td><td>US persons and US-nexus transactions</td></tr>
+        <tr><td>EU consolidated list</td><td>European Union</td><td>EU persons and entities subject to EU restrictive measures</td></tr>
+        <tr><td>UN consolidated list</td><td>UN Security Council</td><td>UN member states' implementation of Security Council resolutions</td></tr>
+        <tr><td>UK consolidated list</td><td>UK OFSI</td><td>UK persons and entities under UK sanctions</td></tr>
+      </tbody>
+    </table>
+    <p>The lists overlap but are not identical. A person can be designated by one jurisdiction and not another, and the spelling of a name can differ between publications. Screening only one list is a common and avoidable gap.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>Why check more than one list</h2>
+    <p>Which list applies to you depends on your jurisdiction, your customer, the currency, the goods and the ownership chain. A UK firm dealing with an EU customer may still need to consider UK, EU and UN designations; a US-nexus payment may bring OFAC into scope. Checking all four public lists is a starting point, not a legal conclusion.</p>
+    <div class="note"><p><strong>What "consolidated" does not mean.</strong> None of these lists is a complete statement of every restriction that could apply. Sectoral sanctions, national lists, ownership-and-control rules and the 50% rule can matter even when a name is not on a list.</p></div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>How AML-Filter handles multiple lists</h2>
+    <ul>
+      <li><strong>One search, all lists.</strong> The bundle carries each list separately; every hit names the list it came from.</li>
+      <li><strong>Per-list sensitivity.</strong> The app lets you tune strictness, so a noisy alias list does not force the same threshold as a precise one.</li>
+      <li><strong>One explained score.</strong> The signals and weights are visible, so a reviewer can see why a hit ranked where it did.</li>
+      <li><strong>Signed and versioned.</strong> The app screens against a verified bundle and shows the version it used.</li>
+    </ul>
+  </div>
+</section>
+<section class="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <details><summary>Does it cover every country's sanctions list?</summary><p>No. It covers the four public consolidated lists above. National lists (for example, Swiss SECO or Australian DFAT) and sectoral measures may need separate checks.</p></details>
+    <details><summary>How often are the lists refreshed?</summary><p>The app ships a signed bundle and shows the version it screened against. The published pointer is at <a href="/bundle/origin/latest">/bundle/origin/latest</a>; check <code>version</code> and <code>sequence</code>. Refresh cadence depends on the upstream publishers and the project's publish pipeline — treat the version, not a marketing promise, as the fact.</p></details>
+    <details><summary>What about aliases and transliteration?</summary><p>Aliases are part of the list data and are matched alongside primary names. The matcher normalises case, accents, punctuation and word order, and uses fuzzy token similarity for spelling variation.</p></details>
+    <details><summary>Is a hit proof of a sanctions match?</summary><p>No. A hit is a candidate for human review. Names are not unique, transliteration is lossy, and lists contain aliases that collide with ordinary names. The score and reasons are there to support a decision, not replace it.</p></details>
+  </div>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h3>AML-Filter</h3>
+        <p>Free, in-browser sanctions screening. The matching runs on your device; the watchlists are signed and verified before use.</p>
+        <p><a href="/screen">Open the screener</a></p>
+      </div>
+      <div>
+        <h3>Guides</h3>
+        <ul>
+          <li><a href="/ofac-check/">OFAC SDN check</a></li>
+          <li><a href="/sanctions-screening/">Screening for small business</a></li>
+          <li><a href="/sanctions-screening-without-uploading-data/">Screening without upload</a></li>
+          <li><a href="/eu-sanctions-list/">EU, UN and UK lists</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Project</h3>
+        <ul>
+          <li><a href="/trust/">Trust and verification</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="/sitemap.xml">Sitemap</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">AML-Filter searches public sanctions data entirely in the browser tab. The lists are public government data; the software is MIT-licensed. This is not a compliance vendor, a full AML program, or legal advice. Always follow the requirements of your own regulator and jurisdiction. Last updated 2026-10-24.</p>
+  </div>
+</footer>
+</body>
+</html>
