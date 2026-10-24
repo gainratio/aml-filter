@@ -15,11 +15,24 @@ export function Footer() {
 				{t("demoFooter.line2")}
 			</p>
 			<nav className="screen-footer__nav" aria-label="Guides">
-				<a className="screen-footer__link" href="/ofac-check/">OFAC check</a>
-				<a className="screen-footer__link" href="/sanctions-screening/">Sanctions screening</a>
-				<a className="screen-footer__link" href="/sanctions-screening-without-uploading-data/">Without upload</a>
-				<a className="screen-footer__link" href="/eu-sanctions-list/">EU, UN and UK lists</a>
-				<a className="screen-footer__link" href="/trust/">Trust and verification</a>
+				<a className="screen-footer__link" href="/ofac-check/">
+					OFAC check
+				</a>
+				<a className="screen-footer__link" href="/sanctions-screening/">
+					Sanctions screening
+				</a>
+				<a
+					className="screen-footer__link"
+					href="/sanctions-screening-without-uploading-data/"
+				>
+					Without upload
+				</a>
+				<a className="screen-footer__link" href="/eu-sanctions-list/">
+					EU, UN and UK lists
+				</a>
+				<a className="screen-footer__link" href="/trust/">
+					Trust and verification
+				</a>
 			</nav>
 		</footer>
 	);

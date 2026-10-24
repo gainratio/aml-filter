@@ -133,7 +133,11 @@ describe("static discovery artifacts", () => {
 			expect(
 				document.querySelector('link[rel="canonical"]')?.getAttribute("href"),
 			).toBe(`${ORIGIN}${route}`);
-			expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBeTruthy();
+			expect(
+				document
+					.querySelector('meta[name="description"]')
+					?.getAttribute("content"),
+			).toBeTruthy();
 			expect(html).not.toMatch(/<style[\s>]/i);
 			expect(html).not.toMatch(/\sstyle\s*=/i);
 			expect(html).not.toMatch(/<script[\s>]/i);
