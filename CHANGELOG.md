@@ -8,6 +8,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **PR CI no longer depends on the WAF-blocked custom domain.** The memory e2e
+  lane mirrored the production bundle from `https://aml-filter.com/bundle/origin`;
+  a bot challenge on the custom domain made every PR red on a 403 unrelated to the
+  code under test. It now mirrors the same signed pointer from the Pages origin
+  (verified byte-identical: same Ed25519 pointer, same manifest), with
+  `AML_FILTER_LIVE_BUNDLE_BASE_URL` as the explicit override. The deploy gate still
+  verifies the canonical domain; only the test fixture moved.
 - **An overlapping pointer fetch that stalls can no longer borrow another fetch's
   manifest to pass the live smoke.** The excuse for a compressed `latest` pointer
   reported as `ERR_ABORTED` needed "the next bundle request is a manifest"; with two

@@ -11,7 +11,15 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const LIVE_BUNDLE_BASE_URL = "https://aml-filter.com/bundle/origin";
+export const DEFAULT_LIVE_BUNDLE_BASE_URL = "https://aml-filter.com/bundle/origin";
+
+/**
+ * Overridable so the memory e2e lane can mirror the SAME production artifact
+ * through the Pages origin when the custom domain is behind a bot challenge.
+ * The default stays the canonical domain for local `dev:live`.
+ */
+export const LIVE_BUNDLE_BASE_URL =
+	process.env.AML_FILTER_LIVE_BUNDLE_BASE_URL ?? DEFAULT_LIVE_BUNDLE_BASE_URL;
 
 const APP_PUBLIC = resolve(
 	dirname(fileURLToPath(import.meta.url)),
