@@ -450,6 +450,12 @@ code {
 .screen-footer__link {
 	color: #2563eb;
 }
+.screen-footer__nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem 0.9rem;
+	margin-top: 0.6rem;
+}
 
 /* Shared evidence-console treatment for the in-browser screening route. */
 .screen-page {

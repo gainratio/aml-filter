@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sanctions Screening for Small Businesses — Free, In-Browser | AML-Filter</title>
+  <meta name="description" content="A free sanctions screening workflow for small firms: signed public lists, explained matches, and customer data that never leaves the browser.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://aml-filter.com/sanctions-screening/">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/seo.css">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="AML-Filter">
+  <meta property="og:title" content="Sanctions Screening for Small Businesses — Free, In-Browser | AML-Filter">
+  <meta property="og:description" content="A free sanctions screening workflow for small firms: signed public lists, explained matches, and customer data that never leaves the browser.">
+  <meta property="og:url" content="https://aml-filter.com/sanctions-screening/">
+  <meta property="og:image" content="https://aml-filter.com/logo.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Sanctions Screening for Small Businesses — Free, In-Browser | AML-Filter">
+  <meta name="twitter:description" content="A free sanctions screening workflow for small firms: signed public lists, explained matches, and customer data that never leaves the browser.">
+  <meta property="article:modified_time" content="2026-10-24">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/">AML-Filter</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/ofac-check/">OFAC check</a><a href="/sanctions-screening/" aria-current="page">Screening</a><a href="/eu-sanctions-list/">Lists</a><a href="/trust/">Trust</a><a class="nav-cta" href="/screen">Open the screener</a>
+    </nav>
+  </div>
+</header>
+<main>
+<div class="wrap breadcrumbs"><a href="/">Home</a> / SANCTIONS SCREENING</div>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">SANCTIONS SCREENING</p>
+    <h1>Sanctions screening for small businesses</h1>
+    <p class="lede">If you have to run a sanctions check but cannot justify a per-seat screening vendor, run it in the browser. Your customer list stays on your device.</p>
+    <div class="cta-row">
+  <a class="button" href="/screen">Open the free screener</a>
+  <a class="button button--ghost" href="/trust/">How verification works</a>
+</div>
+<p class="small">No account. Nothing you type is uploaded. The first visit downloads the matcher and the signed list (up to about 80 MB); repeat visits reuse the cached copy.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>Who this is for</h2>
+    <p>Small accounting practices, company-formation agents, payment and fintech teams, importers and exporters, law firms and anyone else who has to run a sanctions check but cannot justify a per-seat screening contract. If your "screening process" is a government website, a spreadsheet and a note in a file, this is built for you.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>Why the usual options are a bad fit</h2>
+    <div class="grid">
+      <div class="card"><h3>Vendors charge per seat or per check</h3><p>Enterprise screening is priced for banks. For a five-person practice, the procurement and the annual contract cost more than the risk it is meant to manage.</p></div>
+      <div class="card"><h3>Vendors receive your customer list</h3><p>Uploading names, dates of birth and passport details to a third party creates a data-processing relationship, a transfer question and a breach surface you did not have before.</p></div>
+      <div class="card"><h3>Manual checks do not scale</h3><p>Searching four government sites by hand, one name at a time, produces inconsistent records and no explanation of why a name was cleared.</p></div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What a small screening control actually needs</h2>
+    <ol>
+      <li><strong>The right lists</strong> — at minimum the jurisdictions you touch: US OFAC, EU, UN and UK consolidated lists.</li>
+      <li><strong>Name-aware matching</strong> — transliteration, aliases, word order and spelling variation, not an exact string search.</li>
+      <li><strong>An explanation</strong> — which list, which alias, which signals, and a score a reviewer can defend.</li>
+      <li><strong>A record</strong> — who was screened, against which list version, and what the reviewer decided.</li>
+      <li><strong>A repeatable process</strong> — re-screen when the list changes, not only at onboarding.</li>
+    </ol>
+    <p>AML-Filter covers the first three in the browser and gives you a local KYC workstation for the fourth. The fifth is a process decision: the app shows the list version, so you can record what was screened and when.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>How the workflow fits together</h2>
+    <div class="grid">
+      <div class="card"><h3>Screen</h3><p>Type a name, optionally a date of birth. Pick a strictness preset. The app returns scored, explained matches from the signed lists.</p></div>
+      <div class="card"><h3>Review</h3><p>Promote a potential match into the local review board, record a decision, and keep the reasoning with the case instead of in an email thread.</p></div>
+      <div class="card"><h3>Keep it local</h3><p>Customer records, matches and decisions live in SQLite in your browser's private storage (OPFS). There is no server and no account.</p></div>
+    </div>
+    <div class="note warn"><p><strong>The trade-off is real.</strong> Local-first means no central audit log and no cross-device sync. If your regulator requires centrally retained records, export or document the local record according to your own policy, or use a vendor that provides that service.</p></div>
+  </div>
+</section>
+<section class="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <details><summary>Is this enough for KYC/AML compliance?</summary><p>It can be part of your process, not the whole of it. Screening is one control; you still need customer due diligence, risk assessment, record-keeping, reporting and a named responsible person. Ask your regulator or compliance adviser what your specific obligations are.</p></details>
+    <details><summary>What does it cost to run?</summary><p>The software is free and there is no backend to operate. The real costs are the first-visit download (up to about 80 MB per device) and the human time to review matches.</p></details>
+    <details><summary>Can several people in my firm use it?</summary><p>Each person runs it in their own browser; there is no shared server or account system. That is the privacy property, and also the limit: records do not sync between devices.</p></details>
+    <details><summary>Which lists are included?</summary><p>US OFAC SDN, EU, UN and UK consolidated lists, shipped as a signed bundle. See <a href="/eu-sanctions-list/">list coverage</a> for the caveats.</p></details>
+  </div>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h3>AML-Filter</h3>
+        <p>Free, in-browser sanctions screening. The matching runs on your device; the watchlists are signed and verified before use.</p>
+        <p><a href="/screen">Open the screener</a></p>
+      </div>
+      <div>
+        <h3>Guides</h3>
+        <ul>
+          <li><a href="/ofac-check/">OFAC SDN check</a></li>
+          <li><a href="/sanctions-screening/">Screening for small business</a></li>
+          <li><a href="/sanctions-screening-without-uploading-data/">Screening without upload</a></li>
+          <li><a href="/eu-sanctions-list/">EU, UN and UK lists</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Project</h3>
+        <ul>
+          <li><a href="/trust/">Trust and verification</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="/sitemap.xml">Sitemap</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">AML-Filter searches public sanctions data entirely in the browser tab. The lists are public government data; the software is MIT-licensed. This is not a compliance vendor, a full AML program, or legal advice. Always follow the requirements of your own regulator and jurisdiction. Last updated 2026-10-24.</p>
+  </div>
+</footer>
+</body>
+</html>

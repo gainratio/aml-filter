@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sanctions Screening Without Uploading Customer Data | AML-Filter</title>
+  <meta name="description" content="Screen names against sanctions lists without sending them to a vendor. Local matching, signed lists, no account, and a network panel you can check.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://aml-filter.com/sanctions-screening-without-uploading-data/">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/seo.css">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="AML-Filter">
+  <meta property="og:title" content="Sanctions Screening Without Uploading Customer Data | AML-Filter">
+  <meta property="og:description" content="Screen names against sanctions lists without sending them to a vendor. Local matching, signed lists, no account, and a network panel you can check.">
+  <meta property="og:url" content="https://aml-filter.com/sanctions-screening-without-uploading-data/">
+  <meta property="og:image" content="https://aml-filter.com/logo.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Sanctions Screening Without Uploading Customer Data | AML-Filter">
+  <meta name="twitter:description" content="Screen names against sanctions lists without sending them to a vendor. Local matching, signed lists, no account, and a network panel you can check.">
+  <meta property="article:modified_time" content="2026-10-24">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/">AML-Filter</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/ofac-check/">OFAC check</a><a href="/sanctions-screening/">Screening</a><a href="/eu-sanctions-list/">Lists</a><a href="/trust/">Trust</a><a class="nav-cta" href="/screen">Open the screener</a>
+    </nav>
+  </div>
+</header>
+<main>
+<div class="wrap breadcrumbs"><a href="/">Home</a> / LOCAL-FIRST SCREENING</div>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">LOCAL-FIRST SCREENING</p>
+    <h1>Screen a name without uploading your customer list</h1>
+    <p class="lede">Most screening tools work by sending names to a vendor. This one downloads a signed list and matches in the tab, so the names you type never leave the device.</p>
+    <div class="cta-row">
+  <a class="button" href="/screen">Open the free screener</a>
+  <a class="button button--ghost" href="/trust/">How verification works</a>
+</div>
+<p class="small">No account. Nothing you type is uploaded. The first visit downloads the matcher and the signed list (up to about 80 MB); repeat visits reuse the cached copy.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>The problem with "just upload the list"</h2>
+    <p>Most screening tools are hosted services. To check a name, you send it — and usually a date of birth, a country and sometimes a passport number — to a vendor's server. That creates a data-processing relationship, a cross-border transfer question, a retention policy you do not control, and one more place your customers' data can leak.</p>
+    <p>For a small firm, the vendor's security may be better than yours. That does not change the fact that you have added a copy of your customer list outside your control.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What happens instead</h2>
+    <div class="grid">
+      <div class="card"><h3>Download once</h3><p>The browser fetches a signed, content-addressed watchlist bundle. The bundle is public data; downloading it reveals nothing about your customers.</p></div>
+      <div class="card"><h3>Verify before use</h3><p>The app checks the Ed25519 signature over the pointer, the SHA-256 of the manifest and every chunk, and a monotonic sequence that refuses rollback. A bad bundle is refused, not silently used.</p></div>
+      <div class="card"><h3>Match in the tab</h3><p>The matcher runs in a Web Worker on your device. The name you type never crosses the network boundary; the app has no backend screening endpoint and loads no third-party scripts.</p></div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>What leaves your device</h2>
+    <p>Nothing you type. The app fetches its own static files and the public list bundle, and that is the whole network story. There is no account, no analytics tag, no font CDN, no support widget and no error-reporting beacon.</p>
+    <p>You do not have to take that on trust. Open the browser's Network panel while you screen a name: the request list stays empty after the initial load. The source is public and MIT-licensed; the content security policy allows only same-origin scripts and data.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <h2>The honest trade-offs</h2>
+    <ul>
+      <li><strong>Download size.</strong> The first visit downloads the matcher and list bundle (up to about 80 MB). That is the price of not having a server do the matching.</li>
+      <li><strong>No central audit trail.</strong> Records live in the browser. If you need a server-retained, organisation-wide log, this is not that product.</li>
+      <li><strong>Your device is the boundary.</strong> Device encryption, screen locks and browser profile hygiene matter more when the data never leaves the machine.</li>
+      <li><strong>Public lists are still public.</strong> Local matching protects your customer data, not the sanctions list. The list itself is downloadable by anyone.</li>
+    </ul>
+    <div class="note"><p><strong>When a vendor is the right call:</strong> you need continuous monitoring, case management across a team, regulatory reporting, or a contractual SLA. Local-first is a data-minimisation choice, not a complete compliance stack.</p></div>
+  </div>
+</section>
+<section class="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <details><summary>Is the data really not uploaded?</summary><p>Correct. The matching happens in the browser tab against a list the browser downloads. There is no API that receives a name. You can verify this in the Network panel and in the open source.</p></details>
+    <details><summary>Does this help with GDPR?</summary><p>It reduces the data you send to a processor, which can simplify the transfer and processor questions. It does not by itself make you GDPR-compliant; you still need a lawful basis, notices and records.</p></details>
+    <details><summary>How do I know the list is genuine?</summary><p>The pointer is signed with a pinned Ed25519 key, and every chunk is content-addressed. See <a href="/trust/">Trust and verification</a> for the exact checks and how to inspect the published version.</p></details>
+    <details><summary>Can I verify the source?</summary><p>Yes — <a href="https://github.com/gainratio/aml-filter">the repository</a> is public and MIT-licensed, including the verification path and its tests.</p></details>
+  </div>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h3>AML-Filter</h3>
+        <p>Free, in-browser sanctions screening. The matching runs on your device; the watchlists are signed and verified before use.</p>
+        <p><a href="/screen">Open the screener</a></p>
+      </div>
+      <div>
+        <h3>Guides</h3>
+        <ul>
+          <li><a href="/ofac-check/">OFAC SDN check</a></li>
+          <li><a href="/sanctions-screening/">Screening for small business</a></li>
+          <li><a href="/sanctions-screening-without-uploading-data/">Screening without upload</a></li>
+          <li><a href="/eu-sanctions-list/">EU, UN and UK lists</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Project</h3>
+        <ul>
+          <li><a href="/trust/">Trust and verification</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="/sitemap.xml">Sitemap</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">AML-Filter searches public sanctions data entirely in the browser tab. The lists are public government data; the software is MIT-licensed. This is not a compliance vendor, a full AML program, or legal advice. Always follow the requirements of your own regulator and jurisdiction. Last updated 2026-10-24.</p>
+  </div>
+</footer>
+</body>
+</html>
