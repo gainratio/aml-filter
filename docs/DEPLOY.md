@@ -334,7 +334,8 @@ There are no secrets in the app: it holds only the public verification key.
 
 Per-list thresholds, strictness, list selection, and the analyst name are set in the
 app's **Settings** page and stored in the browser. Publishing signed lists needs a
-private signing key, which is never committed; see [Operations](OPERATIONS.md).
+private signing key, which is never committed. The pre-rotation seed that did leak is
+recorded in [SECURITY.md](../SECURITY.md#key-history); see [Operations](OPERATIONS.md).
 
 The build stages the verified model and ONNX-WASM assets from local dependencies, so
 the production browser never downloads executable code or model weights from a

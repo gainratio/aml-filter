@@ -15,7 +15,7 @@ canonical-token/Double-Metaphone postings. TypeScript generates the keys and pre
 the transparent final scoring contract. One screening pipeline, one explainable scoring
 contract, three TypeScript units.
 
-There is no Python, no Postgres, no Docker, and no HTTP screening endpoint. The lists ship as
+There is no Python, Postgres, or Docker in the product runtime, and no HTTP screening endpoint (the CI/release tooling is a Python Dagger module). The lists ship as
 a signed, content-addressed bundle of static files you can host on any CDN, delta-synced
 and cached durably in the browser so a repeat visit does not re-download them; the trust comes from
 an Ed25519 signature the browser checks — over fetched *and* cached bytes — before it
@@ -99,11 +99,16 @@ The five signals: `name_vector`, `name_sequence`, `alias_match`, `dob_match`,
 `country_match`. The weights and the match threshold come from a named **preset**
 (`PRESETS` in `scoring.ts`):
 
-| Preset | name_vector | name_sequence | alias_match | dob_match | country_match | threshold |
-| --- | --- | --- | --- | --- | --- | --- |
-| strict | 0.60 | 0.25 | 0.05 | 0.05 | 0.05 | 0.75 |
-| balanced | 0.55 | 0.20 | 0.10 | 0.10 | 0.05 | 0.65 |
-| lenient | 0.50 | 0.15 | 0.15 | 0.10 | 0.10 | 0.55 |
+| Preset | name_vector | name_sequence | alias_match | dob_match | country_match | sum | threshold |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| strict | 0.60 | 0.25 | 0.20 | 0.05 | 0.05 | 1.15 | 0.75 |
+| balanced | 0.55 | 0.20 | 0.35 | 0.10 | 0.05 | 1.25 | 0.65 |
+| lenient | 0.50 | 0.15 | 0.40 | 0.10 | 0.10 | 1.25 | 0.55 |
+
+The weights deliberately do **not** sum to 1.0. The alias weight was raised so one exact
+published-alias hit clears the Balanced 0.30 combined-score floor on its own; the score is
+therefore a clamped weighted sum, not a weighted average, and saturates at 1.0 when every
+signal agrees. See the `WHY` block in `scoring.ts` for the calibration evidence.
 
 Every match carries:
 
@@ -472,7 +477,7 @@ here.)
 ## Local data model (SQLite-WASM)
 
 The schema lives in `frontend/packages/amlfilter-workstation/src/db/schema.ts`
-(`SCHEMA_VERSION = 3`; migrations are an ordered ledger applied by `migrate()`). The
+(`SCHEMA_VERSION = 5`; migrations are an ordered ledger applied by `migrate()`; v5 adds `screened_at` and `screened_list_version` to `customers`). The
 tables that hold the workstation's state:
 
 - **`customers`** — a KYC customer.

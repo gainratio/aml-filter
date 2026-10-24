@@ -40,12 +40,41 @@ reporting, in case the issue is already fixed.
 | 4.x     | :white_check_mark: |
 | < 4.0   | :x:                |
 
+## Key history
+
+This repository is public, and its history is permanent. One production signing seed was
+committed here and must be treated as burned, even though the live key has since been
+rotated.
+
+| | Value |
+| --- | --- |
+| Exposed | `frontend/packages/amlfilter-publisher/fixtures/demo.key`, added 2026-06-20 (`8ffd09d`), a 32-byte Ed25519 seed |
+| Rotated | 2026-07-21 (`16512cf`) — new production pin `838dd1d016aa5f8bfdcd00381d4c216873d43c399f900447ec66c079faaa642f` |
+| Revoked pin | `db2c8c8abd1ea38438b949ae45889fab58bfcbafc7d78de4bf4e717f8482264c` (the public half derived from the committed seed) |
+| Exposure window | ~31 days (2026-06-20 → 2026-07-21) |
+
+**Impact.** Anyone could have extracted the seed during that window and signed a
+watchlist bundle that a client pinning the old key would accept. The current deployment
+serves the new pin (`https://aml-filter.com/public.key` matches the rotated value), so the
+live app is not vulnerable. An old deployment, a cached tab, or a restored pre-rotation
+build that still pins the old key would be.
+
+**Remediation.** The seed was rotated, the production pin was replaced, demo and
+production keys were decoupled, the demo key was replaced with a throwaway seed, and a
+regression test asserts the demo key can never equal the production pin again. The
+temporary sequence-derivation bridge that trusted the retired key has been removed.
+
+**Do not** roll production back to a deployment built before 2026-07-21, and do not
+reintroduce the old public key as trusted material. The revoked key is recorded above and
+must be kept as a revocation record, not deleted from history.
+
 ## Scope notes
 
 - The trust model is **pinned-key, fail-closed**: the app trusts only the Ed25519
-  `public.key` baked into its own build at
+  `public.key` served from its own origin and pinned at
   [`frontend/app/public/public.key`](frontend/app/public/public.key) — never a key carried
-  in the bundle. The signed `latest` pointer, the content-addressed manifest, and every
+  in the bundle. The key is fetched same-origin at runtime and is not read from the
+  bundle origin. The signed `latest` pointer, the content-addressed manifest, and every
   chunk are verified (Ed25519 + SHA-256) **before** any list is promoted into the running
   engine; the same check re-runs over bytes served from the durable cache. Reports that
   demonstrate trust without the pinned key, signature acceptance after tampering, a

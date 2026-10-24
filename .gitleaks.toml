@@ -1,9 +1,14 @@
 # gitleaks config — full upstream ruleset kept; allowlist only.
 #
-# Every exception below is a verified FALSE POSITIVE from the weekly full-history scan
-# (security-audit.yml "Secret scan" job). Nothing here is or ever was a live credential.
-# The production watchlist signing key has never touched git — it exists only as the
-# WATCHLIST_SIGNING_KEY GitHub Actions secret (see publish-watchlist.yml header).
+# Every allowlist exception below is a verified FALSE POSITIVE from the weekly
+# full-history scan (security-audit.yml "Secret scan" job).
+#
+# KEY HISTORY: one production signing seed did once touch git. It was committed as
+# frontend/packages/amlfilter-publisher/fixtures/demo.key on 2026-06-20 and rotated on
+# 2026-07-21 (commit 16512cf). That key is burned and revoked; the current seed exists
+# only as the WATCHLIST_SIGNING_KEY GitHub Actions secret. A raw 32-byte Ed25519 seed
+# has no scannable pattern, so it is deliberately not an allowlist entry. Full record:
+# SECURITY.md "Key history".
 #
 # NOTE: this file deliberately uses the LEGACY singular [allowlist] table, not the
 # newer [[allowlists]] array form. gitleaks-action@v3 pins gitleaks 8.24.3, which
