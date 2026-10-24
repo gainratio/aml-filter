@@ -12,8 +12,7 @@ overrides:
   source-map-js: '>=1.2.2 <2'
   postcss: '>=8.5.18 <9'
   nanoid: '>=3.3.17 <4'
-  undici@>=7.0.0 <7.30.1: 7.30.1
-  undici@>=8.0.0 <8.12.2: 8.12.2
+  undici: 7.30.1
 
 patchedDependencies:
   '@sqlite.org/sqlite-wasm@3.53.4-build2': c3b4c603333e5b7b92c6d2a6c2894c4dbdd642708383c870e3fb3d2b2e4f9318
@@ -1742,10 +1741,6 @@ packages:
     resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.12.2:
-    resolution: {integrity: sha512-XtuDWVdqTLr3NAxm2ly9/hU6kUsJOgGh1RASzMBbsw6aWCOaQzHdW+QQDfdERjfJ2V5vL5pRPa4RetO9UfivDg==}
-    engines: {node: '>=22.19.0'}
-
   unenv@2.0.0-rc.24:
     resolution: {integrity: sha512-i7qRCmY42zmCwnYlh9H2SvLEypEFGye5iRmEMKjcGi7zk9UquigRjFtTLz0TYqr0ZGLZhaMHl/foy1bZR+Cwlw==}
 
@@ -2763,7 +2758,7 @@ snapshots:
       parse5: 8.0.1
       saxes: 6.0.0
       tough-cookie: 6.0.2
-      undici: 8.12.2
+      undici: 7.30.1
       w3c-xmlserializer: 6.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -3106,8 +3101,6 @@ snapshots:
   undici-types@8.9.0: {}
 
   undici@7.30.1: {}
-
-  undici@8.12.2: {}
 
   unenv@2.0.0-rc.24:
     dependencies:

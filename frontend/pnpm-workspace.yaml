@@ -78,8 +78,7 @@ overrides:
   source-map-js: ">=1.2.2 <2"
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.17 <4"
-  "undici@>=7.0.0 <7.30.1": "7.30.1"
-  "undici@>=8.0.0 <8.12.2": "8.12.2"
+  undici: "7.30.1"
 
 # Backport of three SQLite check-ins into the opfs-sahpool VFS that holds the
 # workstation's KYC database (ext/wasm/api/sqlite3-vfs-opfs-sahpool.c-pp.js):
