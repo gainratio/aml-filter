@@ -64,13 +64,9 @@ allowBuilds:
 # for a zero-size custom alphabet request. The `<4` ceiling avoids a silent
 # transitive major-version jump.
 #
-# Pin transitive undici to 7.29.1 for GHSA-3wwx-pv8p-q78v (DoS via an unhandled
-# error in WebSocket permessage-deflate decompression; vulnerable >=7.28.0
-# <7.29.1). wrangler>miniflare pins undici EXACTLY at 7.29.0, so no direct bump
-# reaches it. The selector only rewrites the vulnerable 7.x range; the separate
-# undici 8.x copy is untouched. The advisory turned main CI red on 2026-09-29
-# (`pnpm audit --audit-level low`), which silently skipped the deploy and blocked
-# every watchlist publish (they require an exact-green main).
+# Pin transitive undici 7.x and 8.x to patched lines for GHSA-4qv8-2p9j-2685,
+# GHSA-f72v-6w45-q472, and GHSA-xjj6-f33q-929c (vulnerable >=7.0.0 <7.30.1 and
+# >=8.0.0 <8.12.2). wrangler>miniflare pins undici 7.x and jsdom pins undici 8.x.
 # Keep ONE @hpcc-js/wasm-zstd copy at 1.16.2. @gainratio/browser (^0.4.1 from npm) declares
 # `^1.16.1` and its own gate runs 1.16.2; the app ships one copy of that exact
 # build instead of two (almamesh pins the same version).
@@ -82,7 +78,8 @@ overrides:
   source-map-js: ">=1.2.2 <2"
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.17 <4"
-  "undici@>=7.28.0 <7.29.1": "7.29.1"
+  "undici@>=7.0.0 <7.30.1": "7.30.1"
+  "undici@>=8.0.0 <8.12.2": "8.12.2"
 
 # Backport of three SQLite check-ins into the opfs-sahpool VFS that holds the
 # workstation's KYC database (ext/wasm/api/sqlite3-vfs-opfs-sahpool.c-pp.js):
