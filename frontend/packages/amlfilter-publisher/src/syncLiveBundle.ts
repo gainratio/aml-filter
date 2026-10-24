@@ -11,7 +11,8 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DEFAULT_LIVE_BUNDLE_BASE_URL = "https://aml-filter.com/bundle/origin";
+export const DEFAULT_LIVE_BUNDLE_BASE_URL =
+	"https://aml-filter.com/bundle/origin";
 
 /**
  * Overridable so the memory e2e lane can mirror the SAME production artifact
