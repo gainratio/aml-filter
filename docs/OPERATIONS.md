@@ -56,8 +56,9 @@ application-supported device-level reset.
   directory renders 24 cards per page; the vector matrix is a single row-major
   `Float32Array` transferred across worker boundaries instead of cloned.
 - **Supply chain or key exposure.** Runtime dependencies are lockfile-pinned, the model
-  and staged WASM assets are SHA-256/size checked, the signing seed exists only as a
-  GitHub secret, the dependency audits (shipped deps in the `Dagger` check, dev tooling in
+  and staged WASM assets are SHA-256/size checked, the current signing seed exists only
+  as a GitHub secret (the pre-2026-07-21 seed was committed and rotated; see SECURITY.md),
+  the dependency audits (shipped deps in the `Dagger` check, dev tooling in
   `dev-tool-audit.yml` and before every code release) have no ignore list, and gitleaks
   scans full history.
 
