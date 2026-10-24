@@ -484,4 +484,48 @@ describe("httpFetchBytes", () => {
 			globalThis.fetch = originalFetch;
 		}
 	});
+
+	it("falls back to aml-filter.pages.dev on a 403 from aml-filter.com and fails closed on 404 or other origins", async () => {
+		const originalFetch = globalThis.fetch;
+		const seen: string[] = [];
+		globalThis.fetch = ((url: string | URL | Request) => {
+			const href = String(url);
+			seen.push(href);
+			if (href === "https://aml-filter.com/bundle/origin/latest") {
+				return Promise.resolve(
+					new Response("challenge", { status: 403, statusText: "Forbidden" }),
+				);
+			}
+			if (href === "https://aml-filter.pages.dev/bundle/origin/latest") {
+				return Promise.resolve(new Response(new Uint8Array([4, 5, 6])));
+			}
+			if (href === "https://aml-filter.com/bundle/origin/missing") {
+				return Promise.resolve(
+					new Response("missing", { status: 404, statusText: "Not Found" }),
+				);
+			}
+			return Promise.resolve(
+				new Response("forbidden", { status: 403, statusText: "Forbidden" }),
+			);
+		}) as typeof fetch;
+		try {
+			await expect(
+				httpFetchBytes("https://aml-filter.com/bundle/origin/latest"),
+			).resolves.toEqual(new Uint8Array([4, 5, 6]));
+			await expect(
+				httpFetchBytes("https://aml-filter.com/bundle/origin/missing"),
+			).rejects.toThrow(/404 Not Found/);
+			await expect(httpFetchBytes("https://other.test/latest")).rejects.toThrow(
+				/403 Forbidden/,
+			);
+			expect(seen).toEqual([
+				"https://aml-filter.com/bundle/origin/latest",
+				"https://aml-filter.pages.dev/bundle/origin/latest",
+				"https://aml-filter.com/bundle/origin/missing",
+				"https://other.test/latest",
+			]);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
 });

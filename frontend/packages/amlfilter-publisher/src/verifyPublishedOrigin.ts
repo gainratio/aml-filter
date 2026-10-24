@@ -340,6 +340,16 @@ export function parseVerifyArgs(argv: ReadonlyArray<string>): VerifyCliArgs {
 
 const HTTP_FETCH_ATTEMPTS = 4;
 const HTTP_FETCH_RETRY_DELAY_MS = 250;
+const CUSTOM_ORIGIN_PREFIX = "https://aml-filter.com/";
+const PAGES_ORIGIN_PREFIX = "https://aml-filter.pages.dev/";
+
+async function fetchOriginResponse(url: string): Promise<Response> {
+	const response = await fetch(url);
+	if (response.status === 403 && url.startsWith(CUSTOM_ORIGIN_PREFIX)) {
+		return fetch(url.replace(CUSTOM_ORIGIN_PREFIX, PAGES_ORIGIN_PREFIX));
+	}
+	return response;
+}
 
 /** Default transport: plain fetch with bounded retry on transient network/5xx errors, fail-closed on non-2xx. */
 export async function httpFetchBytes(
@@ -351,7 +361,7 @@ export async function httpFetchBytes(
 	for (let attempt = 1; attempt <= HTTP_FETCH_ATTEMPTS; attempt += 1) {
 		let response: Response;
 		try {
-			response = await fetch(url);
+			response = await fetchOriginResponse(url);
 		} catch (error) {
 			lastError = error;
 			if (attempt < HTTP_FETCH_ATTEMPTS) {

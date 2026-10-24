@@ -35,6 +35,18 @@ function delay(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const CUSTOM_ORIGIN_PREFIX = "https://aml-filter.com/";
+const PAGES_ORIGIN_PREFIX = "https://aml-filter.pages.dev/";
+
+async function fetchIdentityResponse(url, fetchImpl) {
+	const response = await fetchImpl(url, { cache: "no-store" });
+	if (response.status === 403 && url.startsWith(CUSTOM_ORIGIN_PREFIX)) {
+		const fallbackUrl = url.replace(CUSTOM_ORIGIN_PREFIX, PAGES_ORIGIN_PREFIX);
+		return fetchImpl(fallbackUrl, { cache: "no-store" });
+	}
+	return response;
+}
+
 export async function verifyDeployedIdentity({
 	url,
 	sha,
@@ -47,7 +59,7 @@ export async function verifyDeployedIdentity({
 	let lastError;
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
 		try {
-			const response = await fetchImpl(url, { cache: "no-store" });
+			const response = await fetchIdentityResponse(url, fetchImpl);
 			if (!response.ok) {
 				throw new Error(`build identity returned HTTP ${response.status}`);
 			}

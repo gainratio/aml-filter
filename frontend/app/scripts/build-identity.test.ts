@@ -106,6 +106,35 @@ describe("deployment build identity", () => {
 		).resolves.toEqual({ git_sha: SHA, github_run_id: RUN_ID });
 	});
 
+	it("falls back to aml-filter.pages.dev when aml-filter.com returns 403", async () => {
+		const fetchImpl = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(new Response("challenge", { status: 403 }))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ git_sha: SHA, github_run_id: RUN_ID })),
+			);
+		await expect(
+			verifyDeployedIdentity({
+				url: "https://aml-filter.com/build.json",
+				sha: SHA,
+				runId: RUN_ID,
+				attempts: 1,
+				delayMs: 0,
+				fetchImpl,
+			}),
+		).resolves.toEqual({ git_sha: SHA, github_run_id: RUN_ID });
+		expect(fetchImpl).toHaveBeenNthCalledWith(
+			1,
+			"https://aml-filter.com/build.json",
+			{ cache: "no-store" },
+		);
+		expect(fetchImpl).toHaveBeenNthCalledWith(
+			2,
+			"https://aml-filter.pages.dev/build.json",
+			{ cache: "no-store" },
+		);
+	});
+
 	it("surfaces a deterministic error when every fetch throws a non-Error", async () => {
 		const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue("offline");
 		await expect(
