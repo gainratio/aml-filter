@@ -39,12 +39,52 @@ function parseAttrs(attrText: string): Record<string, string> {
 	return attrs;
 }
 
-/** All `<tag ...>...</tag>` (and self-closing `<tag .../>`) elements in `xml`. */
+/** All `<tag ...>...</tag>` (and self-closing `<tag .../>`) elements in `xml`.
+ * A linear scanner, not a regex: the feeds are tens of megabytes and an
+ * overlapping-quantifier pattern is a ReDoS risk on malformed input. */
 export function elements(xml: string, tag: string): XmlElement[] {
 	const out: XmlElement[] = [];
-	const re = new RegExp(`<${tag}(\\s[^>]*?)?(/>|>([\\s\\S]*?)</${tag}>)`, "g");
-	for (let m = re.exec(xml); m !== null; m = re.exec(xml)) {
-		out.push({ attrs: parseAttrs(m[1] ?? ""), inner: m[3] ?? "" });
+	const open = `<${tag}`;
+	const close = `</${tag}>`;
+	let index = 0;
+	while (index < xml.length) {
+		const start = xml.indexOf(open, index);
+		if (start === -1) break;
+		const boundary = xml[start + open.length];
+		if (
+			boundary !== undefined &&
+			boundary !== ">" &&
+			boundary !== "/" &&
+			!/\s/u.test(boundary)
+		) {
+			index = start + open.length;
+			continue;
+		}
+		let cursor = start + open.length;
+		let quote: string | undefined;
+		for (; cursor < xml.length; cursor += 1) {
+			const char = xml[cursor];
+			if (quote !== undefined) {
+				if (char === quote) quote = undefined;
+				continue;
+			}
+			if (char === '"' || char === "'") {
+				quote = char;
+				continue;
+			}
+			if (char === ">") break;
+		}
+		if (cursor >= xml.length) break;
+		const attrText = xml.slice(start + open.length, cursor);
+		if (attrText.endsWith("/")) {
+			out.push({ attrs: parseAttrs(attrText.slice(0, -1)), inner: "" });
+			index = cursor + 1;
+			continue;
+		}
+		const end = xml.indexOf(close, cursor + 1);
+		if (end === -1) break;
+		out.push({ attrs: parseAttrs(attrText), inner: xml.slice(cursor + 1, end) });
+		index = end + close.length;
 	}
 	return out;
 }
