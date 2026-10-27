@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://aml-filter.com/</loc></url>
+  <url><loc>https://aml-filter.com/</loc><lastmod>2026-10-27</lastmod></url>
   <url><loc>https://aml-filter.com/ofac-check/</loc><lastmod>2026-10-24</lastmod></url>
   <url><loc>https://aml-filter.com/sanctions-screening/</loc><lastmod>2026-10-24</lastmod></url>
   <url><loc>https://aml-filter.com/sanctions-screening-without-uploading-data/</loc><lastmod>2026-10-24</lastmod></url>
   <url><loc>https://aml-filter.com/eu-sanctions-list/</loc><lastmod>2026-10-24</lastmod></url>
   <url><loc>https://aml-filter.com/trust/</loc><lastmod>2026-10-24</lastmod></url>
-  <url><loc>https://aml-filter.com/screen</loc></url>
+  <url><loc>https://aml-filter.com/screen</loc><lastmod>2026-10-27</lastmod></url>
 </urlset>
