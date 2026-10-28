@@ -83,7 +83,10 @@ export function elements(xml: string, tag: string): XmlElement[] {
 		}
 		const end = xml.indexOf(close, cursor + 1);
 		if (end === -1) break;
-		out.push({ attrs: parseAttrs(attrText), inner: xml.slice(cursor + 1, end) });
+		out.push({
+			attrs: parseAttrs(attrText),
+			inner: xml.slice(cursor + 1, end),
+		});
 		index = end + close.length;
 	}
 	return out;
