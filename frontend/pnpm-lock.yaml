@@ -37,8 +37,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/amlfilter-workstation
       '@gainratio/errors':
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.4.0
+        version: 0.4.0
       '@gainratio/receipt-ui':
         specifier: ^0.3.0
         version: 0.3.0(@gainratio/avow@0.5.3)(react@19.3.0)
@@ -113,8 +113,8 @@ importers:
         specifier: ^0.5.3
         version: 0.5.3
       '@gainratio/browser':
-        specifier: ^0.4.2
-        version: 0.4.2
+        specifier: ^0.4.3
+        version: 0.4.3
       '@huggingface/transformers':
         specifier: ^4.3.0
         version: 4.3.0(@types/node@26.6.4)
@@ -156,8 +156,8 @@ importers:
         specifier: workspace:*
         version: link:../amlfilter-browser
       '@gainratio/browser':
-        specifier: ^0.4.2
-        version: 0.4.2
+        specifier: ^0.4.3
+        version: 0.4.3
       '@huggingface/transformers':
         specifier: ^4.3.0
         version: 4.3.0(@types/node@26.6.4)
@@ -584,12 +584,12 @@ packages:
     resolution: {integrity: sha512-EeIvZ2xkXDiLpJRhVyODbTNscURy0Xqnzxucbkn9UfZSUIuSqwDfG/EvfSl0AcOLnJQ8PNMM2s2Oq41ACC8uqQ==}
     engines: {node: '>=22.13'}
 
-  '@gainratio/browser@0.4.2':
-    resolution: {integrity: sha512-/h6QbjmCrMrd4Ee2F9K/P6nmbdMzRLEDWSPCYwNgb60S+PnZxcE5SSUt61+As8iVHnoUP8Da13cqTChP4va3ig==}
+  '@gainratio/browser@0.4.3':
+    resolution: {integrity: sha512-1sAFbUX8MuU/dlTN6WdPUu7eWx+16GF4HV77fKok0ybpNQDGjX+0ZrHAuPiwJkfBZuHLagfFeaM6q4FtfH3iAg==}
     engines: {node: '>=22.13'}
 
-  '@gainratio/errors@0.3.1':
-    resolution: {integrity: sha512-+pmoXvBem3EKzoM+4KNkQ4Whk6HRQ80fxEPJRQmPwyLgOzdmxcDaAalMdpXVVARYUc+mIUbMyAf17udjiTVJ+g==}
+  '@gainratio/errors@0.4.0':
+    resolution: {integrity: sha512-o0bAT+YDOa01IjjSW4fUG6cILMSS4kfaYDfcxa+Ww97Fl/bN1RY+2c4lSFDQ58QXAVVp7PtMIc7pY2mHms9Mig==}
     engines: {node: '>=22.13'}
 
   '@gainratio/receipt-ui@0.3.0':
@@ -2133,13 +2133,13 @@ snapshots:
       '@noble/ed25519': 3.2.0
       canonicalize: 3.0.0
 
-  '@gainratio/browser@0.4.2':
+  '@gainratio/browser@0.4.3':
     dependencies:
       '@hpcc-js/wasm-zstd': 1.16.2
       '@noble/ed25519': 3.2.0
       age-encryption: 0.3.1
 
-  '@gainratio/errors@0.3.1': {}
+  '@gainratio/errors@0.4.0': {}
 
   '@gainratio/receipt-ui@0.3.0(@gainratio/avow@0.5.3)(react@19.3.0)':
     dependencies:
