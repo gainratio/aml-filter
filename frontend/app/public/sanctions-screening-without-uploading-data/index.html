@@ -19,6 +19,7 @@
   <meta name="twitter:title" content="Sanctions Screening Without Uploading Customer Data | AML-Filter">
   <meta name="twitter:description" content="Screen names against sanctions lists without sending them to a vendor. Local matching, signed lists, no account, and a network panel you can check.">
   <meta property="article:modified_time" content="2026-10-24">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is the data really not uploaded?","acceptedAnswer":{"@type":"Answer","text":"Correct. The matching happens in the browser tab against a list the browser downloads. There is no API that receives a name. You can verify this in the Network panel and in the open source."}},{"@type":"Question","name":"Does this help with GDPR?","acceptedAnswer":{"@type":"Answer","text":"It reduces the data you send to a processor, which can simplify the transfer and processor questions. It does not by itself make you GDPR-compliant; you still need a lawful basis, notices and records."}},{"@type":"Question","name":"How do I know the list is genuine?","acceptedAnswer":{"@type":"Answer","text":"The pointer is signed with a pinned Ed25519 key, and every chunk is content-addressed. See Trust and verification for the exact checks and how to inspect the published version."}},{"@type":"Question","name":"Can I verify the source?","acceptedAnswer":{"@type":"Answer","text":"Yes \u2014 the repository is public and MIT-licensed, including the verification path and its tests."}}]}</script>
 </head>
 <body>
 <header class="site-header">
@@ -111,6 +112,7 @@
         <ul>
           <li><a href="/trust/">Trust and verification</a></li>
           <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://open-source.gainratio.com/aml-filter/">Open-source project page</a></li>
           <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
           <li><a href="/sitemap.xml">Sitemap</a></li>
         </ul>

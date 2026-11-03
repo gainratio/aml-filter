@@ -19,6 +19,7 @@
   <meta name="twitter:title" content="EU, UN and UK Sanctions List Check — In Your Browser | AML-Filter">
   <meta name="twitter:description" content="Check a name against the EU consolidated, UN consolidated, UK OFSI and US OFAC lists in one local search, with the list and version shown for every hit.">
   <meta property="article:modified_time" content="2026-10-24">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does it cover every country's sanctions list?","acceptedAnswer":{"@type":"Answer","text":"No. It covers the four public consolidated lists above. National lists (for example, Swiss SECO or Australian DFAT) and sectoral measures may need separate checks."}},{"@type":"Question","name":"How often are the lists refreshed?","acceptedAnswer":{"@type":"Answer","text":"The app ships a signed bundle and shows the version it screened against. The published pointer is at /bundle/origin/latest; check version and sequence. Refresh cadence depends on the upstream publishers and the project's publish pipeline \u2014 treat the version, not a marketing promise, as the fact."}},{"@type":"Question","name":"What about aliases and transliteration?","acceptedAnswer":{"@type":"Answer","text":"Aliases are part of the list data and are matched alongside primary names. The matcher normalises case, accents, punctuation and word order, and uses fuzzy token similarity for spelling variation."}},{"@type":"Question","name":"Is a hit proof of a sanctions match?","acceptedAnswer":{"@type":"Answer","text":"No. A hit is a candidate for human review. Names are not unique, transliteration is lossy, and lists contain aliases that collide with ordinary names. The score and reasons are there to support a decision, not replace it."}}]}</script>
 </head>
 <body>
 <header class="site-header">
@@ -108,6 +109,7 @@
         <ul>
           <li><a href="/trust/">Trust and verification</a></li>
           <li><a href="https://github.com/gainratio/aml-filter">Source (MIT)</a></li>
+          <li><a href="https://open-source.gainratio.com/aml-filter/">Open-source project page</a></li>
           <li><a href="https://github.com/gainratio/aml-filter/blob/main/SECURITY.md">Security policy</a></li>
           <li><a href="/sitemap.xml">Sitemap</a></li>
         </ul>
