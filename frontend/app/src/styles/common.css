@@ -1447,10 +1447,9 @@ form.card.card-muted:has(#customer-reference) .form-grid:has(#customer-dob) {
 }
 
 .review-kpi-label {
-	font-size: 0.75rem;
+	font-size: 0.78rem;
 	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	letter-spacing: 0.015em;
 	color: var(--color-text-muted);
 }
 
@@ -1633,10 +1632,9 @@ form.card.card-muted:has(#customer-reference) .form-grid:has(#customer-dob) {
 
 .review-drawer-title {
 	margin: 0 0 0.45rem;
-	font-size: 0.78rem;
+	font-size: 0.82rem;
 	font-weight: 750;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	letter-spacing: 0.015em;
 	color: var(--color-text-muted);
 }
 
@@ -1696,10 +1694,9 @@ dialog.sar-dialog::backdrop {
 
 .sar-fieldset legend {
 	padding: 0 0.4rem;
-	font-size: 0.76rem;
+	font-size: 0.8rem;
 	font-weight: 750;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	letter-spacing: 0.015em;
 	color: var(--color-ink-soft);
 }
 
