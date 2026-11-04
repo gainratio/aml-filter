@@ -3053,3 +3053,49 @@ def test_should_install_edge_for_the_browser_matrix_only_where_it_exists(
     assert 'if [ "$(uname -m)" = x86_64 ]' in edge
     assert "playwright install --with-deps msedge" in edge
     assert events.index(edge) < events.index("exec:pnpm run gate")
+
+
+def test_should_assert_the_shipped_bundle_key_between_build_and_stamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the deploy replaces public/bundle/origin with the signed release and
+    # then builds. A build that ships a bundle signed by another key (the demo
+    # key, as happened in production) must fail BEFORE the dist is stamped.
+    events: list[str] = []
+
+    class BundleGuardContainer(ReleaseContainerRecorder):
+        def without_directory(self, path: str) -> BundleGuardContainer:
+            self.events.append(f"without-directory:{path}")
+            return self
+
+    class ReleaseDirectory:
+        def directory(self, path: str) -> Directory:
+            del path
+            return cast(Directory, object())
+
+    container = BundleGuardContainer(events)
+
+    def node(_self: AmlFilter, source: Directory) -> BundleGuardContainer:
+        del source
+        return container
+
+    monkeypatch.setattr(AmlFilter, "_node", node)
+    subject = object.__new__(AmlFilter)
+
+    # When
+    subject._release_app(
+        cast(Directory, object()),
+        cast(Directory, ReleaseDirectory()),
+        RECORDED_SHA,
+        "123",
+    )
+
+    # Then: build -> assert bundle key -> stamp, in that exact order.
+    build = "exec:pnpm --filter aml-filter-app run build"
+    guard = "exec:node app/scripts/assert-bundle-key.mjs"
+    stamp = (
+        "exec:node app/scripts/build-identity.mjs stamp --dist app/dist "
+        f"--sha {RECORDED_SHA} --run-id 123"
+    )
+    assert build in events
+    assert events.index(build) < events.index(guard) < events.index(stamp)

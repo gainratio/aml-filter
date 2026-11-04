@@ -100,6 +100,10 @@ PLAYWRIGHT_EDGE_INSTALL: Final = [
     "pnpm --filter aml-filter-app exec playwright install --with-deps msedge; fi",
 ]
 APP_BUILD: Final = split("pnpm --filter aml-filter-app run build")
+# The build must ship the signed release that replaced public/bundle/origin, not
+# the committed demo bundle: assert that pointer against the pinned public.key
+# before stamping the dist or handing it to the provider.
+ASSERT_BUNDLE_KEY: Final = split("node app/scripts/assert-bundle-key.mjs")
 # pnpm splits the audit by dependency type from the lockfile. `--prod` covers what ships
 # (the browser bundle, the publisher runtime) and runs inside the authorizing Dagger
 # check; `--dev` covers build/test/deploy tooling (vite, vitest, wrangler) and runs in
@@ -357,7 +361,8 @@ class AmlFilter:
         )
         stamp = ["node", "app/scripts/build-identity.mjs", "stamp", "--dist", "app/dist"]
         stamp += ["--sha", source_sha, "--run-id", run_id]
-        return container.with_exec(APP_BUILD).with_exec(stamp)
+        guarded = container.with_exec(APP_BUILD).with_exec(ASSERT_BUNDLE_KEY)
+        return guarded.with_exec(stamp)
 
     def _verify_container(
         self, source: Directory, release: Directory, identity: ReleaseIdentity, origin: str
