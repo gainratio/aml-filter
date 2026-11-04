@@ -324,6 +324,16 @@ describe("LocalApiClient slice methods", () => {
 		const list = await client.listSars();
 		expect(list).toHaveLength(1);
 		expect(list[0]?.status).toBe("FILED");
+
+		const exported = await client.updateSar(created.sar_id, {
+			status: "EXPORTED",
+		});
+		expect(exported.status).toBe("EXPORTED");
+		expect(exported.exported_at).not.toBeNull();
+
+		await expect(
+			client.updateSar("missing-sar", { status: "FILED" }),
+		).rejects.toThrow(/SAR missing-sar not found/);
 	});
 });
 

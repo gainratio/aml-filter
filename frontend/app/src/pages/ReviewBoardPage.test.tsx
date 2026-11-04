@@ -508,6 +508,200 @@ describe("ReviewBoardPage", () => {
 		fireEvent.click(screen.getByRole("tab", { name: /sar filings/i }));
 		expect(screen.getByText("SAR-20260606-0001")).toBeInTheDocument();
 		expect(screen.getByText("Sanctions list hit")).toBeInTheDocument();
+
+		// Expand and collapse narrative dossier in SAR registry
+		const dossierBtn = screen.getByRole("button", {
+			name: /inspect narrative for SAR-20260606-0001/i,
+		});
+		fireEvent.click(dossierBtn);
+		expect(
+			screen.getByText(/1\. WHO: Customer Viktor Veksel/i),
+		).toBeInTheDocument();
+		fireEvent.click(dossierBtn);
+
+		// Export FinCEN JSON
+		mockClient.updateSar.mockResolvedValue({
+			sar_id: "sar-1",
+			filing_reference: "SAR-20260606-0001",
+			status: "EXPORTED",
+			match_id: "m-strong",
+			customer_id: "cust-1",
+			customer_reference: "R-STRONG",
+			subject_name: "Viktor Veksel",
+			sanctioned_name: "Veksel Viktor",
+			ofac_entity_id: "ofac-1",
+			source_list: "OFAC_SDN",
+			match_score: 0.95,
+			activity_category: "SANCTIONS_HIT",
+			suspicious_amount_usd: "50000.00",
+			activity_start_date: "2026-06-06",
+			institution_name: "GainRatio Compliance Ops",
+			filing_officer: "Avery Analyst",
+			contact_email: "compliance@institution.example",
+			narrative:
+				"1. WHO: Customer Viktor Veksel matched against Veksel Viktor on US OFAC.",
+			created_at: "2026-06-06T10:05:00Z",
+			updated_at: "2026-06-06T10:05:00Z",
+			filed_at: "2026-06-06T10:05:00Z",
+			exported_at: "2026-06-06T10:06:00Z",
+		});
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: /export fincen json for SAR-20260606-0001/i,
+			}),
+		);
+		await waitFor(() =>
+			expect(mockClient.updateSar).toHaveBeenCalledWith("sar-1", {
+				status: "EXPORTED",
+			}),
+		);
+		await waitFor(() =>
+			expect(screen.getByText("Exported")).toBeInTheDocument(),
+		);
+	});
+
+	it("validates SAR form fields, saves a draft SAR, and finalizes it from the SAR registry", async () => {
+		mockClient.listReviewMatches.mockResolvedValue([
+			makeMatch({
+				match_id: "m-tp",
+				tier: "POSSIBLE",
+				resolution_status: "TRUE_POSITIVE",
+				customer_reference: "R-TP",
+				reasons: [
+					{
+						signal: "name_vector",
+						value: 0.91,
+						weight: 0.6,
+						contribution: 0.55,
+						description: null,
+					},
+				],
+				explanation: "Match due to: strong vector similarity",
+			}),
+		]);
+		mockClient.getMatchEvents.mockResolvedValue([]);
+		mockClient.createSar.mockResolvedValue({
+			sar_id: "sar-draft",
+			filing_reference: "SAR-20260606-0002",
+			status: "DRAFT",
+			match_id: "m-tp",
+			customer_id: "cust-1",
+			customer_reference: "R-TP",
+			subject_name: "Jon Q. Fakename",
+			sanctioned_name: "John Fakename",
+			ofac_entity_id: "John Fakename",
+			source_list: "OFAC_SDN",
+			match_score: 0.95,
+			activity_category: "EVASION_ATTEMPT",
+			suspicious_amount_usd: "12500.00",
+			activity_start_date: "2026-06-01",
+			institution_name: "Acme Bank",
+			filing_officer: "Jordan",
+			contact_email: "jordan@acme.example",
+			narrative:
+				"Detailed regulatory narrative describing the confirmed match and evasion indicators.",
+			created_at: "2026-06-06T10:05:00Z",
+			updated_at: "2026-06-06T10:05:00Z",
+			filed_at: null,
+			exported_at: null,
+		});
+		mockClient.updateSar.mockResolvedValue({
+			sar_id: "sar-draft",
+			filing_reference: "SAR-20260606-0002",
+			status: "FILED",
+			match_id: "m-tp",
+			customer_id: "cust-1",
+			customer_reference: "R-TP",
+			subject_name: "Jon Q. Fakename",
+			sanctioned_name: "John Fakename",
+			ofac_entity_id: "John Fakename",
+			source_list: "OFAC_SDN",
+			match_score: 0.95,
+			activity_category: "EVASION_ATTEMPT",
+			suspicious_amount_usd: "12500.00",
+			activity_start_date: "2026-06-01",
+			institution_name: "Acme Bank",
+			filing_officer: "Jordan",
+			contact_email: "jordan@acme.example",
+			narrative:
+				"Detailed regulatory narrative describing the confirmed match and evasion indicators.",
+			created_at: "2026-06-06T10:05:00Z",
+			updated_at: "2026-06-06T10:05:00Z",
+			filed_at: "2026-06-06T10:07:00Z",
+			exported_at: null,
+		});
+
+		renderBoard();
+		await waitFor(() => expect(screen.getByText("R-TP")).toBeInTheDocument());
+
+		// Open history drawer to verify scoring breakdown chips + empty history
+		fireEvent.click(screen.getByRole("button", { name: /history for R-TP/i }));
+		await waitFor(() =>
+			expect(
+				screen.getByText(/Name likeness · 55% weight/i),
+			).toBeInTheDocument(),
+		);
+		expect(screen.getByText(/no history recorded/i)).toBeInTheDocument();
+
+		// Open SAR modal and trigger validation errors first
+		fireEvent.click(screen.getByRole("button", { name: /file sar for R-TP/i }));
+		fireEvent.change(screen.getByLabelText(/institution name/i), {
+			target: { value: "" },
+		});
+		fireEvent.change(screen.getByLabelText(/compliance contact email/i), {
+			target: { value: "invalid-email" },
+		});
+		fireEvent.change(screen.getByLabelText(/suspicious activity narrative/i), {
+			target: { value: "too short" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
+		expect(mockClient.createSar).not.toHaveBeenCalled();
+
+		// Fill valid fields and save draft
+		fireEvent.change(screen.getByLabelText(/institution name/i), {
+			target: { value: "Acme Bank" },
+		});
+		fireEvent.change(screen.getByLabelText(/compliance officer/i), {
+			target: { value: "Jordan" },
+		});
+		fireEvent.change(screen.getByLabelText(/compliance contact email/i), {
+			target: { value: "jordan@acme.example" },
+		});
+		fireEvent.change(screen.getByLabelText(/primary activity category/i), {
+			target: { value: "EVASION_ATTEMPT" },
+		});
+		fireEvent.change(screen.getByLabelText(/estimated exposure/i), {
+			target: { value: "12500.00" },
+		});
+		fireEvent.change(screen.getByLabelText(/activity date/i), {
+			target: { value: "2026-06-01" },
+		});
+		fireEvent.change(screen.getByLabelText(/suspicious activity narrative/i), {
+			target: {
+				value:
+					"Detailed regulatory narrative describing the confirmed match and evasion indicators.",
+			},
+		});
+		fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByText(/SAR draft \(SAR-20260606-0002\)/i),
+			).toBeInTheDocument(),
+		);
+
+		// Switch to SAR filings and finalize the draft
+		fireEvent.click(screen.getByRole("tab", { name: /sar filings/i }));
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: /submit draft sar SAR-20260606-0002/i,
+			}),
+		);
+		await waitFor(() =>
+			expect(mockClient.updateSar).toHaveBeenCalledWith("sar-draft", {
+				status: "FILED",
+			}),
+		);
 	});
 
 	it("synchronizes case queue tabs with list query filters", async () => {
@@ -529,6 +723,38 @@ describe("ReviewBoardPage", () => {
 				expect.objectContaining({ needsReview: true }),
 			),
 		);
+
+		fireEvent.click(screen.getByRole("tab", { name: /changed only/i }));
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalledWith(
+				expect.objectContaining({ reviewState: "CHANGED" }),
+			),
+		);
+
+		fireEvent.click(screen.getByRole("tab", { name: /confirmed matches/i }));
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalledWith(
+				expect.objectContaining({ resolution_status: "TRUE_POSITIVE" }),
+			),
+		);
+
+		fireEvent.click(screen.getByRole("tab", { name: /cleared/i }));
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalledWith(
+				expect.objectContaining({ resolution_status: "FALSE_POSITIVE" }),
+			),
+		);
+
+		fireEvent.click(screen.getByRole("tab", { name: /all cases/i }));
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalledWith({}),
+		);
+
+		// Empty SAR registry state
+		fireEvent.click(screen.getByRole("tab", { name: /sar filings/i }));
+		expect(
+			screen.getByText(/no suspicious activity reports have been filed yet/i),
+		).toBeInTheDocument();
 	});
 
 	describe("plain words, never raw codes", () => {
