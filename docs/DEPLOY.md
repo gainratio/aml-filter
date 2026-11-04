@@ -12,6 +12,13 @@ WebCrypto signature verification and use private browser storage.
 
 ## 1. Build the static site
 
+> **Production deploys must run the Dagger release path.** It replaces
+> `bundle/origin/` with a bundle signed by the production key, then runs
+> `node app/scripts/assert-bundle-key.mjs` before stamping or uploading.
+> The plain `pnpm build` below ships the committed **demo** bundle and fails
+> against the production `public.key`. Never upload that `dist/` to
+> `aml-filter.com`; this exact mistake broke `/screen` in November 2026.
+
 All commands run from `frontend/` — there is no root `package.json`.
 
 ```bash
