@@ -313,24 +313,22 @@ describe("exporting the key", { timeout: 60_000 }, () => {
 });
 
 describe("importing a key", { timeout: 60_000 }, () => {
-	let cachedExport: Promise<{ bytes: Uint8Array; publicKey: string }> | null =
-		null;
+	let cachedExport: Promise<{ file: File; publicKey: string }> | null = null;
 
-	async function exportFile(): Promise<{ file: File; publicKey: string }> {
+	function exportFile(): Promise<{ file: File; publicKey: string }> {
 		if (cachedExport === null) {
 			cachedExport = (async () => {
 				const source = serviceOver(await memoryInstallKeySql());
 				const bytes = await source.exportEncrypted(PASSPHRASE);
-				return { bytes, publicKey: (await source.load()).publicKeyHex };
+				return {
+					file: new File([bytes], "key.age", {
+						type: "application/octet-stream",
+					}),
+					publicKey: (await source.load()).publicKeyHex,
+				};
 			})();
 		}
-		const { bytes, publicKey } = await cachedExport;
-		return {
-			file: new File([bytes], "key.age", {
-				type: "application/octet-stream",
-			}),
-			publicKey,
-		};
+		return cachedExport;
 	}
 
 	it("replaces this browser's key with the file's", async () => {
