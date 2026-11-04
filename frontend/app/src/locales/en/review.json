@@ -7,7 +7,25 @@
 		"error": "Error: {{error}}",
 		"loadFailed": "Failed to load matches",
 		"resolveFailed": "Failed to resolve match",
-		"historyFailed": "Failed to load history"
+		"historyFailed": "Failed to load history",
+		"sarFailed": "Failed to save suspicious activity report"
+	},
+	"kpis": {
+		"ariaLabel": "Compliance queue summary",
+		"actionRequired": "Action required",
+		"strongHits": "Strong sanctions hits",
+		"confirmedMatches": "Confirmed matches",
+		"sarsFiled": "SARs filed"
+	},
+	"queues": {
+		"ariaLabel": "Case triage queues",
+		"all": "All cases",
+		"needsReview": "Needs review",
+		"strongHits": "Strong hits",
+		"changed": "Changed only",
+		"confirmed": "Confirmed matches",
+		"cleared": "Cleared",
+		"sarFilings": "SAR filings"
 	},
 	"filters": {
 		"tier": {
@@ -48,12 +66,36 @@
 		"changedBadge": "CHANGED — needs re-review",
 		"emptyReviewer": "-",
 		"resolved": "Resolved",
+		"fileSar": "File SAR",
+		"fileSarAria": "File SAR for {{ref}}",
+		"sarFiledBadge": "SAR filed ({{ref}})",
+		"sarDraftBadge": "SAR draft ({{ref}})",
 		"history": {
 			"aria": "History for {{ref}}",
 			"toggle": "History"
 		}
 	},
+	"evidence": {
+		"signalsHeading": "Scoring breakdown",
+		"entityId": "Watchlist ID: {{id}}",
+		"listVersion": "List build: {{version}}",
+		"weight": "{{pct}}% weight"
+	},
+	"dossier": {
+		"explain": {
+			"matched": "Why it matched: {{reasons}}",
+			"weak": "Weak match — check it by hand",
+			"parts": {
+				"strongVector": "the names are very alike",
+				"strongName": "the spelling is very close",
+				"alias": "matches a listed alias",
+				"dob": "the date of birth matches",
+				"country": "the country matches"
+			}
+		}
+	},
 	"history": {
+		"heading": "Audit trail",
 		"loading": "Loading history…",
 		"error": "Error: {{error}}",
 		"empty": "No history recorded.",
@@ -69,5 +111,59 @@
 		"reviewerPlaceholder": "Reviewer ID",
 		"notesPlaceholder": "Notes",
 		"submit": "Resolve"
+	},
+	"sarModal": {
+		"title": "File Suspicious Activity Report (SAR)",
+		"subtitle": "Prepare a FinCEN-aligned suspicious activity dossier stored locally in this workstation.",
+		"subjectLegend": "Subject & sanctions match evidence",
+		"subjectCustomer": "Subject / customer",
+		"matchedEntity": "Matched watchlist entity",
+		"matchStrength": "Screening score",
+		"institutionLegend": "Filing institution & compliance officer",
+		"institutionLabel": "Institution name",
+		"institutionPlaceholder": "e.g. Acme Financial Services LLC",
+		"officerLabel": "Compliance officer",
+		"officerPlaceholder": "e.g. Jordan Rivera",
+		"emailLabel": "Compliance contact email",
+		"emailPlaceholder": "compliance@institution.example",
+		"activityLegend": "Suspicious activity classification",
+		"categoryLabel": "Primary activity category",
+		"amountLabel": "Estimated exposure (USD, optional)",
+		"amountPlaceholder": "e.g. 25000.00",
+		"startDateLabel": "Activity date (optional)",
+		"narrativeLegend": "FinCEN SAR narrative (Five Essential Elements)",
+		"narrativeLabel": "Suspicious activity narrative",
+		"narrativeHint": "Describe who, what, when, where, and why the activity or match is suspicious.",
+		"regenerateNarrative": "Reset template narrative",
+		"saveDraft": "Save draft",
+		"submitReport": "Submit SAR",
+		"cancel": "Cancel",
+		"errors": {
+			"institution": "Enter the filing institution name.",
+			"officer": "Enter the compliance officer name.",
+			"email": "Enter a valid compliance contact email.",
+			"narrative": "Provide a complete narrative (at least 30 characters)."
+		}
+	},
+	"sarRegistry": {
+		"heading": "SAR Filings ({{count}})",
+		"subtitle": "Local-first FinCEN suspicious activity reports persisted in your browser database.",
+		"empty": "No suspicious activity reports have been filed yet. Use 'File SAR' on any strong or confirmed sanctions hit.",
+		"columns": {
+			"reference": "SAR Ref",
+			"subject": "Subject",
+			"matchedEntity": "Sanctioned Entity",
+			"category": "Category",
+			"officer": "Compliance Officer",
+			"status": "Status",
+			"filedAt": "Timestamp",
+			"actions": "Dossier Actions"
+		},
+		"exportJson": "Export FinCEN JSON",
+		"exportJsonAria": "Export FinCEN JSON for {{ref}}",
+		"finalize": "Submit SAR",
+		"finalizeAria": "Submit draft SAR {{ref}}",
+		"toggleNarrative": "Dossier",
+		"toggleNarrativeAria": "Inspect narrative for {{ref}}"
 	}
 }

@@ -18,6 +18,9 @@ vi.mock("../lib/api", () => ({
 		listReviewMatches: vi.fn(),
 		resolveReviewMatch: vi.fn(),
 		getMatchEvents: vi.fn(),
+		listSars: vi.fn(),
+		createSar: vi.fn(),
+		updateSar: vi.fn(),
 	},
 }));
 
@@ -73,6 +76,7 @@ describe("ReviewBoardPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockClient.listReviewMatches.mockResolvedValue([]);
+		mockClient.listSars.mockResolvedValue([]);
 	});
 
 	afterEach(() => {
@@ -409,20 +413,122 @@ describe("ReviewBoardPage", () => {
 		);
 	});
 
-	it("offers no File SAR control in the local-first slice (route is unrouted)", async () => {
+	it("files a local-first FinCEN SAR from a STRONG match and lists it in SAR Filings", async () => {
 		mockClient.listReviewMatches.mockResolvedValue([
 			makeMatch({
 				match_id: "m-strong",
 				tier: "STRONG",
 				customer_reference: "R-STRONG",
+				customer_name: "Viktor Veksel",
+				sanctioned_name: "Veksel Viktor",
+				reasons: [
+					{
+						signal: "name_vector",
+						value: 0.96,
+						weight: 0.6,
+						contribution: 0.58,
+						description: null,
+					},
+				],
+				explanation: "Match due to: strong vector similarity",
+			}),
+			makeMatch({
+				match_id: "m-weak",
+				tier: "WEAK",
+				customer_reference: "R-WEAK",
 			}),
 		]);
+		mockClient.createSar.mockResolvedValue({
+			sar_id: "sar-1",
+			filing_reference: "SAR-20260606-0001",
+			status: "FILED",
+			match_id: "m-strong",
+			customer_id: "cust-1",
+			customer_reference: "R-STRONG",
+			subject_name: "Viktor Veksel",
+			sanctioned_name: "Veksel Viktor",
+			ofac_entity_id: "ofac-1",
+			source_list: "OFAC_SDN",
+			match_score: 0.95,
+			activity_category: "SANCTIONS_HIT",
+			suspicious_amount_usd: "50000.00",
+			activity_start_date: "2026-06-06",
+			institution_name: "GainRatio Compliance Ops",
+			filing_officer: "Avery Analyst",
+			contact_email: "compliance@institution.example",
+			narrative:
+				"1. WHO: Customer Viktor Veksel matched against Veksel Viktor on US OFAC.",
+			created_at: "2026-06-06T10:05:00Z",
+			updated_at: "2026-06-06T10:05:00Z",
+			filed_at: "2026-06-06T10:05:00Z",
+			exported_at: null,
+		});
+
 		renderBoard();
 		await waitFor(() =>
 			expect(screen.getByText("R-STRONG")).toBeInTheDocument(),
 		);
-		expect(screen.queryByRole("button", { name: /file sar/i })).toBeNull();
-		expect(screen.queryByText("SAR")).toBeNull();
+
+		const strongRow = screen.getByText("R-STRONG").closest("tr");
+		const weakRow = screen.getByText("R-WEAK").closest("tr");
+		if (!strongRow || !weakRow) throw new Error("rows not found");
+
+		// STRONG match offers File SAR; WEAK pending match does not
+		const fileSarBtn = within(strongRow).getByRole("button", {
+			name: /file sar for R-STRONG/i,
+		});
+		expect(
+			within(weakRow).queryByRole("button", { name: /file sar/i }),
+		).toBeNull();
+
+		fireEvent.click(fileSarBtn);
+		fireEvent.change(screen.getByLabelText(/compliance officer/i), {
+			target: { value: "Avery Analyst" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: /submit sar/i }));
+
+		await waitFor(() =>
+			expect(mockClient.createSar).toHaveBeenCalledWith(
+				expect.objectContaining({
+					match_id: "m-strong",
+					customer_reference: "R-STRONG",
+					filing_officer: "Avery Analyst",
+					status: "FILED",
+				}),
+			),
+		);
+
+		await waitFor(() =>
+			expect(
+				within(strongRow).getByText(/SAR filed \(SAR-20260606-0001\)/i),
+			).toBeInTheDocument(),
+		);
+
+		// Switch to SAR Filings tab and inspect the filed SAR
+		fireEvent.click(screen.getByRole("tab", { name: /sar filings/i }));
+		expect(screen.getByText("SAR-20260606-0001")).toBeInTheDocument();
+		expect(screen.getByText("Sanctions list hit")).toBeInTheDocument();
+	});
+
+	it("synchronizes case queue tabs with list query filters", async () => {
+		renderBoard();
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalled(),
+		);
+
+		fireEvent.click(screen.getByRole("tab", { name: /strong hits/i }));
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalledWith(
+				expect.objectContaining({ tier: "STRONG" }),
+			),
+		);
+
+		fireEvent.click(screen.getByRole("tab", { name: /needs review/i }));
+		await waitFor(() =>
+			expect(mockClient.listReviewMatches).toHaveBeenCalledWith(
+				expect.objectContaining({ needsReview: true }),
+			),
+		);
 	});
 
 	describe("plain words, never raw codes", () => {

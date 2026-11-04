@@ -15,6 +15,7 @@
 
 import type {
 	CreateCustomerPayload,
+	MatchReasonJson,
 	RescanSummary,
 	ScreeningConfig,
 } from "@amlfilter/workstation";
@@ -57,6 +58,11 @@ export interface ApiClient {
 	): Promise<ReviewMatch>;
 	/** The append-only audit trail for a match, oldest-first. */
 	getMatchEvents(matchId: string): Promise<MatchEvent[]>;
+
+	// Local-first SAR (Suspicious Activity Report) compliance registry
+	listSars(): Promise<SarRecord[]>;
+	createSar(payload: CreateSarPayload): Promise<SarRecord>;
+	updateSar(sarId: string, payload: UpdateSarPayload): Promise<SarRecord>;
 
 	// Screening-config tier: getScreeningConfig reads the persisted sensitivity;
 	// setScreeningConfig persists it THEN re-screens every customer (returns the
@@ -204,6 +210,10 @@ export interface ReviewMatch {
 	sanctioned_name: string;
 	source_list: string;
 	review_state: ReviewState;
+	ofac_entity_id?: string;
+	list_version?: string | null;
+	reasons?: ReadonlyArray<MatchReasonJson>;
+	explanation?: string;
 }
 
 export interface ReviewMatchListParams {
@@ -218,6 +228,73 @@ export interface ReviewMatchListParams {
 export interface ReviewResolveBody {
 	reviewer_id?: string;
 	review_notes?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Local-first SAR (Suspicious Activity Report) compliance registry
+// ---------------------------------------------------------------------------
+
+export type SarStatus = "DRAFT" | "FILED" | "EXPORTED";
+
+export type SarActivityCategory =
+	| "SANCTIONS_HIT"
+	| "TERRORIST_FINANCING"
+	| "EVASION_ATTEMPT"
+	| "STRUCTURING"
+	| "OTHER";
+
+export interface SarRecord {
+	sar_id: string;
+	filing_reference: string;
+	status: SarStatus;
+	match_id: string;
+	customer_id: string | null;
+	customer_reference: string;
+	subject_name: string;
+	sanctioned_name: string;
+	ofac_entity_id: string;
+	source_list: string;
+	match_score: number;
+	activity_category: SarActivityCategory;
+	suspicious_amount_usd: string | null;
+	activity_start_date: string | null;
+	institution_name: string;
+	filing_officer: string;
+	contact_email: string;
+	narrative: string;
+	created_at: string;
+	updated_at: string;
+	filed_at: string | null;
+	exported_at: string | null;
+}
+
+export interface CreateSarPayload {
+	match_id: string;
+	customer_id?: string | null;
+	customer_reference: string;
+	subject_name: string;
+	sanctioned_name: string;
+	ofac_entity_id?: string;
+	source_list: string;
+	match_score: number;
+	activity_category: SarActivityCategory;
+	suspicious_amount_usd?: string | null;
+	activity_start_date?: string | null;
+	institution_name: string;
+	filing_officer: string;
+	contact_email: string;
+	narrative: string;
+	status?: "DRAFT" | "FILED";
+}
+
+export interface UpdateSarPayload {
+	status?: SarStatus;
+	narrative?: string;
+	filing_officer?: string;
+	institution_name?: string;
+	contact_email?: string;
+	suspicious_amount_usd?: string | null;
+	activity_category?: SarActivityCategory;
 }
 
 // The app is LOCAL-FIRST: the singleton every page calls is the
