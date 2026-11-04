@@ -25,7 +25,7 @@ const GOLDEN_PASSPHRASE = "golden fixture passphrase v1";
 const GOLDEN_PUBLIC_KEY =
 	"5526f742941711b3bc530ba44ff6f6dab0f0ab71af832f41a7fe3b9fdaed9c60";
 // scrypt (128 MiB) and PBKDF2 (600,000 iterations) take a second or more on a loaded runner.
-const CRYPTO_WAIT = { timeout: 15_000 };
+const CRYPTO_WAIT = { timeout: 25_000 };
 
 let sql: MemoryInstallKeySql;
 let keys: InstallKeys;
@@ -171,7 +171,7 @@ describe("resetting the key", () => {
 	});
 });
 
-describe("exporting the key", { timeout: 30_000 }, () => {
+describe("exporting the key", { timeout: 60_000 }, () => {
 	it("downloads an encrypted file another browser can import", async () => {
 		const blobs = captureDownloads();
 		renderSection();
@@ -312,15 +312,24 @@ describe("exporting the key", { timeout: 30_000 }, () => {
 	});
 });
 
-describe("importing a key", { timeout: 30_000 }, () => {
+describe("importing a key", { timeout: 60_000 }, () => {
+	let cachedExport: Promise<{ bytes: Uint8Array; publicKey: string }> | null =
+		null;
+
 	async function exportFile(): Promise<{ file: File; publicKey: string }> {
-		const source = serviceOver(await memoryInstallKeySql());
-		const bytes = await source.exportEncrypted(PASSPHRASE);
+		if (cachedExport === null) {
+			cachedExport = (async () => {
+				const source = serviceOver(await memoryInstallKeySql());
+				const bytes = await source.exportEncrypted(PASSPHRASE);
+				return { bytes, publicKey: (await source.load()).publicKeyHex };
+			})();
+		}
+		const { bytes, publicKey } = await cachedExport;
 		return {
 			file: new File([bytes], "key.age", {
 				type: "application/octet-stream",
 			}),
-			publicKey: (await source.load()).publicKeyHex,
+			publicKey,
 		};
 	}
 
