@@ -5,7 +5,7 @@ const APP_ROOT = join(import.meta.dirname, "..");
 const PUBLIC_ROOT = join(APP_ROOT, "public");
 const ORIGIN = "https://aml-filter.com";
 const REPO_URL = "https://github.com/gainratio/aml-filter";
-/** Static acquisition/trust pages. No JS, no inline styles: the CSP allows neither. */
+/** Static acquisition/trust pages. No executable JS, no inline styles: the CSP allows neither. */
 const GUIDE_ROUTES = [
 	"/ofac-check/",
 	"/sanctions-screening/",
@@ -140,7 +140,19 @@ describe("static discovery artifacts", () => {
 			).toBeTruthy();
 			expect(html).not.toMatch(/<style[\s>]/i);
 			expect(html).not.toMatch(/\sstyle\s*=/i);
-			expect(html).not.toMatch(/<script[\s>]/i);
+			const scripts = [...document.querySelectorAll("script")];
+			expect(scripts.length).toBeGreaterThan(0);
+			for (const script of scripts) {
+				expect(script.getAttributeNames()).toEqual(["type"]);
+				expect(script.getAttribute("type")).toBe("application/ld+json");
+				expect(() => JSON.parse(script.textContent ?? "")).not.toThrow();
+			}
+			expect(
+				html.replace(
+					/<script type="application\/ld\+json">[\s\S]*?<\/script>/g,
+					"",
+				),
+			).not.toMatch(/<script[\s>]/i);
 			expect(html).toContain('href="/screen"');
 		}
 	});
