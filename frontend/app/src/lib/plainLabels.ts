@@ -63,6 +63,16 @@ export function kycRiskLabel(code: string | null, t: Translate): string {
 	return lookup(t, "kycRisk", code ?? "UNRATED", code ?? "UNRATED");
 }
 
+/** A SAR filing lifecycle status (`DRAFT` / `FILED` / `EXPORTED`) in plain words. */
+export function sarStatusLabel(code: string, t: Translate): string {
+	return lookup(t, "sarStatus", code, code);
+}
+
+/** A FinCEN SAR suspicious activity category (`SANCTIONS_HIT`, …) in plain words. */
+export function sarActivityLabel(code: string, t: Translate): string {
+	return lookup(t, "sarActivity", code, code);
+}
+
 /** The workstation's default `onboarded_by` stamp (schema DEFAULT 'local'). */
 const LOCAL_ACTOR = "local";
 

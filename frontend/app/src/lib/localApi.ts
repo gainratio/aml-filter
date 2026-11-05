@@ -24,6 +24,7 @@ import {
 } from "@amlfilter/workstation";
 import type {
 	ApiClient,
+	CreateSarPayload,
 	CustomerImportResponse,
 	CustomerListParams,
 	CustomerOnboardRequest,
@@ -34,7 +35,14 @@ import type {
 	ReviewMatchListParams,
 	ReviewResolutionStatus,
 	ReviewResolveBody,
+	SarRecord,
+	UpdateSarPayload,
 } from "./api";
+import {
+	createSarRecord,
+	loadSarRegistry,
+	updateSarRecord,
+} from "./sarRegistry";
 
 /** The booted local tier the client runs on (built by lib/workstation.ts). */
 export interface WorkstationServices {
@@ -90,6 +98,10 @@ function toReviewMatch(row: ReviewRow): ReviewMatch {
 		sanctioned_name: row.sanctioned_name,
 		source_list: row.source_list,
 		review_state: row.review_state,
+		ofac_entity_id: row.ofac_entity_id,
+		list_version: row.list_version,
+		reasons: row.reasons,
+		explanation: row.explanation,
 	};
 }
 
@@ -227,6 +239,25 @@ export class LocalApiClient implements Pick<ApiClient, keyof ApiClient> {
 	public async getMatchEvents(matchId: string): Promise<MatchEvent[]> {
 		const { store } = await this.#services();
 		return [...(await store.getMatchEvents(matchId))];
+	}
+
+	// --- slice: local-first SAR compliance registry --------------------------
+	public async listSars(): Promise<SarRecord[]> {
+		const { store } = await this.#services();
+		return loadSarRegistry(store);
+	}
+
+	public async createSar(payload: CreateSarPayload): Promise<SarRecord> {
+		const { store } = await this.#services();
+		return createSarRecord(store, payload);
+	}
+
+	public async updateSar(
+		sarId: string,
+		payload: UpdateSarPayload,
+	): Promise<SarRecord> {
+		const { store } = await this.#services();
+		return updateSarRecord(store, sarId, payload);
 	}
 
 	// --- slice: screening config ---------------------------------------------

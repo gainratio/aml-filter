@@ -290,6 +290,51 @@ describe("LocalApiClient slice methods", () => {
 		expect(() => client.setApiKey("k")).not.toThrow();
 		expect(() => client.clearApiKey()).not.toThrow();
 	});
+
+	it("persists and updates FinCEN SAR records in the SQLite settings table", async () => {
+		const services = makeServices();
+		const client = new LocalApiClient(() => Promise.resolve(services));
+		expect(await client.listSars()).toEqual([]);
+
+		const created = await client.createSar({
+			match_id: "m-1",
+			customer_id: "c-1",
+			customer_reference: "R-1",
+			subject_name: "Ann",
+			sanctioned_name: "Ivan Fakovich",
+			ofac_entity_id: "DEMO_SDN:0001",
+			source_list: "DEMO_SDN",
+			match_score: 0.91,
+			activity_category: "SANCTIONS_HIT",
+			institution_name: "GainRatio Compliance Ops",
+			filing_officer: "Avery Analyst",
+			contact_email: "compliance@institution.example",
+			narrative:
+				"1. WHO: Customer Ann matched against Ivan Fakovich on DEMO_SDN at 91.0%.",
+			status: "DRAFT",
+		});
+		expect(created.filing_reference).toMatch(/^SAR-\d{8}-0001$/);
+		expect(created.status).toBe("DRAFT");
+		expect(created.filed_at).toBeNull();
+
+		const updated = await client.updateSar(created.sar_id, { status: "FILED" });
+		expect(updated.status).toBe("FILED");
+		expect(updated.filed_at).not.toBeNull();
+
+		const list = await client.listSars();
+		expect(list).toHaveLength(1);
+		expect(list[0]?.status).toBe("FILED");
+
+		const exported = await client.updateSar(created.sar_id, {
+			status: "EXPORTED",
+		});
+		expect(exported.status).toBe("EXPORTED");
+		expect(exported.exported_at).not.toBeNull();
+
+		await expect(
+			client.updateSar("missing-sar", { status: "FILED" }),
+		).rejects.toThrow(/SAR missing-sar not found/);
+	});
 });
 
 describe("LocalApiClient CRUD pass-throughs", () => {

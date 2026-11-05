@@ -1,28 +1,28 @@
-/** Review / case board — analyst triage of sanctions matches (the /v1/review tier). */
+/**
+ * Review / case board — institutional sanctions screening triage, scoring
+ * evidence inspection, and local-first FinCEN SAR regulatory reporting.
+ */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	apiClient,
-	type MatchEvent,
+	type CreateSarPayload,
 	type MatchTier,
-	type ReviewDisposition,
 	type ReviewMatch,
 	type ReviewMatchListParams,
 	type ReviewResolutionStatus,
+	type SarRecord,
 } from "../lib/api";
+import { resolutionLabel, tierLabel } from "../lib/plainLabels";
 import {
-	listName,
-	matchEventLabel,
-	resolutionLabel,
-	tierLabel,
-} from "../lib/plainLabels";
+	type HistoryEntry,
+	MatchRow,
+	type ResolveDraft,
+} from "./ReviewMatchRow";
+import { SarFilingModal } from "./SarFilingModal";
+import { SarRegistryPanel } from "./SarRegistryPanel";
 
-/**
- * Codes (`STRONG`, `FALSE_POSITIVE`, `UK_OFSI`, …) stay the data: option
- * values, API params, exports. Every visible word goes through plainLabels, so
- * the board shows plain words and never a raw code.
- */
 const REVIEW_NAMESPACES = ["review", "common"] as const;
 
 const TIER_FILTERS: MatchTier[] = ["STRONG", "POSSIBLE", "WEAK"];
@@ -34,14 +34,16 @@ const STATUS_FILTERS: ReviewResolutionStatus[] = [
 	"RESOLVED",
 ];
 
-const DISPOSITIONS: ReviewDisposition[] = [
-	"TRUE_POSITIVE",
-	"FALSE_POSITIVE",
-	"RESOLVED",
-];
-
-/** The View filter shapes which params the list query carries. */
 type ViewFilter = "ALL" | "NEEDS_REVIEW" | "CHANGED";
+
+type QueueTabId =
+	| "ALL"
+	| "NEEDS_REVIEW"
+	| "STRONG"
+	| "CHANGED"
+	| "CONFIRMED"
+	| "CLEARED"
+	| "SARS";
 
 const VIEW_OPTIONS: { value: ViewFilter; labelKey: string }[] = [
 	{ value: "ALL", labelKey: "filters.view.options.all" },
@@ -49,74 +51,61 @@ const VIEW_OPTIONS: { value: ViewFilter; labelKey: string }[] = [
 	{ value: "CHANGED", labelKey: "filters.view.options.changed" },
 ];
 
-function tierBadgeClass(tier: MatchTier): string {
-	if (tier === "STRONG") return "badge badge-danger";
-	if (tier === "POSSIBLE") return "badge badge-warning";
-	return "badge badge-muted";
-}
-
-function statusBadgeClass(status: ReviewResolutionStatus): string {
-	if (status === "PENDING") return "badge badge-warning";
-	if (status === "TRUE_POSITIVE") return "badge badge-danger";
-	if (status === "FALSE_POSITIVE") return "badge badge-success";
-	return "badge badge-muted";
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-	return err instanceof Error ? err.message : fallback;
-}
-
-/** A row needs the Resolve controls when it is pending OR flagged for re-review. */
-function needsAction(match: ReviewMatch): boolean {
-	return (
-		match.resolution_status === "PENDING" || match.review_state === "CHANGED"
-	);
-}
-
-function formatEventAt(at: string): string {
-	const parsed = new Date(at);
-	return Number.isNaN(parsed.getTime()) ? at : parsed.toLocaleString();
-}
-
-/** Translate the View filter into the extra list-query params it implies. */
-function viewParams(view: ViewFilter): ReviewMatchListParams {
-	if (view === "NEEDS_REVIEW") return { needsReview: true };
-	if (view === "CHANGED") return { reviewState: "CHANGED" };
-	return {};
-}
-
-interface ResolveDraft {
-	disposition: ReviewDisposition;
-	reviewer_id: string;
-	review_notes: string;
-}
-
 const EMPTY_DRAFT: ResolveDraft = {
 	disposition: "FALSE_POSITIVE",
 	reviewer_id: "",
 	review_notes: "",
 };
 
-/** Lazily-loaded audit trail per match_id (loading / error / events). */
-interface HistoryEntry {
-	loading: boolean;
-	error: string | null;
-	events: MatchEvent[];
+function errorMessage(err: unknown, fallback: string): string {
+	return err instanceof Error ? err.message : fallback;
 }
 
-type HistoryState = Record<string, HistoryEntry>;
+function viewParams(view: ViewFilter): ReviewMatchListParams {
+	if (view === "NEEDS_REVIEW") return { needsReview: true };
+	if (view === "CHANGED") return { reviewState: "CHANGED" };
+	return {};
+}
+
+function deriveQueueTab(
+	panel: "CASES" | "SARS",
+	tier: MatchTier | "",
+	status: ReviewResolutionStatus | "",
+	view: ViewFilter,
+): QueueTabId | null {
+	if (panel === "SARS") return "SARS";
+	if (!tier && !status && view === "ALL") return "ALL";
+	if (!tier && !status && view === "NEEDS_REVIEW") return "NEEDS_REVIEW";
+	if (tier === "STRONG" && !status && view === "ALL") return "STRONG";
+	if (!tier && !status && view === "CHANGED") return "CHANGED";
+	if (!tier && status === "TRUE_POSITIVE" && view === "ALL") return "CONFIRMED";
+	if (!tier && status === "FALSE_POSITIVE" && view === "ALL") return "CLEARED";
+	return null;
+}
 
 export function ReviewBoardPage() {
 	const { t } = useTranslation(REVIEW_NAMESPACES);
 	const [matches, setMatches] = useState<ReviewMatch[]>([]);
+	const [sars, setSars] = useState<SarRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [tier, setTier] = useState<MatchTier | "">("");
 	const [status, setStatus] = useState<ReviewResolutionStatus | "">("");
 	const [view, setView] = useState<ViewFilter>("ALL");
+	const [panel, setPanel] = useState<"CASES" | "SARS">("CASES");
 	const [drafts, setDrafts] = useState<Record<string, ResolveDraft>>({});
 	const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
-	const [history, setHistory] = useState<HistoryState>({});
+	const [history, setHistory] = useState<Record<string, HistoryEntry>>({});
+	const [sarModalMatch, setSarModalMatch] = useState<ReviewMatch | null>(null);
+
+	const loadSars = useCallback(async () => {
+		if (typeof apiClient.listSars !== "function") return;
+		try {
+			setSars(await apiClient.listSars());
+		} catch {
+			// Non-fatal in mock environments without SAR store
+		}
+	}, []);
 
 	const loadMatches = useCallback(async () => {
 		try {
@@ -137,6 +126,43 @@ export function ReviewBoardPage() {
 	useEffect(() => {
 		loadMatches();
 	}, [loadMatches]);
+
+	useEffect(() => {
+		loadSars();
+	}, [loadSars]);
+
+	const selectQueueTab = (tab: QueueTabId) => {
+		if (tab === "SARS") {
+			setPanel("SARS");
+			return;
+		}
+		setPanel("CASES");
+		if (tab === "ALL") {
+			setTier("");
+			setStatus("");
+			setView("ALL");
+		} else if (tab === "NEEDS_REVIEW") {
+			setTier("");
+			setStatus("");
+			setView("NEEDS_REVIEW");
+		} else if (tab === "STRONG") {
+			setTier("STRONG");
+			setStatus("");
+			setView("ALL");
+		} else if (tab === "CHANGED") {
+			setTier("");
+			setStatus("");
+			setView("CHANGED");
+		} else if (tab === "CONFIRMED") {
+			setTier("");
+			setStatus("TRUE_POSITIVE");
+			setView("ALL");
+		} else if (tab === "CLEARED") {
+			setTier("");
+			setStatus("FALSE_POSITIVE");
+			setView("ALL");
+		}
+	};
 
 	const draftFor = (matchId: string): ResolveDraft =>
 		drafts[matchId] ?? EMPTY_DRAFT;
@@ -206,14 +232,128 @@ export function ReviewBoardPage() {
 		if (!history[matchId]) loadHistory(matchId);
 	};
 
+	const handleCreateSar = async (payload: CreateSarPayload) => {
+		try {
+			setError(null);
+			const created = await apiClient.createSar(payload);
+			setSars((prev) => [
+				created,
+				...prev.filter((s) => s.sar_id !== created.sar_id),
+			]);
+		} catch (err) {
+			setError(errorMessage(err, t("status.sarFailed")));
+		}
+	};
+
+	const handleFinalizeSar = async (sarId: string) => {
+		try {
+			const updated = await apiClient.updateSar(sarId, { status: "FILED" });
+			setSars((prev) => prev.map((s) => (s.sar_id === sarId ? updated : s)));
+		} catch (err) {
+			setError(errorMessage(err, t("status.sarFailed")));
+		}
+	};
+
+	const handleExportSar = async (sar: SarRecord) => {
+		if (typeof apiClient.updateSar !== "function") return;
+		try {
+			const updated = await apiClient.updateSar(sar.sar_id, {
+				status: "EXPORTED",
+			});
+			setSars((prev) =>
+				prev.map((s) => (s.sar_id === sar.sar_id ? updated : s)),
+			);
+		} catch {
+			// Keep export non-blocking
+		}
+	};
+
+	const sarByMatchId = useMemo(() => {
+		const map = new Map<string, SarRecord>();
+		for (const sar of sars) {
+			if (!map.has(sar.match_id)) map.set(sar.match_id, sar);
+		}
+		return map;
+	}, [sars]);
+
 	const pendingCount = matches.filter(
 		(m) => m.resolution_status === "PENDING",
 	).length;
+	const actionRequiredCount = matches.filter(
+		(m) => m.resolution_status === "PENDING" || m.review_state === "CHANGED",
+	).length;
+	const strongHitCount = matches.filter((m) => m.tier === "STRONG").length;
+	const confirmedCount = matches.filter(
+		(m) => m.resolution_status === "TRUE_POSITIVE",
+	).length;
+	const activeTab = deriveQueueTab(panel, tier, status, view);
+
+	const queueTabs: { id: QueueTabId; label: string; count?: number }[] = [
+		{ id: "ALL", label: t("queues.all"), count: matches.length },
+		{
+			id: "NEEDS_REVIEW",
+			label: t("queues.needsReview"),
+			count: actionRequiredCount,
+		},
+		{ id: "STRONG", label: t("queues.strongHits"), count: strongHitCount },
+		{ id: "CHANGED", label: t("queues.changed") },
+		{ id: "CONFIRMED", label: t("queues.confirmed"), count: confirmedCount },
+		{ id: "CLEARED", label: t("queues.cleared") },
+		{ id: "SARS", label: t("queues.sarFilings"), count: sars.length },
+	];
 
 	return (
 		<div>
-			<h1>{t("header.title")}</h1>
-			<p className="text-muted">{t("header.subtitle")}</p>
+			<header className="review-header">
+				<div>
+					<h1>{t("header.title")}</h1>
+					<p className="text-muted">{t("header.subtitle")}</p>
+				</div>
+			</header>
+
+			<section className="review-kpi-strip" aria-label={t("kpis.ariaLabel")}>
+				<div className="review-kpi-card">
+					<span className="review-kpi-label">{t("kpis.actionRequired")}</span>
+					<strong className="review-kpi-value">{actionRequiredCount}</strong>
+				</div>
+				<div className="review-kpi-card review-kpi-card--danger">
+					<span className="review-kpi-label">{t("kpis.strongHits")}</span>
+					<strong className="review-kpi-value">{strongHitCount}</strong>
+				</div>
+				<div className="review-kpi-card">
+					<span className="review-kpi-label">{t("kpis.confirmedMatches")}</span>
+					<strong className="review-kpi-value">{confirmedCount}</strong>
+				</div>
+				<div className="review-kpi-card">
+					<span className="review-kpi-label">{t("kpis.sarsFiled")}</span>
+					<strong className="review-kpi-value">{sars.length}</strong>
+				</div>
+			</section>
+
+			<div
+				className="review-queue-tabs"
+				role="tablist"
+				aria-label={t("queues.ariaLabel")}
+			>
+				{queueTabs.map((tab) => {
+					const selected = activeTab === tab.id;
+					return (
+						<button
+							key={tab.id}
+							type="button"
+							role="tab"
+							aria-selected={selected}
+							className={`review-queue-tab${selected ? " review-queue-tab--active" : ""}`}
+							onClick={() => selectQueueTab(tab.id)}
+						>
+							<span>{tab.label}</span>
+							{tab.count !== undefined && (
+								<span className="review-queue-tab__count">{tab.count}</span>
+							)}
+						</button>
+					);
+				})}
+			</div>
 
 			{error && (
 				<div className="alert alert-error">{t("status.error", { error })}</div>
@@ -227,7 +367,10 @@ export function ReviewBoardPage() {
 					<select
 						id="tier-filter"
 						value={tier}
-						onChange={(e) => setTier(e.target.value as MatchTier | "")}
+						onChange={(e) => {
+							setPanel("CASES");
+							setTier(e.target.value as MatchTier | "");
+						}}
 						className="form-select"
 					>
 						<option value="">{t("filters.tier.all")}</option>
@@ -245,9 +388,10 @@ export function ReviewBoardPage() {
 					<select
 						id="status-filter"
 						value={status}
-						onChange={(e) =>
-							setStatus(e.target.value as ReviewResolutionStatus | "")
-						}
+						onChange={(e) => {
+							setPanel("CASES");
+							setStatus(e.target.value as ReviewResolutionStatus | "");
+						}}
 						className="form-select"
 					>
 						<option value="">{t("filters.status.all")}</option>
@@ -265,7 +409,10 @@ export function ReviewBoardPage() {
 					<select
 						id="view-filter"
 						value={view}
-						onChange={(e) => setView(e.target.value as ViewFilter)}
+						onChange={(e) => {
+							setPanel("CASES");
+							setView(e.target.value as ViewFilter);
+						}}
 						className="form-select"
 					>
 						{VIEW_OPTIONS.map((opt) => (
@@ -277,273 +424,87 @@ export function ReviewBoardPage() {
 				</div>
 			</div>
 
-			<h2>
-				{t("board.heading", { total: matches.length, pending: pendingCount })}
-			</h2>
-
-			{loading ? (
-				<p>{t("board.loading")}</p>
-			) : matches.length === 0 ? (
-				<p>{t("board.empty")}</p>
+			{panel === "SARS" ? (
+				<SarRegistryPanel
+					sars={sars}
+					onFinalizeDraft={handleFinalizeSar}
+					onExportSar={handleExportSar}
+				/>
 			) : (
-				<section
-					className="table-scroll"
-					aria-label={t("board.heading", {
-						total: matches.length,
-						pending: pendingCount,
-					})}
-				>
-					<table className="table">
-						<thead>
-							<tr>
-								<th scope="col">{t("board.columns.tier")}</th>
-								<th scope="col">{t("board.columns.customer")}</th>
-								<th scope="col">{t("board.columns.matchedEntity")}</th>
-								<th scope="col">{t("board.columns.source")}</th>
-								<th scope="col">{t("board.columns.score")}</th>
-								<th scope="col">{t("board.columns.status")}</th>
-								<th scope="col">{t("board.columns.reviewerNotes")}</th>
-								<th scope="col" className="table-cell-right">
-									{t("board.columns.resolve")}
-								</th>
-								<th scope="col" className="table-cell-right">
-									{t("board.columns.history")}
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							{matches.map((match) => (
-								<MatchRow
-									key={match.match_id}
-									match={match}
-									draft={draftFor(match.match_id)}
-									onChange={(field, value) =>
-										updateDraft(match.match_id, field, value)
-									}
-									onResolve={() => handleResolve(match)}
-									historyOpen={openHistoryId === match.match_id}
-									history={history[match.match_id]}
-									onToggleHistory={() => toggleHistory(match.match_id)}
-								/>
-							))}
-						</tbody>
-					</table>
-				</section>
-			)}
-		</div>
-	);
-}
+				<>
+					<h2>
+						{t("board.heading", {
+							total: matches.length,
+							pending: pendingCount,
+						})}
+					</h2>
 
-const TABLE_COLUMN_COUNT = 9;
-
-interface MatchRowProps {
-	match: ReviewMatch;
-	draft: ResolveDraft;
-	onChange: (field: keyof ResolveDraft, value: string) => void;
-	onResolve: () => void;
-	historyOpen: boolean;
-	history: HistoryEntry | undefined;
-	onToggleHistory: () => void;
-}
-
-function MatchRow({
-	match,
-	draft,
-	onChange,
-	onResolve,
-	historyOpen,
-	history,
-	onToggleHistory,
-}: MatchRowProps) {
-	const { t } = useTranslation(REVIEW_NAMESPACES);
-	const ref = match.customer_reference ?? match.match_id;
-	return (
-		<>
-			<tr>
-				<td>
-					<span className={tierBadgeClass(match.tier)}>
-						{tierLabel(match.tier, t)}
-					</span>
-				</td>
-				<td>
-					<div>
-						<strong>{match.customer_reference}</strong>
-					</div>
-					<div className="text-sm text-muted">{match.customer_name}</div>
-				</td>
-				<td>{match.sanctioned_name}</td>
-				<td>
-					<span className="badge badge-muted">
-						{listName(match.source_list, t)}
-					</span>
-				</td>
-				<td>
-					{t("card.score", { score: (match.match_score * 100).toFixed(1) })}
-				</td>
-				<td>
-					<span className={statusBadgeClass(match.resolution_status)}>
-						{resolutionLabel(match.resolution_status, t)}
-					</span>
-					{match.review_state === "CHANGED" && (
-						<div className="mt-sm">
-							<span className="badge badge-warning">
-								{t("card.changedBadge")}
-							</span>
-						</div>
-					)}
-				</td>
-				<td className="text-sm">
-					<div>{match.reviewer_id ?? t("card.emptyReviewer")}</div>
-					{match.review_notes && (
-						<div className="text-muted">{match.review_notes}</div>
-					)}
-				</td>
-				<td className="table-cell-right">
-					{needsAction(match) ? (
-						<ResolveControls
-							match={match}
-							draft={draft}
-							onChange={onChange}
-							onResolve={onResolve}
-						/>
+					{loading ? (
+						<p>{t("board.loading")}</p>
+					) : matches.length === 0 ? (
+						<p>{t("board.empty")}</p>
 					) : (
-						<span className="text-muted text-sm">{t("card.resolved")}</span>
+						<section
+							className="table-scroll"
+							aria-label={t("board.heading", {
+								total: matches.length,
+								pending: pendingCount,
+							})}
+						>
+							<table className="table">
+								<thead>
+									<tr>
+										<th scope="col">{t("board.columns.tier")}</th>
+										<th scope="col">{t("board.columns.customer")}</th>
+										<th scope="col">{t("board.columns.matchedEntity")}</th>
+										<th scope="col">{t("board.columns.source")}</th>
+										<th scope="col">{t("board.columns.score")}</th>
+										<th scope="col">{t("board.columns.status")}</th>
+										<th scope="col">{t("board.columns.reviewerNotes")}</th>
+										<th scope="col" className="table-cell-right">
+											{t("board.columns.resolve")}
+										</th>
+										<th scope="col" className="table-cell-right">
+											{t("board.columns.history")}
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									{matches.map((match) => (
+										<MatchRow
+											key={match.match_id}
+											match={match}
+											draft={draftFor(match.match_id)}
+											filedSar={sarByMatchId.get(match.match_id)}
+											onChange={(field, value) =>
+												updateDraft(match.match_id, field, value)
+											}
+											onResolve={() => handleResolve(match)}
+											onOpenSarModal={(m) => setSarModalMatch(m)}
+											historyOpen={openHistoryId === match.match_id}
+											history={history[match.match_id]}
+											onToggleHistory={() => toggleHistory(match.match_id)}
+										/>
+									))}
+								</tbody>
+							</table>
+						</section>
 					)}
-				</td>
-				<td className="table-cell-right">
-					<button
-						type="button"
-						className="btn btn-secondary btn-sm"
-						aria-expanded={historyOpen}
-						aria-label={t("card.history.aria", { ref })}
-						onClick={onToggleHistory}
-					>
-						{t("card.history.toggle")}
-					</button>
-				</td>
-			</tr>
-			{historyOpen && (
-				<tr>
-					<td colSpan={TABLE_COLUMN_COUNT}>
-						<HistoryDrawer history={history} />
-					</td>
-				</tr>
+				</>
 			)}
-		</>
-	);
-}
 
-interface HistoryDrawerProps {
-	history: HistoryEntry | undefined;
-}
-
-function HistoryDrawer({ history }: HistoryDrawerProps) {
-	const { t } = useTranslation("review");
-	if (!history || history.loading) return <p>{t("history.loading")}</p>;
-	if (history.error)
-		return (
-			<div className="alert alert-error">
-				{t("history.error", { error: history.error })}
-			</div>
-		);
-	if (history.events.length === 0)
-		return <p className="text-muted">{t("history.empty")}</p>;
-	return (
-		<ul className="text-sm">
-			{history.events.map((event) => (
-				<HistoryItem key={event.event_id} event={event} />
-			))}
-		</ul>
-	);
-}
-
-function HistoryItem({ event }: { event: MatchEvent }) {
-	const { t } = useTranslation(REVIEW_NAMESPACES);
-	const statusText = (code: string | null): string =>
-		code ? resolutionLabel(code, t) : t("history.unknownStatus");
-	const transition =
-		event.from_status || event.to_status
-			? t("history.transition", {
-					from: statusText(event.from_status),
-					to: statusText(event.to_status),
-				})
-			: "";
-	return (
-		<li>
-			<strong>{matchEventLabel(event.event_type, t)}</strong>
-			{transition}
-			{t("history.separator")}
-			{formatEventAt(event.at)}
-			{event.reviewer_id && (
-				<span>
-					{t("history.meta")}
-					{event.reviewer_id}
-				</span>
-			)}
-			{event.notes && (
-				<span className="text-muted">
-					{t("history.meta")}
-					{event.notes}
-				</span>
-			)}
-		</li>
-	);
-}
-
-interface ResolveControlsProps {
-	match: ReviewMatch;
-	draft: ResolveDraft;
-	onChange: (field: keyof ResolveDraft, value: string) => void;
-	onResolve: () => void;
-}
-
-function ResolveControls({
-	match,
-	draft,
-	onChange,
-	onResolve,
-}: ResolveControlsProps) {
-	const { t } = useTranslation(REVIEW_NAMESPACES);
-	const ref = match.customer_reference ?? match.match_id;
-	return (
-		<div className="flex-gap-sm">
-			<select
-				aria-label={t("resolve.disposition", { ref })}
-				value={draft.disposition}
-				onChange={(e) =>
-					onChange("disposition", e.target.value as ReviewDisposition)
+			<SarFilingModal
+				match={sarModalMatch}
+				defaultOfficer={
+					sarModalMatch
+						? draftFor(sarModalMatch.match_id).reviewer_id ||
+							sarModalMatch.reviewer_id ||
+							""
+						: ""
 				}
-				className="form-select review-resolve-select"
-			>
-				{DISPOSITIONS.map((d) => (
-					<option key={d} value={d}>
-						{resolutionLabel(d, t)}
-					</option>
-				))}
-			</select>
-			<input
-				type="text"
-				aria-label={t("resolve.reviewer", { ref })}
-				placeholder={t("resolve.reviewerPlaceholder")}
-				value={draft.reviewer_id}
-				onChange={(e) => onChange("reviewer_id", e.target.value)}
-				className="form-input"
+				onClose={() => setSarModalMatch(null)}
+				onSubmit={handleCreateSar}
 			/>
-			<input
-				type="text"
-				aria-label={t("resolve.notes", { ref })}
-				placeholder={t("resolve.notesPlaceholder")}
-				value={draft.review_notes}
-				onChange={(e) => onChange("review_notes", e.target.value)}
-				className="form-input"
-			/>
-			<button
-				type="button"
-				onClick={onResolve}
-				className="btn btn-primary btn-sm"
-			>
-				{t("resolve.submit")}
-			</button>
 		</div>
 	);
 }

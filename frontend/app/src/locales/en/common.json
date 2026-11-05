@@ -68,6 +68,18 @@
 		},
 		"actor": {
 			"local": "No name given"
+		},
+		"sarStatus": {
+			"DRAFT": "Draft",
+			"FILED": "Filed",
+			"EXPORTED": "Exported"
+		},
+		"sarActivity": {
+			"SANCTIONS_HIT": "Sanctions list hit",
+			"TERRORIST_FINANCING": "Terrorist financing concern",
+			"EVASION_ATTEMPT": "Sanctions evasion attempt",
+			"STRUCTURING": "Transaction structuring",
+			"OTHER": "Other suspicious activity"
 		}
 	},
 	"actions": {

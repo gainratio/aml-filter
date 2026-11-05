@@ -1414,3 +1414,339 @@ form.card.card-muted:has(#customer-reference) .form-grid:has(#customer-dob) {
 		display: block;
 	}
 }
+
+/* ==========================================================================
+   Review Board — Institutional Compliance Workstation & FinCEN SAR UI
+   ========================================================================== */
+
+.review-header {
+	margin-bottom: 1rem;
+}
+
+.review-kpi-strip {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--spacing-md);
+	margin: 1rem 0 1.25rem;
+}
+
+.review-kpi-card {
+	background: var(--color-bg-white);
+	border: 1px solid var(--color-border);
+	border-top: 3px solid var(--color-primary);
+	border-radius: var(--radius-md);
+	padding: 0.9rem 1.15rem;
+	box-shadow: var(--shadow-sm);
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+
+.review-kpi-card--danger {
+	border-top-color: var(--color-danger);
+}
+
+.review-kpi-label {
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.015em;
+	color: var(--color-text-muted);
+}
+
+.review-kpi-value {
+	font-size: 1.65rem;
+	font-weight: 800;
+	line-height: 1.15;
+	color: var(--color-ink);
+	font-variant-numeric: tabular-nums;
+}
+
+.review-queue-tabs {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.35rem;
+	background: var(--color-bg-white);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-sm);
+	overflow-x: auto;
+	margin-bottom: 1rem;
+	-webkit-overflow-scrolling: touch;
+}
+
+.review-queue-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-height: 38px;
+	padding: 0.45rem 0.85rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
+	background: transparent;
+	color: var(--color-ink-soft);
+	font-size: 0.84rem;
+	font-weight: 650;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease,
+		border-color 150ms ease;
+}
+
+.review-queue-tab:hover {
+	background: var(--color-bg-light);
+	color: var(--color-ink);
+}
+
+.review-queue-tab--active {
+	background: var(--color-ink);
+	color: #fff;
+	border-color: var(--color-ink);
+}
+
+.review-queue-tab--active:hover {
+	background: var(--color-ink-soft);
+	color: #fff;
+}
+
+.review-queue-tab__count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.35rem;
+	height: 1.35rem;
+	padding: 0 0.38rem;
+	border-radius: var(--radius-pill);
+	background: rgba(16, 42, 43, 0.08);
+	font-size: 0.73rem;
+	font-weight: 750;
+	font-variant-numeric: tabular-nums;
+}
+
+.review-queue-tab--active .review-queue-tab__count {
+	background: rgba(255, 255, 255, 0.2);
+	color: #fff;
+}
+
+.review-entity-name {
+	font-weight: 650;
+	color: var(--color-ink);
+}
+
+.review-score-cell {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 4.5rem;
+}
+
+.review-score-value {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.review-score-bar {
+	height: 5px;
+	width: 100%;
+	background: var(--color-bg-light);
+	border-radius: var(--radius-pill);
+	overflow: hidden;
+}
+
+.review-score-fill {
+	height: 100%;
+	border-radius: var(--radius-pill);
+}
+
+.review-score-fill--strong {
+	background: var(--color-danger);
+}
+
+.review-score-fill--possible {
+	background: var(--color-warning);
+}
+
+.review-score-fill--weak {
+	background: var(--color-secondary);
+}
+
+.resolve-controls {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	align-items: flex-end;
+	min-width: 16rem;
+}
+
+.resolve-controls__top {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	justify-content: flex-end;
+	width: 100%;
+}
+
+.resolve-controls__inputs {
+	display: grid;
+	grid-template-columns: 1fr 1.2fr;
+	gap: 0.4rem;
+	width: 100%;
+}
+
+.resolve-controls__input {
+	min-height: 36px;
+	padding: 0.35rem 0.55rem;
+	font-size: 0.84rem;
+}
+
+.review-row-actions,
+.sar-row-actions {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.4rem;
+	flex-wrap: nowrap;
+}
+
+.table tbody tr.review-evidence-row,
+.table tbody tr.review-evidence-row:hover {
+	background: var(--color-bg-light);
+}
+
+.review-drawer-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+	gap: 1rem;
+	padding: 0.4rem 0.25rem;
+}
+
+.review-evidence-panel,
+.review-history-panel {
+	background: var(--color-bg-white);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-sm);
+	padding: 0.85rem 1rem;
+}
+
+.review-drawer-title {
+	margin: 0 0 0.45rem;
+	font-size: 0.82rem;
+	font-weight: 750;
+	letter-spacing: 0.015em;
+	color: var(--color-text-muted);
+}
+
+.review-signal-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.review-history-list {
+	margin: 0;
+	padding-left: 1.15rem;
+}
+
+dialog.sar-dialog {
+	width: min(760px, 94vw);
+	max-height: 88vh;
+	margin: auto;
+	padding: 1.5rem 1.75rem;
+	border: 1px solid var(--color-border);
+	border-top: 4px solid var(--color-danger);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-white);
+	color: var(--color-text);
+	box-shadow: var(--shadow-md);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+dialog.sar-dialog::backdrop {
+	background: rgba(16, 42, 43, 0.52);
+	backdrop-filter: blur(2px);
+}
+
+.sar-dialog__header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 1rem;
+	padding-bottom: 0.85rem;
+	margin-bottom: 1rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.sar-dialog__title {
+	margin: 0 0 0.25rem;
+	font-size: 1.3rem;
+}
+
+.sar-fieldset {
+	margin: 0 0 1rem;
+	padding: 0.9rem 1.1rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-sm);
+	background: var(--color-bg-canvas);
+}
+
+.sar-fieldset legend {
+	padding: 0 0.4rem;
+	font-size: 0.8rem;
+	font-weight: 750;
+	letter-spacing: 0.015em;
+	color: var(--color-ink-soft);
+}
+
+.sar-subject-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+	gap: 0.75rem;
+	font-size: 0.9rem;
+}
+
+.sar-textarea {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.84rem;
+	line-height: 1.45;
+	resize: vertical;
+}
+
+.sar-dialog__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.65rem;
+	margin-top: 0.75rem;
+}
+
+.sar-empty-box {
+	padding: 2rem 1.5rem;
+	border: 1px dashed var(--color-border);
+	border-radius: var(--radius-md);
+	background: rgba(255, 255, 255, 0.8);
+	text-align: center;
+	color: var(--color-text-muted);
+}
+
+.sar-narrative-drawer {
+	background: var(--color-bg-white);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-sm);
+	padding: 0.75rem 1rem;
+}
+
+.sar-narrative-pre {
+	margin: 0;
+	white-space: pre-wrap;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.82rem;
+	line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+	.review-kpi-strip {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
