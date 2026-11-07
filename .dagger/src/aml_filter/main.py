@@ -122,6 +122,10 @@ FRESHNESS_CHECK: Final = [
     f"{LIVE_ORIGIN}/bundle/origin",
     "--pubkey",
     PUBLIC_KEY,
+    "--carry-ceiling-days",
+    str(carried_list_ceiling_days()),
+    "--expect-lists",
+    SMOKE_LISTS,
 ]
 SMOKE_PROFILE: Final = "/smoke-profile"
 SMOKE_BROWSER_INSTALL: Final = split(

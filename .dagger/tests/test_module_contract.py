@@ -1923,6 +1923,12 @@ def test_should_require_typed_token_when_release_turn_help_loads() -> None:
 def test_should_supply_exec_arguments_as_dagger_list() -> None:
     # Given / When / Then
     assert isinstance(FRESHNESS_CHECK, list)
+    assert FRESHNESS_CHECK[-4:] == [
+        "--carry-ceiling-days",
+        "7",
+        "--expect-lists",
+        SMOKE_LISTS,
+    ]
 
 
 def test_should_bind_the_only_production_pages_target() -> None:
