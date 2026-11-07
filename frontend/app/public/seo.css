@@ -87,9 +87,9 @@ a:hover {
 .nav a[aria-current="page"] {
 	color: #fff;
 }
-.nav-cta {
+.nav a.nav-cta {
 	background: #f4efe3;
-	color: var(--brand-dark) !important;
+	color: var(--brand-dark);
 	padding: 8px 14px;
 	border-radius: 999px;
 	font-weight: 650;
@@ -204,8 +204,8 @@ pre code {
 	color: inherit;
 	font-size: 0.88rem;
 }
-ul,
-ol {
+main section ul,
+main section ol {
 	margin: 0 0 14px;
 	padding-left: 1.25rem;
 }
