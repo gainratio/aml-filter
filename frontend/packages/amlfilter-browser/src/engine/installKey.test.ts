@@ -506,6 +506,10 @@ describe("a change notice that lands while a load is failing", () => {
 		});
 		sql.faults.failTransactionAt = 0;
 		const failing = keys.load();
+		// Let the failing load enter its transaction before the change notice
+		// clears the cache. Without this, the notice can consume the injected
+		// fault and the test loses the race it is trying to pin.
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		deliver?.();
 		const newer = keys.load();
 

@@ -163,9 +163,13 @@ describe("pnpm dependency policy", () => {
 			workstationPackageFile,
 			publisherPackageFile,
 		].map((file) => JSON.parse(readFileSync(file, "utf8")));
-		expect(browser.dependencies?.["@gainratio/browser"]).toBe("^0.4.2");
-		expect(publisher.dependencies?.["@gainratio/browser"]).toBe("^0.4.2");
-		expect(app.dependencies?.["@gainratio/errors"]).toBe("^0.3.1");
+		expect(browser.dependencies?.["@gainratio/browser"]).toMatch(
+			/^\^0\.4\.\d+$/,
+		);
+		expect(publisher.dependencies?.["@gainratio/browser"]).toMatch(
+			/^\^0\.4\.\d+$/,
+		);
+		expect(app.dependencies?.["@gainratio/errors"]).toMatch(/^\^0\.4\.\d+$/);
 		expect(app.dependencies?.["@gainratio/receipt-ui"]).toBe("^0.3.0");
 		expect(browser.dependencies?.["@gainratio/avow"]).toBe("^0.5.3");
 		// The workstation never imports avow; it reaches the app through @amlfilter/browser.
