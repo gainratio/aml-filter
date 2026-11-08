@@ -76,7 +76,10 @@ export async function buildRecallCorpus(
 			// id, lookup key and vector, so this label only names the corpus.
 			manifestHash: `recall-corpus:${listId}@${listVersion}`,
 		},
-		createNodeSqliteVectorIndex,
+		(options) => {
+			const nodeOptions = { ...options, memoryProfile: "full" as const };
+			return createNodeSqliteVectorIndex(nodeOptions);
+		},
 	);
 	return {
 		engine: createScreeningEngine(loaded, embedder),

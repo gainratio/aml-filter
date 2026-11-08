@@ -30,17 +30,36 @@ describe("residencyForBrowser", () => {
 		).toBe("streaming");
 	});
 
-	it("streams when desktop memory is unknown", () => {
+	it("uses eager residency on desktop browsers that omit deviceMemory (Safari/Firefox)", () => {
+		expect(
+			residencyForBrowser({
+				userAgent:
+					"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/18.0 Safari/605.1.15",
+				maxTouchPoints: 0,
+			}),
+		).toBe("eager");
+	});
+
+	it("streams when the environment has no userAgent signal", () => {
+		expect(
+			residencyForBrowser({
+				userAgent: "",
+			}),
+		).toBe("streaming");
+	});
+
+	it("streams on a low-memory desktop at or below the 4 GB floor", () => {
 		expect(
 			residencyForBrowser({
 				userAgent:
 					"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/138 Safari/537.36",
+				deviceMemory: 4,
 				maxTouchPoints: 0,
 			}),
 		).toBe("streaming");
 	});
 
-	it("streams on a desktop at the bounded-memory ceiling", () => {
+	it("uses eager residency on a standard desktop at the W3C 8 GB deviceMemory cap", () => {
 		expect(
 			residencyForBrowser({
 				userAgent:
@@ -48,10 +67,10 @@ describe("residencyForBrowser", () => {
 				deviceMemory: 8,
 				maxTouchPoints: 0,
 			}),
-		).toBe("streaming");
+		).toBe("eager");
 	});
 
-	it("keeps eager residency only for an explicitly high-memory desktop", () => {
+	it("keeps eager residency for an explicitly high-memory desktop", () => {
 		expect(
 			residencyForBrowser({
 				userAgent:

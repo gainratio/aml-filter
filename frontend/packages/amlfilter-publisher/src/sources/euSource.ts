@@ -37,6 +37,18 @@ export const EU_RAW_FILE = "eu_consolidated.xml";
 export const EU_URL =
 	"https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw";
 
+/**
+ * Fallback EU consolidated sanctions XML endpoints tried in order when the
+ * primary EU webgate 1.1 endpoint returns transient 5xx/network failures:
+ *   1. The EU webgate 1.0 full XML endpoint (same static public token).
+ *   2. OpenSanctions' verbatim daily mirror of the EU FSF XML feed (carries
+ *      the upstream `<export generationDate="...">` and `<sanctionEntity>`).
+ */
+export const EU_FALLBACK_URLS: readonly string[] = [
+	"https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList/content?token=dG9rZW4tMjAxNw",
+	"https://data.opensanctions.org/datasets/latest/eu_fsf/source.xml",
+];
+
 const EU_BODY_LIMITS = {
 	maxBytes: 32 * 1024 * 1024,
 	elapsedMs: SOURCE_FETCH_TIMEOUT_MS,
@@ -106,7 +118,7 @@ function updatedAt(raw: RawListBytes): string | undefined {
 }
 
 async function fetchEuSnapshot(): Promise<SourceSnapshot> {
-	const { raw, response } = await fetchEuRaw();
+	const { raw, response, url } = await fetchEuRaw();
 	const sourceUpdatedAt = updatedAt(raw);
 	if (sourceUpdatedAt === undefined) {
 		throw new Error("EU_CONSOLIDATED: freshness timestamp is missing");
@@ -114,7 +126,7 @@ async function fetchEuSnapshot(): Promise<SourceSnapshot> {
 	return sourceSnapshot(
 		raw,
 		response,
-		EU_URL,
+		url,
 		canonicalSourceTimestamp(EU_LIST_ID, sourceUpdatedAt),
 	);
 }
@@ -122,14 +134,24 @@ async function fetchEuSnapshot(): Promise<SourceSnapshot> {
 async function fetchEuRaw(): Promise<{
 	readonly raw: RawListBytes;
 	readonly response: Response;
+	readonly url: string;
 }> {
-	const response = await fetchWithTimeout(EU_URL, "EU");
-	return {
-		raw: {
-			[EU_RAW_FILE]: await readResponseText(response, "EU", EU_BODY_LIMITS),
-		},
-		response,
-	};
+	let lastError: unknown;
+	for (const url of [EU_URL, ...EU_FALLBACK_URLS]) {
+		try {
+			const response = await fetchWithTimeout(url, "EU");
+			return {
+				raw: {
+					[EU_RAW_FILE]: await readResponseText(response, "EU", EU_BODY_LIMITS),
+				},
+				response,
+				url,
+			};
+		} catch (error) {
+			lastError = error;
+		}
+	}
+	throw lastError;
 }
 
 export const euSource: WatchlistSource = {

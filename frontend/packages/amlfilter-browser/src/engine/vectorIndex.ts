@@ -81,7 +81,7 @@ function countIndexOpen(outcome: "amlIndexRebuilt" | "amlIndexReused"): void {
 }
 
 const DEFAULT_INDEX_NAME = "aml-watchlist";
-const INSERT_BATCH_SIZE = 512;
+const INSERT_BATCH_SIZE = 2048;
 const EMPTY_LOOKUP_KEYS: readonly SqliteLookupKey[] = [];
 
 /** Environment adapter: browser Worker in product, in-process SQLite in Node evals. */
@@ -219,6 +219,7 @@ export class VectorIndex {
 	readonly #ready: Promise<AmlSqliteVectorIndex>;
 	readonly #factory: AmlVectorIndexFactory;
 	#ids: ReadonlyArray<string>;
+	#idSet: ReadonlySet<string>;
 	#disposed = false;
 
 	public constructor(
@@ -237,6 +238,7 @@ export class VectorIndex {
 			);
 		}
 		this.#ids = [...ids];
+		this.#idSet = new Set(this.#ids);
 		this.#dim = dim;
 		this.#factory = factory;
 		this.#ready = this.#initialize(
@@ -266,6 +268,7 @@ export class VectorIndex {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#ids = [];
+		this.#idSet = new Set();
 		void this.#ready.then((index) => index.dispose()).catch(() => undefined);
 	}
 
@@ -383,7 +386,7 @@ export class VectorIndex {
 
 	#assertKnownId(id: string): void {
 		this.#assertOpen();
-		if (!this.#ids.includes(id)) {
+		if (!this.#idSet.has(id)) {
 			throw new RangeError(
 				`entity id ${JSON.stringify(id)} is not in this index`,
 			);

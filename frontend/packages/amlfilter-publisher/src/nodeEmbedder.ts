@@ -49,6 +49,7 @@ export function createNodeEmbedder(modelsDir: string): Embedder {
 		if (extract === undefined) {
 			extract = (await pipeline("feature-extraction", EMBEDDING_MODEL, {
 				dtype: EMBEDDING_DTYPE,
+				session_options: { graphOptimizationLevel: "basic" },
 			})) as unknown as ExtractFn;
 		}
 		return extract;

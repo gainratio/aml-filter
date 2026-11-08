@@ -184,54 +184,76 @@ export class MultiListScreeningEngine {
 		const queryVec = await this.#embedder.embed(query.name);
 		const matches: Match[] = [];
 		const versions: Record<string, string> = {};
-		for (const list of this.#lists) {
-			if (this.#disposed && !this.#draining) {
-				throw new Error("multi-list engine has been disposed");
-			}
-			let engine = list.engine;
-			let streamed = false;
-			try {
-				if (engine === undefined) {
-					if (this.#resident?.listId !== list.listId) {
-						this.#resident?.engine.dispose();
-						this.#resident = null;
-						const loaded = await list.source?.load();
-						if (loaded === undefined) {
-							throw new Error(`list ${list.listId} has no loader`);
-						}
-						if (this.#disposed && !this.#draining) {
-							loaded.index.dispose();
-							throw new Error("multi-list engine has been disposed");
-						}
-						if (
-							loaded.listId !== list.listId ||
-							loaded.version !== list.version
-						) {
-							loaded.index.dispose();
-							throw new Error(`streamed list ${list.listId} metadata mismatch`);
-						}
-						this.#resident = {
-							listId: list.listId,
-							engine: createScreeningEngine(loaded, this.#embedder),
-						};
+		if (this.#lists.every((list) => list.engine !== undefined)) {
+			const responses = await Promise.all(
+				this.#lists.map((list) => {
+					if (this.#disposed && !this.#draining) {
+						throw new Error("multi-list engine has been disposed");
 					}
-					engine = this.#resident?.engine;
-					streamed = true;
-				}
-				const threshold = this.#thresholdFor(list.listId, query);
-				const res = await engine.screenWithVector(
-					{ ...query, threshold },
-					queryVec,
-					options,
-				);
+					const threshold = this.#thresholdFor(list.listId, query);
+					return (list.engine as ScreeningEngine).screenWithVector(
+						{ ...query, threshold },
+						queryVec,
+						options,
+					);
+				}),
+			);
+			for (const res of responses) {
 				matches.push(...res.matches);
 				Object.assign(versions, res.list_versions_used);
-			} catch (error) {
-				if (streamed && this.#resident?.listId === list.listId) {
-					this.#resident.engine.dispose();
-					this.#resident = null;
+			}
+		} else {
+			for (const list of this.#lists) {
+				if (this.#disposed && !this.#draining) {
+					throw new Error("multi-list engine has been disposed");
 				}
-				throw error;
+				let engine = list.engine;
+				let streamed = false;
+				try {
+					if (engine === undefined) {
+						if (this.#resident?.listId !== list.listId) {
+							this.#resident?.engine.dispose();
+							this.#resident = null;
+							const loaded = await list.source?.load();
+							if (loaded === undefined) {
+								throw new Error(`list ${list.listId} has no loader`);
+							}
+							if (this.#disposed && !this.#draining) {
+								loaded.index.dispose();
+								throw new Error("multi-list engine has been disposed");
+							}
+							if (
+								loaded.listId !== list.listId ||
+								loaded.version !== list.version
+							) {
+								loaded.index.dispose();
+								throw new Error(
+									`streamed list ${list.listId} metadata mismatch`,
+								);
+							}
+							this.#resident = {
+								listId: list.listId,
+								engine: createScreeningEngine(loaded, this.#embedder),
+							};
+						}
+						engine = this.#resident?.engine;
+						streamed = true;
+					}
+					const threshold = this.#thresholdFor(list.listId, query);
+					const res = await engine.screenWithVector(
+						{ ...query, threshold },
+						queryVec,
+						options,
+					);
+					matches.push(...res.matches);
+					Object.assign(versions, res.list_versions_used);
+				} catch (error) {
+					if (streamed && this.#resident?.listId === list.listId) {
+						this.#resident.engine.dispose();
+						this.#resident = null;
+					}
+					throw error;
+				}
 			}
 		}
 		matches.sort((a, b) => b.score - a.score);

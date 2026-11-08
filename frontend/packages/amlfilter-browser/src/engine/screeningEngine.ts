@@ -205,16 +205,20 @@ export class ScreeningEngine {
 		queryCanonical: string,
 		k: number,
 	): Promise<readonly Candidate[]> {
-		const vectorHits = await this.#index.search(queryVec, k * VECTOR_OVERFETCH);
+		const [vectorHits, lexicalAll] = await Promise.all([
+			this.#index.search(queryVec, k * VECTOR_OVERFETCH),
+			this.#lexical.candidates(queryCanonical),
+		]);
 		const vectorIds = new Set(vectorHits.map((hit) => hit.id));
-		const lexicalAll = await this.#lexical.candidates(queryCanonical);
 		const lexicalIds = lexicalAll.filter((id) => !vectorIds.has(id));
-		const lexicalHits = await this.#index.searchByIds(queryVec, lexicalIds);
-		const channelsOf = await this.#provenance(
-			queryCanonical,
-			vectorIds,
-			lexicalAll,
-		);
+		const [lexicalHits, channelsOf] = await Promise.all([
+			lexicalIds.length === 0
+				? Promise.resolve<
+						ReadonlyArray<{ readonly id: string; readonly score: number }>
+					>([])
+				: this.#index.searchByIds(queryVec, lexicalIds),
+			this.#provenance(queryCanonical, vectorIds, lexicalAll),
+		]);
 		return [...vectorHits, ...lexicalHits].map((hit) => ({
 			id: hit.id,
 			score: hit.score,
