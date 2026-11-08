@@ -28,8 +28,8 @@ WASM memory and iOS tab limits still require a physical-device measurement.
 
 `frontend/app/src/lib/memoryPolicy.ts` is deterministic:
 
-- unknown browser memory, mobile/iPadOS, or reported memory ≤8 GB → `streaming`;
-- only a desktop explicitly reporting >8 GB may use `eager`;
+- mobile/iPadOS, empty environment signals, or explicitly low reported memory (≤4 GB) → `streaming`;
+- desktop browsers above the 4 GB low-memory floor (including Chrome/Edge capped at `deviceMemory = 8` by the W3C Device Memory spec and Safari/Firefox where `deviceMemory` is omitted) → `eager`;
 - streaming retains metadata, loads one verified list, serializes screens, and disposes
   the prior index before loading the next one;
 - the persisted list selection and scoring thresholds do not change with the policy.

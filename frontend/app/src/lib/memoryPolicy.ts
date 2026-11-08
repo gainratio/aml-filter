@@ -3,12 +3,13 @@
  *
  * The signed catalog can contain several large vector matrices. Keeping every
  * matrix resident while the ONNX/WASM model is compiled exceeds mobile Safari's
- * tab budget. Mobile-capable browsers therefore use the engine's bounded
- * streaming residency. Eager residency is reserved for desktops that explicitly
- * report a high memory budget; an unknown budget is never permission to allocate
- * every list.
- * The policy is conservative and only changes residency, never the persisted
- * watchlist selection or scoring thresholds.
+ * tab budget. Mobile-capable browsers and explicitly low-memory devices (<= 4 GB)
+ * therefore use the engine's bounded streaming residency. Desktop browsers
+ * (including Chrome/Edge capped at `deviceMemory = 8` by the W3C Device Memory
+ * spec and desktop Safari/Firefox where `deviceMemory` is omitted) use eager
+ * residency so screening does not rebuild SQLite indexes on every query.
+ * The policy only changes residency, never the persisted watchlist selection or
+ * scoring thresholds.
  */
 
 export type EngineResidency = "eager" | "streaming";
@@ -20,7 +21,7 @@ export interface BrowserMemorySignals {
 }
 
 /** A device-memory value at or below this budget uses one-list-at-a-time loads. */
-const STREAMING_DEVICE_MEMORY_GB = 8;
+const STREAMING_DEVICE_MEMORY_GB = 4;
 
 /** Read only the browser signals needed by the deterministic policy. */
 function browserMemorySignals(): BrowserMemorySignals {
@@ -56,8 +57,8 @@ export function isMobileBrowser(
 /**
  * Select bounded residency for mobile-capable or explicitly low-memory browsers.
  * iPadOS desktop-mode Safari identifies itself as Macintosh, so touch points are
- * part of the check. Unknown desktop environments stream conservatively because
- * the browser has not established a safe budget for eager vector residency.
+ * part of the check. Desktop browsers above the low-memory floor (or omitting
+ * the non-standard `navigator.deviceMemory` signal) use eager residency.
  */
 export function residencyForBrowser(
 	signals: BrowserMemorySignals = browserMemorySignals(),
@@ -68,11 +69,8 @@ export function residencyForBrowser(
 		Number.isFinite(memory) &&
 		memory > 0 &&
 		memory <= STREAMING_DEVICE_MEMORY_GB;
-	const highMemoryDesktop =
-		memory !== undefined &&
-		Number.isFinite(memory) &&
-		memory > STREAMING_DEVICE_MEMORY_GB;
-	return isMobileBrowser(signals) || lowMemory || !highMemoryDesktop
+	const unknownEnvironment = signals.userAgent.trim() === "";
+	return isMobileBrowser(signals) || lowMemory || unknownEnvironment
 		? "streaming"
 		: "eager";
 }

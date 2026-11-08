@@ -5,7 +5,7 @@
 
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { rejectionAfterBackoff } from "./backoffTestClock.ts";
-import { EU_RAW_FILE, euSource } from "./euSource.ts";
+import { EU_FALLBACK_URLS, EU_RAW_FILE, EU_URL, euSource } from "./euSource.ts";
 
 const EDGE_XML = [
 	"<export>",
@@ -109,5 +109,30 @@ describe("euSource.fetchRaw", () => {
 		// around it — the style ofacSource.edge.test.ts already uses.
 		const error = await rejectionAfterBackoff(() => euSource.fetchRaw());
 		expect(error.message).toContain("failed: 502 Bad Gateway");
+	});
+
+	test("falls back to secondary EU XML endpoints when primary webgate returns 500", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		try {
+			const fetchMock = vi.fn(async (input: string | URL | Request) => {
+				const url = String(input);
+				if (url === EU_URL) {
+					return new Response("error", {
+						status: 500,
+						statusText: "Internal Server Error",
+					});
+				}
+				return new Response('<export generationDate="2026-11-06T00:00:00Z"/>');
+			});
+			vi.stubGlobal("fetch", fetchMock);
+
+			const promise = euSource.fetchSnapshot?.();
+			await vi.runAllTimersAsync();
+			const snapshot = await promise;
+			expect(snapshot?.transport.finalUrl).toBe(EU_FALLBACK_URLS[0]);
+			expect(snapshot?.sourceUpdatedAt).toBe("2026-11-06T00:00:00.000Z");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
