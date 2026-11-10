@@ -79,15 +79,27 @@ describe("static discovery artifacts", () => {
 		const structured = JSON.parse(schema ?? "{}") as Record<string, unknown>;
 		expect(structured).toMatchObject({
 			"@context": "https://schema.org",
-			"@type": "WebApplication",
+			"@type": "SoftwareApplication",
 			name: "AML-Filter",
 			url: `${ORIGIN}/`,
 			applicationCategory: "BusinessApplication",
+			isAccessibleForFree: true,
+			offers: {
+				"@type": "Offer",
+				price: "0",
+				priceCurrency: "USD",
+			},
+			license: "https://opensource.org/licenses/MIT",
+			codeRepository: REPO_URL,
+			publisher: {
+				"@type": "Organization",
+				name: "GainRatio",
+				url: "https://open-source.gainratio.com/",
+			},
 		});
-		expect(structured.codeRepository).toBeUndefined();
-		expect(structured.license).toBeUndefined();
-		expect(readAppFile("index.html")).not.toContain(
-			"github.com/gainratio/aml-filter",
+		expect(String(structured.keywords ?? "")).toContain("OFAC SDN check");
+		expect(String(structured.keywords ?? "")).toContain(
+			"zero-egress AML screening",
 		);
 	});
 
@@ -161,8 +173,15 @@ describe("static discovery artifacts", () => {
 		const llms = readPublicFile("llms.txt");
 
 		expect(llms).toContain("# AML-Filter");
+		expect(llms).toContain(`(${ORIGIN}/)`);
 		expect(llms).toContain(`[Screen a name](${ORIGIN}/screen)`);
+		for (const route of GUIDE_ROUTES) {
+			expect(llms).toContain(`${ORIGIN}${route}`);
+		}
 		expect(llms).toContain(REPO_URL);
+		expect(llms).toContain("https://open-source.gainratio.com/");
+		expect(llms).toContain("/bundle/origin/latest");
+		expect(llms).toContain("Ed25519");
 		expect(llms).not.toContain("currently private");
 		expect(llms).toContain("not a compliance product");
 		expect(llms.split("\n").length).toBeLessThan(40);

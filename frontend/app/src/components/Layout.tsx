@@ -85,6 +85,15 @@ export function Layout({ children }: LayoutProps) {
 					>
 						{t("layoutFooterSource")}
 					</a>
+					{" · "}
+					<a
+						className="page-footer__source"
+						href="https://open-source.gainratio.com/"
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						{t("layoutFooterHub")}
+					</a>
 				</small>
 			</footer>
 		</div>
