@@ -1,14 +1,26 @@
 # AML-Filter
 
-> AML-Filter is a zero-server, open-source tool for screening names against signed sanctions data in a web browser.
+> AML-Filter is a zero-server, open-source tool for screening names against signed public sanctions lists entirely in a web browser.
 
-AML-Filter runs its screening and local review workflow in the browser. It has no account system or application backend. It is not legal advice and not a compliance product; do not use it to satisfy legal or regulatory obligations.
+AML-Filter executes matching and local KYC case review inside the browser tab via WebAssembly and OPFS SQLite. Zero typed names or customer records leave the device (`connect-src 'self'`). It is MIT-licensed open-source software, not legal advice and not a compliance product; do not use it to satisfy legal or regulatory obligations.
 
-Source repository: open source under the MIT license at https://github.com/gainratio/aml-filter. Anyone can clone it and run the whole app locally with no backend.
+## Canonical URLs
 
-## Primary links
+- [AML-Filter](https://aml-filter.com/): Product overview, live list counts, and architecture.
+- [Screen a name](https://aml-filter.com/screen): Interactive zero-upload sanctions screener (US OFAC SDN, EU, UN, UK OFSI).
+- [OFAC SDN Check](https://aml-filter.com/ofac-check/): Free in-browser U.S. Treasury OFAC SDN screening guide.
+- [Sanctions Screening](https://aml-filter.com/sanctions-screening/): Local-first KYC screening workflow for small businesses.
+- [Screening Without Uploading Data](https://aml-filter.com/sanctions-screening-without-uploading-data/): Zero-egress privacy architecture and GDPR data-minimisation notes.
+- [EU, UN & UK Sanctions Lists](https://aml-filter.com/eu-sanctions-list/): Consolidated list coverage across OFAC SDN, EU, UN Security Council, and UK OFSI.
+- [Trust & Verification](https://aml-filter.com/trust/): Cryptographic bundle verification, live version inspection, and key-rotation history.
 
-- [AML-Filter](https://aml-filter.com/): Product overview and scope.
-- [Screen a name](https://aml-filter.com/screen): Interactive in-browser sanctions screening.
-- [Source code](https://github.com/gainratio/aml-filter): MIT-licensed repository, including the quickstart.
-- [Sitemap](https://aml-filter.com/sitemap.xml): Canonical public pages.
+## Data Freshness & Cryptographic Verification
+
+- Signed pointer: `https://aml-filter.com/bundle/origin/latest` publishes `manifest_hash`, watchlist `version`, monotonic anti-rollback `sequence`, and Ed25519 `signature`.
+- Trust root: 32-byte Ed25519 key pinned same-origin at `https://aml-filter.com/public.key` (matches `frontend/app/public/public.key` in Git).
+- Fail-closed integrity: every manifest and Gear-CDC chunk is SHA-256 content-addressed; bad signatures, altered chunks, or rollback attempts are rejected before SQLite opens.
+
+## Source & GainRatio Ecosystem
+
+- [Source code](https://github.com/gainratio/aml-filter): MIT-licensed repository and reproducible local quickstart.
+- [AML-Filter Project Page](https://open-source.gainratio.com/aml-filter/) | [GainRatio Open Source Hub](https://open-source.gainratio.com/) | [Sitemap](https://aml-filter.com/sitemap.xml)

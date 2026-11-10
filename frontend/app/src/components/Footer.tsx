@@ -33,6 +33,12 @@ export function Footer() {
 				<a className="screen-footer__link" href="/trust/">
 					Trust and verification
 				</a>
+				<a
+					className="screen-footer__link"
+					href="https://open-source.gainratio.com/"
+				>
+					{t("demoFooter.openSourceHub")}
+				</a>
 			</nav>
 		</footer>
 	);

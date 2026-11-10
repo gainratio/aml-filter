@@ -42,18 +42,31 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
+        "@type": "SoftwareApplication",
         "name": "AML-Filter",
         "url": "https://aml-filter.com/",
         "description": "A zero-server, in-browser sanctions screening tool with signed watchlist data and local-first review tools.",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Any modern browser",
         "browserRequirements": "JavaScript and WebAssembly support",
-		"isAccessibleForFree": true,
+        "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
           "price": "0",
           "priceCurrency": "USD"
+        },
+        "license": "https://opensource.org/licenses/MIT",
+        "codeRepository": "https://github.com/gainratio/aml-filter",
+        "keywords": "OFAC SDN check, free sanctions screening, EU consolidated sanctions list, UN Security Council sanctions, UK OFSI sanctions, browser-based KYC screening, zero-egress AML screening, SQLite WASM compliance",
+        "author": {
+          "@type": "Organization",
+          "name": "GainRatio",
+          "url": "https://open-source.gainratio.com/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "GainRatio",
+          "url": "https://open-source.gainratio.com/"
         }
       }
     </script>
@@ -81,6 +94,7 @@
 		  <a href="/sanctions-screening-without-uploading-data/">No-upload screening</a>
 		  <a href="/eu-sanctions-list/">Sanctions lists</a>
 		  <a href="/trust/">Trust and verification</a>
+		  <a href="https://open-source.gainratio.com/">GainRatio Open Source</a>
 		</nav>
         <p>
           AML-Filter is open-source software, not legal advice and not a

@@ -12,6 +12,7 @@
 		"notice": "Low-memory mode for {{lists}}: this browser could not use persistent storage for the search index of these lists, so it is held in memory. Screening still works; close other tabs if the page slows down."
 	},
 	"layoutFooterSource": "Source code on GitHub (MIT)",
+	"layoutFooterHub": "GainRatio Open Source",
 	"route": {
 		"loading": "Loading…"
 	},
@@ -92,7 +93,8 @@
 	},
 	"demoFooter": {
 		"line1": "AML-Filter searches public sanctions data entirely in this browser tab. No name you type ever leaves your device.",
-		"line2": "Data attribution: U.S. Treasury OFAC Specially Designated Nationals (SDN), plus the signed public lists named in the app. Not legal or compliance advice."
+		"line2": "Data attribution: U.S. Treasury OFAC Specially Designated Nationals (SDN), plus the signed public lists named in the app. Not legal or compliance advice.",
+		"openSourceHub": "GainRatio Open Source"
 	},
 	"workstation": {
 		"booting": "Opening the local KYC database…",
