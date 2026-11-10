@@ -498,20 +498,45 @@ describe("a change notice that lands while a load is failing", () => {
 	it("keeps the newer load instead of clearing it", async () => {
 		const sql = await memoryInstallKeySql();
 		let deliver: (() => void) | undefined;
-		const keys = keysOver(sql, null, {
-			postMessage: () => undefined,
-			addEventListener: (_type, listener) => {
-				deliver = listener;
+		let notifyInTransaction: (() => void) | undefined;
+		const inTransaction = new Promise<void>((resolve) => {
+			notifyInTransaction = resolve;
+		});
+		let releaseFailure: (() => void) | undefined;
+		const allowFailure = new Promise<void>((resolve) => {
+			releaseFailure = resolve;
+		});
+		let firstSession = true;
+		const keys = new InstallKeys({
+			openSql: async () => {
+				const conn = await sql.open();
+				if (!firstSession) return conn;
+				firstSession = false;
+				return {
+					...conn,
+					transaction: async () => {
+						notifyInTransaction?.();
+						await allowFailure;
+						throw new Error("simulated crash mid-transaction");
+					},
+				};
+			},
+			legacy: null,
+			channel: {
+				postMessage: () => undefined,
+				addEventListener: (_type, listener) => {
+					deliver = listener;
+				},
 			},
 		});
-		sql.faults.failTransactionAt = 0;
 		const failing = keys.load();
-		// Let the failing load enter its transaction before the change notice
-		// clears the cache. Without this, the notice can consume the injected
-		// fault and the test loses the race it is trying to pin.
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		// Deterministically suspend session #1 inside its transaction before
+		// delivering the cross-tab change notice and starting session #2, then
+		// release session #1's failure while `this.cached` holds `newer`.
+		await inTransaction;
 		deliver?.();
 		const newer = keys.load();
+		releaseFailure?.();
 
 		await expect(failing).rejects.toThrow(/simulated crash/);
 

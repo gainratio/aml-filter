@@ -30,6 +30,7 @@ const HOW_IT_WORKS = "## How it works";
 const LISTS = "## Which lists, and how fresh";
 const LIMITS = "## What it does not do";
 const RUN_IT = "## Run it yourself";
+const UNDER_THE_HOOD = "## Under the hood (for developers)";
 const DEVELOP = "## Develop";
 const MORE_DETAIL = "## More detail";
 const SECTION_ORDER = [
@@ -38,6 +39,7 @@ const SECTION_ORDER = [
 	LISTS,
 	LIMITS,
 	RUN_IT,
+	UNDER_THE_HOOD,
 	DEVELOP,
 	MORE_DETAIL,
 ];

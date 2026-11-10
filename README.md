@@ -126,6 +126,12 @@ it works on a fresh clone. Type `fakovic` and it finds "Ivan Fakovich". For the 
 lists, use [aml-filter.com](https://aml-filter.com). To host your own copy with real
 lists, see [Deploy](docs/DEPLOY.md).
 
+## Under the hood (for developers)
+
+- **Signed content-addressed watchlist bundles (`frontend/packages/amlfilter-publisher` + `@gainratio/browser`).** Daily builds normalize the US OFAC SDN, EU, UN, and UK FCDO lists into SQLite tables, split them into zstd-compressed SHA-256 chunks, and sign the manifest with Ed25519 before publishing static files to Cloudflare Pages.
+- **Three-signal hybrid matching in a Web Worker (`frontend/packages/amlfilter-browser`).** Screening runs inside SQLite WASM backed by OPFS (Origin Private File System, the browser's private on-disk storage), combining 384-d MiniLM-L6-v2 semantic cosine similarity (`onnxruntime-web`), SQLite FTS5 token/trigram matching, and phonetic double-metaphone matching, then combining those signals with `@gainratio/assay` so every candidate carries its exact score breakdown.
+- **Browser-local customer & review database (`frontend/packages/amlfilter-workstation`).** Onboarded customers, screening runs, and review decisions stay in a local SQLite database inside your browser, signed with an origin-locked Ed25519 install key (`@gainratio/avow`) with zero customer-name network requests.
+
 ## Develop
 
 New to the code? Start with [Getting started for developers](docs/GETTING_STARTED.md).
