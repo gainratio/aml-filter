@@ -15,6 +15,10 @@ UN and UK sanctions lists, looks for names that are spelled or sound similar, an
 why each result came up. It runs entirely in your browser. The names you type and your
 customer list stay on your computer.
 
+![Live walkthrough of AML-Filter in the browser: searching four sanctions lists, opening the signed score proof, onboarding a customer, and reviewing matches](docs/assets/live-demo.gif)
+
+**[Watch the 1080p walkthrough](https://open-source.gainratio.com/aml-filter/)** · **[Open the screener](https://aml-filter.com/screen)**
+
 **Technical docs:** [Getting started for developers](docs/GETTING_STARTED.md) · [Architecture](docs/ARCHITECTURE.md) · [How matching works](docs/ARCHITECTURE.md#retrieval-and-scoring-in-one-paragraph) · [Watchlist format](docs/WATCHLIST_FORMAT.md) · [Deploy](docs/DEPLOY.md)
 
 ## Try it
