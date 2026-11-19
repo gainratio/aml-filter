@@ -113,8 +113,8 @@ importers:
         specifier: ^0.5.3
         version: 0.5.3
       '@gainratio/browser':
-        specifier: ^0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@huggingface/transformers':
         specifier: ^4.3.0
         version: 4.3.0(@types/node@26.6.4)
@@ -156,8 +156,8 @@ importers:
         specifier: workspace:*
         version: link:../amlfilter-browser
       '@gainratio/browser':
-        specifier: ^0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@huggingface/transformers':
         specifier: ^4.3.0
         version: 4.3.0(@types/node@26.6.4)
@@ -250,6 +250,10 @@ packages:
 
   '@babel/runtime@7.29.10':
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.29.14':
+    resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
     engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.29.7':
@@ -584,8 +588,8 @@ packages:
     resolution: {integrity: sha512-EeIvZ2xkXDiLpJRhVyODbTNscURy0Xqnzxucbkn9UfZSUIuSqwDfG/EvfSl0AcOLnJQ8PNMM2s2Oq41ACC8uqQ==}
     engines: {node: '>=22.13'}
 
-  '@gainratio/browser@0.4.5':
-    resolution: {integrity: sha512-TpqJt4DRHb5IaKydvusdzZPCf9mxE7edR9AwkiFyLENBV/AjfdZiQ0O6zh5VrdE8AaeUZBj2uyoCRo015FQyHw==}
+  '@gainratio/browser@0.4.6':
+    resolution: {integrity: sha512-xHly9dKLnpFjP9WUzJfdkqLStGl3BZjBlwEdifGEc3m2hXnv5YFMnfrTT3vJBJQmfNeQH2MUgpJhJzxE2b0X5Q==}
     engines: {node: '>=22.13'}
 
   '@gainratio/errors@0.4.0':
@@ -1940,6 +1944,8 @@ snapshots:
 
   '@babel/runtime@7.29.10': {}
 
+  '@babel/runtime@7.29.14': {}
+
   '@babel/runtime@7.29.7': {}
 
   '@babel/types@7.29.8':
@@ -2133,7 +2139,7 @@ snapshots:
       '@noble/ed25519': 3.2.0
       canonicalize: 3.0.0
 
-  '@gainratio/browser@0.4.5':
+  '@gainratio/browser@0.4.6':
     dependencies:
       '@hpcc-js/wasm-zstd': 1.16.2
       '@noble/ed25519': 3.2.0
@@ -2401,7 +2407,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.10
+      '@babel/runtime': 7.29.14
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
